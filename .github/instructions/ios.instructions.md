@@ -1,23 +1,25 @@
+---
+description: "NightScope iOS ターゲット（NightScopeiOS/）開発時に適用されるガイドライン。iOS 26 / iPhone専用 / Liquid Glass / NavigationStack / タブバー / presentationDetents / ハプティクス / サイズクラス / 画面サイズ対応に関する指示を含む。Use when: writing iOS SwiftUI code, iPhone views, iOS navigation, tab bar, sheets, haptics, size classes."
+applyTo: "NightScopeiOS/**"
+---
+
 # プロジェクトガイドライン（iOS / iPadOS アプリ開発用）
-
-## 前提
-
-- **回答は必ず日本語で行うこと。**
-- コードの変更をする際、変更量が200行を超える可能性が高い場合は、事前に「この指示では変更量が200行を超える可能性がありますが、実行しますか？」とユーザーに確認をとること。
-- 何か大きい変更を加える場合、まず何をするのか計画を立てた上で、ユーザーに「このような計画で進めようと思います。」と提案すること。
-- 各セクションに **【iPhone のみ】**・**【iPad のみ】**・**【ユニバーサルのみ】** のタグが付いた指示は、「対応デバイス」の設定に応じて以下のとおり扱うこと。
-  - **「iPhone のみ」** の場合: 【iPad のみ】【ユニバーサルのみ】タグの指示は無視する
-  - **「iPad のみ」** の場合: 【iPhone のみ】【ユニバーサルのみ】タグの指示は無視する
-  - **「ユニバーサル」** の場合: タグに関わらずすべての指示を適用する
 
 ## プロジェクト概要
 
 - **プロジェクト名**: NightScope
-- **概要**: 星空観察支援 macOS アプリ。Open-Meteo API による天気予報・lightpollutionmap.info API による光害情報・天文計算エンジンを組み合わせて星空指数（0〜100）を算出し、月相・観測可能ウィンドウ・2週間予報を表示する。
+- **概要**: 星空観察支援 iOS アプリ。Open-Meteo API による天気予報・lightpollutionmap.info API による光害情報・天文計算エンジンを組み合わせて星空指数（0〜100）を算出し、月相・観測可能ウィンドウ・2週間予報を表示する。
 - **対象プラットフォーム**: iOS 26.0+
 - **対応デバイス**: iPhone のみ
 - **最低 Deployment Target**: iOS 26.0
 - **リポジトリ構成**: シングルレポ
+
+## 前提（iOS 固有）
+
+- 各セクションに **【iPhone のみ】**・**【iPad のみ】**・**【ユニバーサルのみ】** のタグが付いた指示は、「対応デバイス」の設定に応じて以下のとおり扱うこと。
+  - **「iPhone のみ」** の場合: 【iPad のみ】【ユニバーサルのみ】タグの指示は無視する
+  - **「iPad のみ」** の場合: 【iPhone のみ】【ユニバーサルのみ】タグの指示は無視する
+  - **「ユニバーサル」** の場合: タグに関わらずすべての指示を適用する
 
 ## 技術スタック
 
@@ -27,7 +29,6 @@
 |---------|-------------|-----------|------|
 | 言語 | Swift | 6 | |
 | IDE | Xcode | 26 | |
-| プロジェクト管理 | XcodeGen | 最新 | project.yml で管理 |
 | パッケージマネージャ | Swift Package Manager | | |
 | UI フレームワーク | SwiftUI | iOS 26 SDK | UIKit との混在は最小限に |
 | UI フレームワーク（補助） | UIKit | | SwiftUI で対応不可な場合のみ |
@@ -35,7 +36,6 @@
 | テスト | XCTest / Swift Testing | | 両フレームワーク併用可 |
 | リンター / フォーマッター | SwiftLint | 最新 | .swiftlint.yml で設定 |
 | アイコン作成 | Icon Composer | Xcode 26 内蔵 | レイヤー構造のアイコンを作成 |
-| CI/CD | {例: GitHub Actions} | | |
 
 ### 今後追加予定
 
@@ -308,65 +308,11 @@ iOS と iPadOS ではタブバーの挙動・配置が異なる。以下の違�
   - Tinted
 - 要素はアイコン中央に配置し、iOS の角丸クリッピングを考慮する（重要な要素が端に寄らないようにする）。
 
-## Apple HIG 準拠ルール
-
-- **SF Symbols を優先使用する。** テキストラベルよりもアイコンを活用し、インターフェースをクリーンに保つ。タブバー・ツールバーでは filled バリアントを使用する。
-- **システムカラー・アクセントカラーを使用する。** ハードコードされた色の代わりに `Color.accentColor` や `ShapeStyle` のセマンティックカラーを使用する。
-- **ライト / ダークモードの両対応を必須とする。** カスタムカラーは Light・Dark・増加コントラスト（Increased Contrast）の各バリアントを定義する。
-- **コントロールを密集・重複させない。** Liquid Glass 要素をレイヤーとして重ねない。
-- **標準スペーシングメトリクスを使用する。** システムのデフォルトスペーシングを上書きしない。
-- **VoiceOver / Voice Control 対応を行う。** すべてのカスタム UI に適切な `accessibilityLabel` / `accessibilityHint` を設定する。
-- **Dynamic Type に対応する。** フォントには必ずシステムフォント（`.body`・`.headline` 等）または `Font.custom(_:size:relativeTo:)` を使用し、固定サイズのフォントを避ける。
-- **Safe Area を尊重する。** ノッチ・Dynamic Island・ホームインジケーターの領域にインタラクティブな要素を配置しない。
-
-## UI レイアウト・ビジュアルデザイン原則
-
-美しい UI 配置を実現するため、以下の原則を遵守すること。
+## iOS 固有 UI レイアウト原則
 
 ---
 
-### 1. タイポグラフィ
-
-- **Dynamic Type スケールを必ず使用する。** フォントには `.largeTitle`・`.title`・`.headline`・`.body`・`.callout`・`.subheadline`・`.footnote`・`.caption` 等のシステムスタイルを使用する。
-- カスタムフォントを使用する場合は `Font.custom(_:size:relativeTo:)` で Dynamic Type に追従させる。
-- **視覚的階層** を意識し、重要な情報ほど大きく・太くする。同一画面内でフォントウェイトは 2〜3 種類に絞る。
-- テキストの行間・字間はシステムデフォルトを尊重し、`tracking` / `lineSpacing` の独自設定は最小限にとどめる。
-
-  ```swift
-  // ✅ Good
-  Text("タイトル")
-      .font(.title2)
-      .fontWeight(.semibold)
-  Text("説明文")
-      .font(.body)
-      .foregroundStyle(.secondary)
-  ```
-
----
-
-### 2. スペーシング・グリッド原則
-
-- **8pt グリッド** をスペーシングの基準とする。余白・パディングには `8, 16, 24, 32` の倍数を使用する。
-- マジックナンバーの直書きを禁止する。スペーシング定数を定義して使用する。
-
-  ```swift
-  // ✅ Good
-  enum Spacing {
-      static let xs: CGFloat = 8
-      static let sm: CGFloat = 16
-      static let md: CGFloat = 24
-      static let lg: CGFloat = 32
-  }
-
-  VStack(spacing: Spacing.sm) { ... }
-      .padding(.horizontal, Spacing.sm)
-  ```
-
-- 近い要素は近く、異なるグループは広い余白で区切る。余白でコンテンツの論理的なグループを視覚的に伝えること。
-
----
-
-### 3. コンテンツファーストレイアウト
+### コンテンツファーストレイアウト
 
 - Liquid Glass の思想は「コンテンツをナビゲーション要素の背後から透かして見せる」こと。コンテンツをフルブリードで配置し、ナビゲーション要素が浮かぶ構造を意識する。
 - ヒーローイメージなど没入感を高めたいコンテンツには **`ignoresSafeArea(.container, edges: .top)`** を適用する。
@@ -384,41 +330,7 @@ iOS と iPadOS ではタブバーの挙動・配置が異なる。以下の違�
 
 ---
 
-### 4. アニメーション・トランジション
-
-- **`.animation(.spring(duration: 0.3), value:)`** を基本アニメーションとして使用する。線形アニメーション（`.linear`）は特別な理由がない限り使用しない。
-- 画面遷移・要素の出現には **`matchedGeometryEffect`** を活用し、要素が「変容する」ヒーロートランジションを実現する。
-
-  ```swift
-  // ✅ Good — カードから詳細画面へのヒーロートランジション
-  .matchedGeometryEffect(id: item.id, in: namespace)
-  ```
-
-- Liquid Glass のモーフィングには **`glassEffectID(_:in:) + withAnimation`** を組み合わせる。
-- `Reduce Motion` 設定に対応し、アニメーションを簡略化できる分岐を入れる。
-
-  ```swift
-  @Environment(\.accessibilityReduceMotion) var reduceMotion
-
-  .animation(reduceMotion ? .none : .spring(duration: 0.3), value: isExpanded)
-  ```
-
----
-
-### 5. カラー設計
-
-- **セマンティックカラーを階層的に使い分ける。**
-  - 最重要テキスト・アイコン: `.primary`
-  - 補助テキスト・アイコン: `.secondary`
-  - より補助的な情報: `.tertiary`
-  - 無効状態: `.quaternary`
-- アクセントカラーは `Color.accentColor` を使用し、ハードコードした RGB 値を避ける。
-- **Liquid Glass の背後のコンテンツと視認性を確保する。** Liquid Glass 上にテキストを重ねる場合は `.shadow(radius:)` や `.foregroundStyle(.primary)` で読みやすさを保証する。
-- カスタムカラーは必ず Assets.xcassets に Light / Dark / Increased Contrast の 3 バリアントを定義する。
-
----
-
-### 6. サイズクラス対応（iPhone / iPad）
+### サイズクラス対応（iPhone / iPad）
 
 - `@Environment(\.horizontalSizeClass)` でレイアウト幅クラスを判定する。Apple 公式仕様に基づく対応表：
   - **Compact 幅**: iPhone（縦横とも）、iPad 縦向きの狭いウィンドウ
@@ -461,7 +373,7 @@ iOS と iPadOS ではタブバーの挙動・配置が異なる。以下の違�
 
 ---
 
-### 7. ハプティクス
+### ハプティクス
 
 - SwiftUI の **`.sensoryFeedback(_:trigger:)`** モディファイアを使用する。`UIImpactFeedbackGenerator` は SwiftUI で対応不可な場合のみ許可する。
 
@@ -483,53 +395,8 @@ iOS と iPadOS ではタブバーの挙動・配置が異なる。以下の違�
 
 ---
 
-### 8. 空状態・エラー状態のデザイン
+### アダプティブレイアウト（iOS）
 
-- コンテンツが 0 件・オフライン・エラーの状態には **`ContentUnavailableView`** を使用する。独自の「空っぽ画面」を作らない。
-
-  ```swift
-  // ✅ Good
-  if items.isEmpty {
-      ContentUnavailableView(
-          "アイテムがありません",
-          systemImage: "tray",
-          description: Text("新しいアイテムを追加してください。")
-      )
-  }
-
-  // 検索結果が 0 件の場合
-  ContentUnavailableView.search(text: searchText)
-  ```
-
----
-
-### 9. ローディング / スケルトン UI
-
-- データ取得中の中間状態には **`.redacted(reason: .placeholder)`** でスケルトン表示を実現する。`ProgressView()` の全画面表示は避ける。
-
-  ```swift
-  // ✅ Good — データ取得中はプレースホルダーを表示
-  ItemRowView(item: placeholderItem)
-      .redacted(reason: isLoading ? .placeholder : [])
-  ```
-
-- `List` 全体のローディングには `List` + `.redacted` を組み合わせ、レイアウトシフトを防ぐ。
-
----
-
-### 10. アダプティブレイアウト
-
-- コンテナに収まらない場合の代替レイアウトには **`ViewThatFits`** を使用する。
-
-  ```swift
-  // ✅ Good — 横幅が足りない場合は縦並びに自動切り替え
-  ViewThatFits {
-      HStack { LabelView(); ValueView() }
-      VStack { LabelView(); ValueView() }
-  }
-  ```
-
-- 固定幅 `frame(width: 200)` を避け、`.frame(maxWidth: .infinity)` や `.fixedSize()` を優先する。
 - **`containerRelativeFrame`** で比率ベースのサイズ指定を行い、iPhone の機種差（幅 375〜440 pt）を吸収する。
 
   ```swift
@@ -540,11 +407,9 @@ iOS と iPadOS ではタブバーの挙動・配置が異なる。以下の違�
       }
   ```
 
-- `GeometryReader` の過剰使用を避ける。`Layout` プロトコルや `ViewThatFits` で代替できる場合はそちらを使用する。
-
 ---
 
-### 11. キーボード・フォーカス管理
+### キーボード・フォーカス管理
 
 - **`@FocusState`** でキーボードフォーカスを明示的に管理する（iPhone・iPad 共通）。
 
@@ -565,7 +430,9 @@ iOS と iPadOS ではタブバーの挙動・配置が異なる。以下の違�
       .keyboardShortcut("s", modifiers: .command)
   ```
 
-### 12. iPhone 画面サイズ対応テスト【iPhone のみ / ユニバーサル】
+---
+
+### iPhone 画面サイズ対応テスト【iPhone のみ / ユニバーサル】
 
 Apple 公式 HIG は「最大・最小レイアウトを先にテストせよ」と明言している。以下の機種でレイアウトを必ず確認すること。
 
@@ -578,9 +445,3 @@ Apple 公式 HIG は「最大・最小レイアウトを先にテストせよ」
 - ボタン・コントロールが Safe Area に収まっていることを確認する。
 - Dynamic Type の最大サイズ（Accessibility XL 相当）でコンテンツが崩れないことを確認する。
 - 横向き（Landscape）でのレイアウトが `verticalSizeClass` に基づき正しく切り替わることを確認する。
-
----
-
-## コーディング規約
-
-Swift のコーディング規約については `skills/swift-coding-standards/SKILL.md` を参照すること。
