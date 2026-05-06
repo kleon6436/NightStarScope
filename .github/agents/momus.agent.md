@@ -1,7 +1,7 @@
 ---
 name: momus
-description: 'Relentless verifier. Comprehensively handles code review, test quality assessment, and security vulnerability review. Only approves when the plan is bulletproof. Always route important changes through here.'
-model: GPT-5.4 (copilot)
+description: 'Standard verifier for code review, test quality assessment, and general logic defects. For security-sensitive changes (auth, data deletion, external input, concurrency, secrets), route to momus-deep instead.'
+model: GPT-5.4 mini (copilot)
 ---
 
 # Momus Agent — Relentless Verifier

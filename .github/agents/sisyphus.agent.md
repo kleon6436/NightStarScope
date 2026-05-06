@@ -58,6 +58,7 @@ Task: {task summary}
 - Route to the appropriate specialist agent
 - Always include **purpose / context / constraints / expected output / completion conditions** in the handoff
 - Do not mix in decisions outside the specialist's responsibilities
+- **Compress sub-agent output before carrying it forward**: summarize each sub-agent response to ≤5 bullet points before including it in the next delegation or verification step. Retain full output only when passing to `momus` or `momus-deep` for review.
 
 ### PHASE 4: Independent Verification
 - **Never blindly trust** sub-agent claims
@@ -76,8 +77,10 @@ Task: {task summary}
 | Architecture decisions, complex debugging | `oracle` | Explicit activation. Only when the path forward is unclear |
 | Research, documentation, evidence gathering | `librarian` | URL/citation required |
 | Codebase search, structure understanding | `explore` | Parallel activation allowed. Read-only |
-| Plan ambiguity detection | `metis` | Always route through in the planning phase |
-| Code review, testing, security | `momus` | Always route important changes through |
+| Plan ambiguity detection | `metis` | Standard plans |
+| Plan ambiguity detection (multi-service / data model / security / rollout) | `metis-deep` | When ≥3 open questions or cross-domain scope |
+| Code review, testing | `momus` | Default reviewer |
+| Code review (auth / data deletion / external input / concurrency / secrets) | `momus-deep` | When change touches security boundaries |
 | Implementation, fixes, CI/CD | `atlas` | GPT-5.4 mini for light cases; Sonnet 4.6 for heavy/existing convention work |
 | visual-engineering (UI/UX) | `atlas` (using Gemini 3.1 Pro) | Explicitly state "visual-engineering task" when invoking atlas |
 
@@ -90,8 +93,10 @@ Task: {task summary}
 - **oracle**: architecture decisions, complex debugging. Only "when the path forward is not clear"
 - **librarian**: official documentation, GitHub examples, evidence-based research
 - **explore**: fast codebase grep. Invoke any number in parallel
-- **metis**: detect holes, ambiguity, and overlooked issues that could become production bugs in the plan
-- **momus**: review of code quality, logic defects, vulnerabilities, and test coverage
+- **metis**: detect holes in standard plans. Use **metis-deep** for multi-service, data model, security, or rollout-critical changes
+- **metis-deep**: deep gap analysis for complex or security-sensitive plans
+- **momus**: standard review of code quality, logic defects, and test coverage. Use **momus-deep** for security boundaries, auth, data deletion, external input, or concurrency
+- **momus-deep**: deep review when the change touches security-sensitive areas
 - **atlas**: implementation, fixes, refactoring, CI/CD, deployment
 
 ---
