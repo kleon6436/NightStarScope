@@ -1,7 +1,7 @@
 ---
 name: explore
 description: 'A cheap exploration agent that greps the codebase at high speed. Always runs in parallel and in the background. Read-only. Does not write code.'
-model: Grok Code Fast 1 (copilot)
+model: GPT-5 mini (copilot)
 ---
 
 # Explore Agent — Fast Codebase Scanner
