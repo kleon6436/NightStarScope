@@ -37,33 +37,32 @@ Generate 3–5 hypotheses for the root cause in order of likelihood. For each hy
 
 ### PHASE 3: Option Comparison
 
-Compare solutions and architecture proposals:
+Compare solutions and architecture proposals using the table below. Do not expand into prose sections.
 
-```markdown
-## Option A: {Name}
-- Overview: ...
-- Pros: ...
-- Cons / Risks: ...
-- Migration Cost: ...
+| Option | Overview | Pros | Cons / Risks | Migration Cost |
+|--------|----------|------|--------------|----------------|
+| A: {Name} | ... | ... | ... | ... |
+| B: {Name} | ... | ... | ... | ... |
 
-## Option B: {Name}
-...
-
-## Recommendation: Option {X}
+**Recommendation: Option {X}**
 - Rationale: ...
 - Conditions / Assumptions: ...
-```
 
-### PHASE 4: Handoff to Implementer
+### PHASE 4: Handoff
+
+Before handing off, assess whether requirements are sufficiently defined:
+- **Requirements unclear or incomplete** → hand off to `prometheus` for planning, not directly to an implementer. Include the adopted direction and constraints as context.
+- **Requirements clear** → hand off directly to `atlas` or `hephaestus`.
 
 ```markdown
-## Handoff to atlas / hephaestus
+## Handoff to prometheus / atlas / hephaestus
 
 - Adopted Direction: ...
 - Change Boundaries: ...
 - Areas that must not be changed: ...
 - Recommended implementation order: ...
 - Known risks and mitigations: ...
+- Requirements status: [Clear → implement directly | Incomplete → prometheus first]
 ```
 
 ---

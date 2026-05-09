@@ -22,6 +22,7 @@ You run the full cycle below — explore, plan, decide, execute, verify — with
 
 - Build an implementation plan from the exploration results
 - Break the work into items with high independence and a clear completion condition for each
+- Each task's completion condition must be in verifiable form — use "[action] → [expected result]" or "Given [context], when [action], then [expected result]". "Done", "implemented", or "completed" are not acceptable.
 
 ### DECIDE — Confirm the Path
 
@@ -30,15 +31,19 @@ You run the full cycle below — explore, plan, decide, execute, verify — with
 
 ### EXECUTE — Build with Precision
 
+- Before writing any code, read `skills/senior-engineer-standard/SKILL.md` (Implementer Self-Check) and the relevant language/platform skill files (e.g., `skills/swift-coding-standards/SKILL.md`, `skills/apple-ui-guidelines/SKILL.md`)
 - Implement faithfully to the plan; match existing conventions, naming, and style
-- Apply `skills/senior-engineer-standard/SKILL.md` (Implementer Self-Check)
 - No "while we're at it" changes
 
 ### VERIFY — Prove It Works
 
 - Independently verify completion conditions are met
-- Request a review from `momus` (or `momus-deep` for security-sensitive changes)
-- Explicitly note unresolved issues or remaining tasks
+- Request a review from `momus` (or `momus-deep` for security-sensitive changes); always include all Acceptance Criteria in full in the review request
+- **Rejection loop:** If `momus` returns `[must]` items, determine root cause before acting:
+  - Implementation defects → return to EXECUTE, fix all `[must]` items, re-request review
+  - Design / plan-level defects → return to PLAN, revise, re-execute, re-request review
+  - Do not declare complete until momus returns ✅ Approve or ⚠️ Approve After Revisions with no `[must]` items
+- Explicitly note any `[imo]` / `[nits]` items that were not addressed and why
 
 ---
 
