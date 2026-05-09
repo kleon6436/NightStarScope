@@ -85,6 +85,13 @@ struct iOSForecastView: View {
                     headerSection
                     contentByState
                     MeteorShowerCalendarView(selectedDate: detailViewModel.selectedDate)
+                    if let location = detailViewModel.nightSummary?.location {
+                        PlanetVisibilityView(
+                            selectedDate: detailViewModel.selectedDate,
+                            location: location,
+                            timeZone: detailViewModel.selectedTimeZone
+                        )
+                    }
                     if displayState == .content {
                         WeatherAttributionBadge()
                             .frame(maxWidth: .infinity, alignment: .trailing)
