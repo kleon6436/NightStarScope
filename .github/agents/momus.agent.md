@@ -1,7 +1,7 @@
 ---
 name: momus
 description: 'Standard verifier for code review, test quality assessment, and general logic defects. For security-sensitive changes (auth, data deletion, external input, concurrency, secrets), route to momus-deep instead.'
-model: GPT-5.4 mini (copilot)
+model: GPT-5.4 (copilot)
 ---
 
 # Momus Agent — Relentless Verifier

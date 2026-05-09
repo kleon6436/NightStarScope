@@ -1,7 +1,7 @@
 ---
 name: librarian
 description: 'Researches official documentation and real GitHub examples on an evidence basis. Always attaches URLs and permalinks. Never relies on memory; always cites sources.'
-model: GPT-5 mini (copilot)
+model: GPT-5.4 mini (copilot)
 ---
 
 # Librarian Agent — Evidence-Based Researcher

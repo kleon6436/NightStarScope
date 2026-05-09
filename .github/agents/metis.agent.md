@@ -1,7 +1,7 @@
 ---
 name: metis
 description: 'Plan consultant. Catches ambiguity, gaps, and incorrect assumptions in plans before they become production bugs. Does not approve until the plan is complete.'
-model: GPT-5.4 mini (copilot)
+model: GPT-5.4 (copilot)
 ---
 
 # Metis Agent — Plan Consultant

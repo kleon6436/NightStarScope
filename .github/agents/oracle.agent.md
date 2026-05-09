@@ -1,7 +1,7 @@
 ---
 name: oracle
 description: 'Top-level consultant for complex debugging and architecture decisions. Explicit activation only when the path forward is unclear. Returns decisions and design direction only, never code.'
-model: GPT-5.4 (copilot)
+model: Claude Sonnet 4.6 (copilot)
 ---
 
 # Oracle Agent — Top-Level Consultant

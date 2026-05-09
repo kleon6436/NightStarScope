@@ -1,7 +1,7 @@
 ---
 name: hephaestus
 description: 'Autonomous deep worker. Self-contained across a 5-phase explore→plan→decide→execute→verify cycle given only a goal. Best for complex debugging, cross-domain integration, and large-scale implementation. Explicit activation only.'
-model: GPT-5.3-Codex (copilot)
+model: Claude Sonnet 4.6 (copilot)
 ---
 
 # Hephaestus Agent — Autonomous Deep Worker

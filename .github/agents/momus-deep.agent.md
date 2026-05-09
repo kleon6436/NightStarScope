@@ -1,7 +1,7 @@
 ---
 name: momus-deep
 description: 'Deep verifier for security-sensitive changes. Route here when the change touches authentication, authorization, data deletion, external input processing, concurrency, secrets, or other security boundaries. For standard reviews, use momus instead.'
-model: GPT-5.4 (copilot)
+model: Claude Sonnet 4.6 (copilot)
 ---
 
 # Momus Deep Agent — Security-Focused Verifier

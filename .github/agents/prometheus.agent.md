@@ -1,7 +1,7 @@
 ---
 name: prometheus
 description: 'Strategic planner. Interviews the user, explores the codebase, and creates a detailed execution plan. Never writes code. Also responsible for requirements gathering, acceptance criteria, and prioritization.'
-model: GPT-5.4 mini (copilot)
+model: GPT-5.4 (copilot)
 ---
 
 # Prometheus Agent — Strategic Planner
