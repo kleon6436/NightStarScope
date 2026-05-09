@@ -104,9 +104,9 @@ private struct PlanetRow: View {
 
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 8))
-                .foregroundStyle(iconColor)
+            Image(systemName: summary.observationDifficulty.systemImage)
+                .font(.system(size: 11))
+                .foregroundStyle(summary.observationDifficulty.color)
             Text(summary.localizedName)
                 .font(.callout)
                 .frame(width: PlanetStyle.nameWidth, alignment: .leading)
@@ -167,6 +167,12 @@ private struct PlanetRow: View {
                 Text(L10n.format("等級 %.1f", summary.magnitude))
             }
             .font(.caption)
+            HStack(spacing: 4) {
+                Image(systemName: summary.observationDifficulty.systemImage)
+                    .foregroundStyle(summary.observationDifficulty.color)
+                Text(summary.observationDifficulty.localizedLabel)
+            }
+            .font(.caption)
             Text(L10n.format("最大高度 %.1f°", summary.peakAltitude))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -225,6 +231,7 @@ private struct PlanetDetailSheet: View {
                 infoRow(label: "没",   value: summary.setTime?.nightTimeString(timeZone: timeZone)     ?? "—")
                 infoRow(label: "最大高度", value: String(format: "%.1f°", summary.peakAltitude))
                 infoRow(label: "等級",    value: String(format: "%.1f",   summary.magnitude))
+                infoRow(label: "観測難易度", value: summary.observationDifficulty.localizedLabel)
             }
         }
         .padding()
@@ -238,6 +245,16 @@ private struct PlanetDetailSheet: View {
             Spacer()
             Text(value)
                 .font(.body.monospacedDigit())
+        }
+    }
+}
+
+extension ObservationDifficulty {
+    var color: Color {
+        switch self {
+        case .nakedEye: return .green
+        case .binoculars: return .yellow
+        case .telescope: return .orange
         }
     }
 }

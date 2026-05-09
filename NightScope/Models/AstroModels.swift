@@ -469,6 +469,36 @@ struct PlanetNightSummary: Identifiable {
     var localizedName: String { L10n.tr(name) }
     /// 実用的な観測可能判定: 夜間に 10° 超の高度に達する
     var isVisibleTonight: Bool { peakAltitude > 10.0 }
+
+    var observationDifficulty: ObservationDifficulty {
+        guard isVisibleTonight else { return .telescope }
+        if magnitude <= 0.5 && peakAltitude >= 25 { return .nakedEye }
+        if magnitude <= 2.0 && peakAltitude >= 15 { return .nakedEye }
+        if magnitude <= 4.0 && peakAltitude >= 10 { return .binoculars }
+        return .telescope
+    }
+}
+
+enum ObservationDifficulty: Sendable, Equatable {
+    case nakedEye
+    case binoculars
+    case telescope
+
+    var systemImage: String {
+        switch self {
+        case .nakedEye: return "eye.fill"
+        case .binoculars: return "binoculars.fill"
+        case .telescope: return "viewfinder"
+        }
+    }
+
+    var localizedLabel: String {
+        switch self {
+        case .nakedEye: return "肉眼"
+        case .binoculars: return "双眼鏡"
+        case .telescope: return "望遠鏡"
+        }
+    }
 }
 
 // MARK: - Planet Position
