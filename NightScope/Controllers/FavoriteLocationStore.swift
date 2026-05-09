@@ -137,12 +137,12 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     // MARK: - External Change Notification
 
     @objc private func kvStoreDidChangeExternally(_ notification: Notification) {
-        MainActor.assumeIsolated {
-            let userInfo = notification.userInfo
-            let reasonValue = userInfo?[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int
+        // Notification はメインキュー配信が原則だが iOS では稀にバックグラウンドで届く。
+        // assumeIsolated はメインアクター外からの呼び出しでクラッシュするため Task で安全にホップする。
+        let reasonValue = notification.userInfo?[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             let reason = reasonValue.flatMap { NSUbiquitousKeyValueStore.ChangeReason(rawValue: $0) }
-
-            // アカウント変更の場合もリロード（最新書き込み優先）
             iCloudLogger.debug("iCloud KVStore changed externally (reason: \(String(describing: reason)))")
             if let updated = Self.loadFromKVStore(kvStore) {
                 locations = updated
