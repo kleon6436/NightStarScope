@@ -110,6 +110,7 @@
 		AA000000000000000000TB14 /* SearchResultsLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF14 /* SearchResultsLayoutTests.swift */; };
 		AA000000000000000000TB15 /* CalendarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF15 /* CalendarViewTests.swift */; };
 		AA000000000000000000TB16 /* AstroPhotoCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF16 /* AstroPhotoCalculatorTests.swift */; };
+		AA000000000000000000TB17 /* WeatherModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF17 /* WeatherModelsTests.swift */; };
 		AA9B7CDA3046C922B1100A01 /* ObservationMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A11 /* ObservationMode.swift */; };
 		AA9B7CDA3046C922B1100A02 /* StarGazingIndex+Mode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A12 /* StarGazingIndex+Mode.swift */; };
 		AEF100000000000000000011 /* WeatherKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000001 /* WeatherKitService.swift */; };
@@ -192,7 +193,6 @@
 		FC01B28AAAA3D24EA5E24686 /* UpcomingNightsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F17 /* UpcomingNightsGrid.swift */; };
 		FCBB0001B1CA5D5B3BE17896 /* MeteorShowerCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F30 /* MeteorShowerCalendarView.swift */; };
 		FCBBDF3EB1CA5D5B3BE17896 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F10 /* CalendarView.swift */; };
-AA000000000000000000TB17 /* WeatherModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF17 /* WeatherModelsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -288,6 +288,7 @@ AA000000000000000000TB17 /* WeatherModelsTests.swift in Sources */ = {isa = PBXB
 		AA000000000000000000TF14 /* SearchResultsLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsLayoutTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF15 /* CalendarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF16 /* AstroPhotoCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AstroPhotoCalculatorTests.swift; sourceTree = "<group>"; };
+		AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherModelsTests.swift; sourceTree = "<group>"; };
 		AEF100000000000000000001 /* WeatherKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitService.swift; sourceTree = "<group>"; };
 		AEF100000000000000000002 /* WeatherKitServiceSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitServiceSupport.swift; sourceTree = "<group>"; };
 		BB0000000000000000002F21 /* StarCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCatalog.swift; sourceTree = "<group>"; };
@@ -327,7 +328,6 @@ AA000000000000000000TB17 /* WeatherModelsTests.swift in Sources */ = {isa = PBXB
 		E874E471E7767792A4000D47 /* iOSRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSRootView.swift; sourceTree = "<group>"; };
 		E9018ABBBB27AE209C8B4401 /* FavoriteLocationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FavoriteLocationTests.swift; sourceTree = "<group>"; };
 		F1A2B3C4D5E6F708192A3B4C /* MapKitViewSharedLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitViewSharedLogic.swift; sourceTree = "<group>"; };
-AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherModelsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -933,7 +933,6 @@ AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReferenc
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = NightScopeiOS/NightScopeiOS.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 235777R328;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = NightStarScope;
@@ -950,7 +949,7 @@ AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReferenc
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScopeiOS;
 				PRODUCT_NAME = NightStarScope;
@@ -973,7 +972,6 @@ AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReferenc
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = NightScopeiOS/NightScopeiOS.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 235777R328;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = NightStarScope;
@@ -990,7 +988,7 @@ AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReferenc
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScopeiOS;
 				PRODUCT_NAME = NightStarScope;
 				SDKROOT = iphoneos;
@@ -1158,7 +1156,7 @@ AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReferenc
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_MODULE_NAME = NightScope;
 				PRODUCT_NAME = NightStarScope;
@@ -1195,7 +1193,7 @@ AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReferenc
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_MODULE_NAME = NightScope;
 				PRODUCT_NAME = NightStarScope;
