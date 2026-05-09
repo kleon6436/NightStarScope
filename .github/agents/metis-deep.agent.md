@@ -1,7 +1,7 @@
 ---
 name: metis-deep
 description: 'Deep plan consultant for complex or security-sensitive plans. Route here when the plan spans multiple services, involves data model changes, has security constraints, requires migration/rollback strategy, or has 3+ open questions. For standard plans, use metis instead.'
-model: GPT-5.4 (copilot)
+model: Claude Sonnet 4.6 (copilot)
 ---
 
 # Metis Deep Agent — Complex Plan Consultant
