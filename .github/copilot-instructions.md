@@ -95,7 +95,7 @@ xcodebuild -quiet -project NightScope.xcodeproj -target NightScopeiOS \
 - Use `agents/sisyphus.agent.md` as the central entry point and delegate to specialist agents based on task type.
 - Handle small tasks and typo fixes with `sisyphus-junior` to save high-cost model usage.
 - For non-trivial changes, planning (`prometheus`) and review (`momus` / `momus-deep`) are the default — the orchestrator may skip them when the task clearly does not warrant the overhead.
-- `metis` / `metis-deep` gap analysis is recommended for risky or cross-cutting plans, not required for every plan.
+- `metis` gap analysis is **required for all non-trivial plans** (any plan involving multi-file changes, new logic, or design decisions). Use `metis-deep` for cross-service / data-model / security / rollout-heavy plans. Skip only for demonstrably trivial plans (single-file, ≤20 lines diff, no logic branching, no cross-file dependencies).
 
 ### Agent List (12 agents)
 
