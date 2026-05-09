@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import AppKit
 @testable import NightScope
 
 final class AstroModelsTests: XCTestCase {
@@ -274,5 +275,86 @@ final class AstroModelsTests: XCTestCase {
 
         XCTAssertEqual(profile.horizonAngle(forAzimuth: 7.5), 1.5, accuracy: 0.0001)
         XCTAssertEqual(profile.horizonAngle(forAzimuth: -2.5), 35.5, accuracy: 0.0001)
+    }
+
+    func test_planetNightSummaryObservationDifficulty_matchesBrightnessAndAltitude() {
+        let date = makeDate(2026, 4, 2, 22, 0)
+
+        let nakedEye = PlanetNightSummary(
+            name: "金星",
+            riseTime: date,
+            transitTime: date,
+            setTime: date,
+            peakAltitude: 30,
+            magnitude: -4.0
+        )
+        XCTAssertEqual(nakedEye.observationDifficulty, .nakedEye)
+        XCTAssertEqual(nakedEye.observationDifficulty.systemImage, "eye.fill")
+        XCTAssertEqual(nakedEye.observationDifficulty.localizedLabel, "肉眼")
+
+        let binoculars = PlanetNightSummary(
+            name: "土星",
+            riseTime: date,
+            transitTime: date,
+            setTime: date,
+            peakAltitude: 12,
+            magnitude: 3.0
+        )
+        XCTAssertEqual(binoculars.observationDifficulty, .binoculars)
+        XCTAssertEqual(binoculars.observationDifficulty.systemImage, "binoculars.fill")
+        XCTAssertEqual(binoculars.observationDifficulty.localizedLabel, "双眼鏡")
+
+        let telescope = PlanetNightSummary(
+            name: "水星",
+            riseTime: nil,
+            transitTime: nil,
+            setTime: nil,
+            peakAltitude: 6,
+            magnitude: 1.5
+        )
+        XCTAssertEqual(telescope.observationDifficulty, .telescope)
+        XCTAssertEqual(telescope.observationDifficulty.systemImage, "viewfinder")
+        XCTAssertEqual(telescope.observationDifficulty.localizedLabel, "望遠鏡")
+
+        let nakedEyeColor = NSColor(nakedEye.observationDifficulty.color).usingColorSpace(.deviceRGB)!
+        XCTAssertEqual(nakedEyeColor.redComponent, 0.1882353, accuracy: 0.0001)
+        XCTAssertEqual(nakedEyeColor.greenComponent, 0.81960785, accuracy: 0.0001)
+        XCTAssertEqual(nakedEyeColor.blueComponent, 0.34509802, accuracy: 0.0001)
+    }
+
+    func test_planetNightSummaryObservationDifficulty_boundaryValues() {
+        let base = PlanetNightSummary(
+            name: "木星",
+            riseTime: nil,
+            transitTime: nil,
+            setTime: nil,
+            peakAltitude: 0,
+            magnitude: 0
+        )
+
+        XCTAssertEqual(
+            PlanetNightSummary(name: base.name, riseTime: nil, transitTime: nil, setTime: nil, peakAltitude: 25, magnitude: 0.5).observationDifficulty,
+            .nakedEye
+        )
+        XCTAssertEqual(
+            PlanetNightSummary(name: base.name, riseTime: nil, transitTime: nil, setTime: nil, peakAltitude: 24.9, magnitude: 0.5).observationDifficulty,
+            .nakedEye
+        )
+        XCTAssertEqual(
+            PlanetNightSummary(name: base.name, riseTime: nil, transitTime: nil, setTime: nil, peakAltitude: 15, magnitude: 2.0).observationDifficulty,
+            .nakedEye
+        )
+        XCTAssertEqual(
+            PlanetNightSummary(name: base.name, riseTime: nil, transitTime: nil, setTime: nil, peakAltitude: 14.9, magnitude: 2.0).observationDifficulty,
+            .binoculars
+        )
+        XCTAssertEqual(
+            PlanetNightSummary(name: base.name, riseTime: nil, transitTime: nil, setTime: nil, peakAltitude: 10, magnitude: 4.0).observationDifficulty,
+            .telescope
+        )
+        XCTAssertEqual(
+            PlanetNightSummary(name: base.name, riseTime: nil, transitTime: nil, setTime: nil, peakAltitude: 9.9, magnitude: 4.0).observationDifficulty,
+            .telescope
+        )
     }
 }
