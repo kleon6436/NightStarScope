@@ -951,7 +951,7 @@
 				);
 				MARKETING_VERSION = 1.1;
 				ONLY_ACTIVE_ARCH = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScopeiOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_NAME = NightStarScope;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -989,7 +989,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScopeiOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_NAME = NightStarScope;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
