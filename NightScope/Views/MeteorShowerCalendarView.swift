@@ -248,14 +248,14 @@ private struct ShowerTimelineRow: View {
     private var showerLabel: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(shower.localizedName)
-                .font(.caption)
+                .font(.callout)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             HStack(spacing: 2) {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 7))
+                    .font(.system(size: 11))
                 Text("最大 約\(shower.zhr)/h")
-                    .font(.system(size: 9))
+                    .font(.footnote)
             }
             .foregroundStyle(shower.intensity.color.opacity(0.9))
         }
@@ -345,7 +345,7 @@ private struct ShowerTimelineRow: View {
 
 private enum CalendarStyle {
     static let labelWidth: CGFloat = 110
-    static let rowHeight: CGFloat = 36
+    static let rowHeight: CGFloat = 44
     static let headerHeight: CGFloat = 18
     static let barHeight: CGFloat = 10
     static let peakRadius: CGFloat = 5

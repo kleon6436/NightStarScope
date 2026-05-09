@@ -616,4 +616,81 @@ enum MilkyWayCalculator {
                                   magnitude: mag, geocentricDistAU: Δ)
         }
     }
+
+    // MARK: - Planet Night Summaries
+
+    /// 指定地点・日付における 5 惑星の 1 夜分可視情報を返す。
+    /// サンプリング範囲: 当日 18:00 〜 翌日 06:00（現地時刻）、10 分間隔 (73 サンプル)
+    static func planetNightSummaries(
+        date: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> [PlanetNightSummary] {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let startOfDay = calendar.startOfDay(for: date)
+        guard
+            let nightStart = calendar.date(byAdding: .hour, value: 18, to: startOfDay),
+            let nextDay    = calendar.date(byAdding: .day,  value: 1,  to: startOfDay),
+            let nightEnd   = calendar.date(byAdding: .hour, value: 6,  to: nextDay)
+        else { return [] }
+
+        let intervalSec: TimeInterval = 600  // 10 分
+        let sampleCount = Int(nightEnd.timeIntervalSince(nightStart) / intervalSec) + 1
+
+        typealias Sample = (time: Date, alt: Double, mag: Double)
+        var timeSeries: [String: [Sample]] = [:]
+
+        for i in 0..<sampleCount {
+            let t   = nightStart.addingTimeInterval(Double(i) * intervalSec)
+            let jd  = julianDate(from: t)
+            let lst = localSiderealTime(jd: jd, longitude: location.longitude)
+            for pos in planetPositions(jd: jd, latitude: location.latitude, lst: lst) {
+                timeSeries[pos.name, default: []].append((t, pos.altitude, pos.magnitude))
+            }
+        }
+
+        return timeSeries.map { name, samples in
+            let peakSample = samples.max(by: { $0.alt < $1.alt })
+            return PlanetNightSummary(
+                name: name,
+                riseTime:    firstHorizonRising(in: samples),
+                transitTime: peakSample?.time,
+                setTime:     lastHorizonSetting(in: samples, after: peakSample?.time ?? nightStart),
+                peakAltitude: peakSample?.alt ?? -90.0,
+                magnitude:    peakSample?.mag ?? 99.0
+            )
+        }
+        .sorted {
+            let order = ["水星", "金星", "火星", "木星", "土星"]
+            return (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99)
+        }
+    }
+
+    /// 最初の地平線上昇交差時刻（負→正）を線形補間で返す。
+    private static func firstHorizonRising(
+        in samples: [(time: Date, alt: Double, mag: Double)]
+    ) -> Date? {
+        for i in 1..<samples.count {
+            let prev = samples[i - 1], curr = samples[i]
+            guard prev.alt < 0, curr.alt >= 0 else { continue }
+            let frac = -prev.alt / (curr.alt - prev.alt)
+            return prev.time.addingTimeInterval(frac * curr.time.timeIntervalSince(prev.time))
+        }
+        return nil
+    }
+
+    /// pivot 以降の最後の地平線下降交差時刻（正→負）を線形補間で返す。
+    private static func lastHorizonSetting(
+        in samples: [(time: Date, alt: Double, mag: Double)],
+        after pivot: Date
+    ) -> Date? {
+        var result: Date?
+        for i in 1..<samples.count {
+            let prev = samples[i - 1], curr = samples[i]
+            guard prev.time >= pivot, prev.alt >= 0, curr.alt < 0 else { continue }
+            let frac = -prev.alt / (curr.alt - prev.alt)
+            result = prev.time.addingTimeInterval(frac * curr.time.timeIntervalSince(prev.time))
+        }
+        return result
+    }
 }

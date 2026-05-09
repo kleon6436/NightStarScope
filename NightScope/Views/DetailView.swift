@@ -75,6 +75,11 @@ struct DetailView: View {
                 )
                 UpcomingNightsGrid(viewModel: upcomingGridViewModel)
                 MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
+                PlanetVisibilityView(
+                    selectedDate: viewModel.selectedDate,
+                    location: summary.location,
+                    timeZone: viewModel.selectedTimeZone
+                )
             }
             .padding(Spacing.md)
         }

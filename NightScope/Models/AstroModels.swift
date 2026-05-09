@@ -448,6 +448,29 @@ struct NightSummary {
     }
 }
 
+// MARK: - Planet Night Summary
+
+/// 1夜分の惑星可視情報。
+struct PlanetNightSummary: Identifiable {
+    /// 惑星名（L10n キーとして使用）
+    let name: String
+    /// 地平線通過（負→正）時刻。夜間 (18:00–06:00) 内に通過しなければ nil
+    let riseTime: Date?
+    /// 南中（最大高度）時刻
+    let transitTime: Date?
+    /// 地平線通過（正→負、transit より後の最後）時刻。夜間内に通過しなければ nil
+    let setTime: Date?
+    /// 夜間内の最大高度 (度)
+    let peakAltitude: Double
+    /// 南中時（南中なければ最大高度時）の等級
+    let magnitude: Double
+
+    var id: String { name }
+    var localizedName: String { L10n.tr(name) }
+    /// 実用的な観測可能判定: 夜間に 10° 超の高度に達する
+    var isVisibleTonight: Bool { peakAltitude > 10.0 }
+}
+
 // MARK: - Planet Position
 
 /// 太陽系天体の見かけの位置と光度を表すモデル。
