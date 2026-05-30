@@ -105,7 +105,7 @@ struct iOSForecastView: View {
                 await detailViewModel.refreshWeather()
                 await detailViewModel.refreshForecast()
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
+            .adaptiveToolbarBackground()
         }
     }
 

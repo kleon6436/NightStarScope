@@ -69,7 +69,7 @@ struct iOSTodayView: View {
             .refreshable {
                 await viewModel.refreshAll(using: detailViewModel)
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
+            .adaptiveToolbarBackground()
             .sheet(item: $presentedSheet) { sheet in
                 sheetView(for: sheet)
             }

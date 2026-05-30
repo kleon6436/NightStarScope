@@ -67,6 +67,7 @@ struct iOSTabHeaderView<Subtitle: View, Trailing: View>: View {
 }
 
 /// Material パネルの背景と境界線を共通化する ViewModifier。
+/// iOS 26+ では Liquid Glass を使用し、それ以前は指定 material にフォールバックする。
 private struct iOSMaterialPanelModifier: ViewModifier {
     let material: Material
     let cornerRadius: CGFloat
@@ -74,14 +75,24 @@ private struct iOSMaterialPanelModifier: ViewModifier {
     let showsBorder: Bool
 
     func body(content: Content) -> some View {
-        content
-            .background(material, in: RoundedRectangle(cornerRadius: cornerRadius, style: style))
-            .overlay {
-                if showsBorder {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: style)
-                        .strokeBorder(.quaternary, lineWidth: 1)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: style)
+        if #available(iOS 26, *) {
+            content
+                .glassEffect(in: shape)
+                .overlay {
+                    if showsBorder {
+                        shape.strokeBorder(.quaternary, lineWidth: 1)
+                    }
                 }
-            }
+        } else {
+            content
+                .background(material, in: shape)
+                .overlay {
+                    if showsBorder {
+                        shape.strokeBorder(.quaternary, lineWidth: 1)
+                    }
+                }
+        }
     }
 }
 
