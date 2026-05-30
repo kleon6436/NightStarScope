@@ -397,6 +397,20 @@ extension View {
         }
     }
 
+    /// iOS 26+ はシステム Liquid Glass NavBar に委ねる。それ以前は非表示にする。
+    @ViewBuilder
+    func adaptiveToolbarBackground() -> some View {
+        #if os(iOS)
+        if #available(iOS 26, *) {
+            self
+        } else {
+            self.toolbarBackground(.hidden, for: .navigationBar)
+        }
+        #else
+        self
+        #endif
+    }
+
     /// `.buttonStyle(.glass)` の互換ラッパー。
     @ViewBuilder
     func glassButtonStyle() -> some View {

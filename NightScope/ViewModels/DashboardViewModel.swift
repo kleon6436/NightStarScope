@@ -346,13 +346,14 @@ final class DashboardViewModel: ObservableObject {
         if allowSwap, selectedIDs.count >= Self.maxSelection, let removedFavorite = oldestSelectedFavorite() {
             selectedIDs.remove(removedFavorite.id)
             selectionOrder.removeAll { $0 == removedFavorite.id }
-            swap = SwappedSelection(
+            let created = SwappedSelection(
                 removedID: removedFavorite.id,
                 removedName: removedFavorite.name,
                 addedID: id,
                 addedName: name
             )
-            setLastSwap(swap!)
+            swap = created
+            setLastSwap(created)
         }
 
         selectedIDs.insert(id)

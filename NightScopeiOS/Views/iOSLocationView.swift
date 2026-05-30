@@ -35,7 +35,7 @@ struct iOSLocationView: View {
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .toolbarBackground(.hidden, for: .navigationBar)
+                .adaptiveToolbarBackground()
                 .alert(
                     "位置情報エラー",
                     isPresented: locationErrorAlertBinding,
