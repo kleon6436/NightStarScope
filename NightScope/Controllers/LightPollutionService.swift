@@ -267,6 +267,7 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
         let bortleClass: Double?
         let fetchFailed: Bool
         let lastFetchedCoordinate: (lat: Double, lon: Double)?
+        let fetchedAt: Date
     }
 
     @Published var bortleClass: Double?
@@ -308,8 +309,10 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     /// 取得可否だけを返すスナップショット版。
     func fetchSnapshot(latitude: Double, longitude: Double) async -> FetchResult {
         // 同じ座標（0.05度以内 ≈ 5km）では再取得しない（光害は静的データ）
+        let cacheTTL: TimeInterval = 3600
         if let lastFetchResult,
            let last = lastFetchResult.lastFetchedCoordinate,
+           Date().timeIntervalSince(lastFetchResult.fetchedAt) < cacheTTL,
            abs(last.lat - latitude) <= Constants.cacheRadiusDegrees,
            abs(last.lon - longitude) <= Constants.cacheRadiusDegrees {
             return lastFetchResult
@@ -320,13 +323,15 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
             return FetchResult(
                 bortleClass: bortle,
                 fetchFailed: false,
-                lastFetchedCoordinate: (latitude, longitude)
+                lastFetchedCoordinate: (latitude, longitude),
+                fetchedAt: Date()
             )
         } catch {
             return FetchResult(
                 bortleClass: nil,
                 fetchFailed: true,
-                lastFetchedCoordinate: (latitude, longitude)
+                lastFetchedCoordinate: (latitude, longitude),
+                fetchedAt: Date()
             )
         }
     }

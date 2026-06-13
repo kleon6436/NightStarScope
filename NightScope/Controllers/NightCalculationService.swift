@@ -55,22 +55,25 @@ final class NightCalculationService: NightCalculating, Sendable {
         timeZone: TimeZone,
         days: Int = ForecastConfiguration.upcomingNightCount
     ) async -> [NightSummary] {
-        await withTaskGroup(of: [NightSummary].self) { group in
-            group.addTask(priority: .background) { [summaryCalculator] in
-                var summaries: [NightSummary] = []
-                summaries.reserveCapacity(days)
-                let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-                let observationDate = calendar.startOfDay(for: date)
-
-                for offset in 0..<days {
-                    guard !Task.isCancelled else { break }
-                    let targetDate = calendar.date(byAdding: .day, value: offset, to: observationDate) ?? observationDate
-                    summaries.append(summaryCalculator(targetDate, location, timeZone))
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let observationDate = calendar.startOfDay(for: date)
+        return await withTaskGroup(of: (Int, NightSummary).self) { group in
+            for offset in 0..<days {
+                guard !Task.isCancelled else { break }
+                let targetDate = calendar.date(
+                    byAdding: .day, value: offset, to: observationDate
+                ) ?? observationDate
+                group.addTask(priority: .background) { [summaryCalculator] in
+                    (offset, summaryCalculator(targetDate, location, timeZone))
                 }
-
-                return summaries
             }
-            return await group.next() ?? []
+            var results: [(Int, NightSummary)] = []
+            results.reserveCapacity(days)
+            for await result in group {
+                results.append(result)
+                if Task.isCancelled { group.cancelAll(); break }
+            }
+            return results.sorted { $0.0 < $1.0 }.map(\.1)
         }
     }
 }

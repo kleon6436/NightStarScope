@@ -539,19 +539,19 @@ final class AppController: ObservableObject {
             }
             .store(in: &cancellables)
 
-        weatherService.weatherByDatePublisher
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self, !self.isApplyingLocationRefresh else { return }
-                self.recomputeAllIndexes()
-            }
-            .store(in: &cancellables)
-
-        lightPollutionService.bortleClassPublisher
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+        let externalDataPublisher = Publishers.Merge(
+            weatherService.weatherByDatePublisher
+                .dropFirst()
+                .map { _ in () }
+                .eraseToAnyPublisher(),
+            lightPollutionService.bortleClassPublisher
+                .dropFirst()
+                .map { _ in () }
+                .eraseToAnyPublisher()
+        )
+        externalDataPublisher
+            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
+            .sink { [weak self] in
                 guard let self, !self.isApplyingLocationRefresh else { return }
                 self.recomputeAllIndexes()
             }

@@ -40,6 +40,8 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     private var currentTask: Task<Void, Never>?
     /// 保持する最大場所数
     private let maxCachedLocations = 10
+    private let cacheTTLSeconds: TimeInterval = 3600
+    private var cacheTimestamps: [String: Date] = [:]
     private var weatherByDateByLocation: [String: [String: DayWeatherSummary]] = [:]
     private var activeLocationKey: String?
     private var activeTimeZoneIdentifier = TimeZone.current.identifier
@@ -67,9 +69,22 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     /// 取得結果を副作用なしで返すスナップショット版。
     func fetchWeatherSnapshot(latitude: Double, longitude: Double, timeZone: TimeZone) async -> WeatherFetchResult {
         let context = LocationContext(latitude: latitude, longitude: longitude, timeZone: timeZone)
+        let locationKey = context.locationKey
+        if let timestamp = cacheTimestamps[locationKey],
+           Date().timeIntervalSince(timestamp) < cacheTTLSeconds,
+           let cachedData = weatherByDateByLocation[locationKey],
+           !cachedData.isEmpty {
+            return WeatherFetchResult(
+                weatherByDate: cachedData,
+                errorMessage: nil,
+                lastModifiedDate: nil,
+                locationKey: locationKey,
+                timeZoneIdentifier: timeZone.identifier
+            )
+        }
         return await loadWeather(
             context: context,
-            fallbackWeatherByDate: weatherByDateByLocation[context.locationKey] ?? [:]
+            fallbackWeatherByDate: weatherByDateByLocation[locationKey] ?? [:]
         )
     }
 
@@ -78,6 +93,9 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         activeLocationKey = result.locationKey
         activeTimeZoneIdentifier = result.timeZoneIdentifier
         weatherByDateByLocation[result.locationKey] = result.weatherByDate
+        if result.errorMessage == nil && !result.weatherByDate.isEmpty {
+            cacheTimestamps[result.locationKey] = Date()
+        }
         weatherByDate = result.weatherByDate
         errorMessage = result.errorMessage
         // WeatherKit は lastModifiedDate を提供しないため省略
@@ -172,6 +190,7 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         let keysToEvict = weatherByDateByLocation.keys.filter { $0 != activeLocationKey }
         for key in keysToEvict.prefix(weatherByDateByLocation.count - maxCachedLocations) {
             weatherByDateByLocation.removeValue(forKey: key)
+            cacheTimestamps.removeValue(forKey: key)
         }
     }
 
