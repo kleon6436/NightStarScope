@@ -1101,7 +1101,7 @@ final class StarMapViewModel: ObservableObject {
         )
         nightStartMinutes = range.startMinutes
         nightDurationMinutes = range.durationMinutes
-        observationConditionTimeline = Self.makeObservationConditionTimeline(
+        observationConditionTimeline = StarMapObservationTimeline.build(
             location: context.location,
             observationDate: context.selectedDate,
             timeZone: context.timeZone,
@@ -1143,68 +1143,6 @@ final class StarMapViewModel: ObservableObject {
         TerrainService.cacheKey(latitude: latitude, longitude: longitude)
     }
 
-    private static func makeObservationConditionTimeline(
-        location: CLLocationCoordinate2D,
-        observationDate: Date,
-        timeZone: TimeZone,
-        nightStartMinutes: Double,
-        nightDurationMinutes: Double
-    ) -> [StarMapObservationConditionSample] {
-        let maximumOffset = StarMapDateLogic.maxSelectableNightOffset(nightDurationMinutes: nightDurationMinutes)
-        guard maximumOffset > 0 else { return [] }
-
-        let stepMinutes = 20.0
-        var offsets = Array(stride(from: 0.0, through: maximumOffset, by: stepMinutes))
-        if let lastOffset = offsets.last, abs(lastOffset - maximumOffset) > 0.5 {
-            offsets.append(maximumOffset)
-        }
-
-        let latitudeRadians = location.latitude * .pi / 180
-        let cosLat = cos(latitudeRadians)
-        let sinLat = sin(latitudeRadians)
-
-        return offsets.compactMap { offset in
-            let realMinutes = StarMapDateLogic.nightOffsetToRealMinutes(
-                offset,
-                nightStartMinutes: nightStartMinutes
-            )
-            guard let date = StarMapDateLogic.date(
-                bySettingClockMinutes: realMinutes,
-                onObservationDate: observationDate,
-                timeZone: timeZone,
-                nightStartMinutes: nightStartMinutes
-            ) else {
-                return nil
-            }
-
-            let julianDate = MilkyWayCalculator.julianDate(from: date)
-            let localSiderealTime = MilkyWayCalculator.localSiderealTime(
-                jd: julianDate,
-                longitude: location.longitude
-            )
-            let sun = MilkyWayCalculator.sunRaDec(jd: julianDate)
-            let moon = MilkyWayCalculator.moonRaDec(jd: julianDate)
-            let (sunAltitude, _) = MilkyWayCalculator.altAzFast(
-                ra: sun.ra,
-                dec: sun.dec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: localSiderealTime
-            )
-            let (moonAltitude, _) = MilkyWayCalculator.altAzFast(
-                ra: moon.ra,
-                dec: moon.dec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: localSiderealTime
-            )
-            return StarMapObservationConditionSample(
-                moonAltitude: moonAltitude,
-                moonPhase: moon.phase,
-                sunAltitude: sunAltitude
-            )
-        }
-    }
 }
 
 extension StarPosition: Identifiable {

@@ -1,10 +1,8 @@
 import SwiftUI
 #if os(macOS)
 import AppKit
-private typealias PlatformFont = NSFont
 #elseif os(iOS)
 import UIKit
-private typealias PlatformFont = UIFont
 #endif
 
 // MARK: - StarMapCanvasView
@@ -18,24 +16,6 @@ struct StarMapCanvasView: View {
         let x: Double
 
         var id: Double { azimuthDegrees }
-    }
-
-    /// 星座ラベルを重ねる際に使う候補情報。
-    struct ConstellationLabelCandidate: Equatable {
-        let name: String
-        let anchor: CGPoint
-        let priority: Double
-    }
-
-    struct ConstellationLabelPlacement: Equatable {
-        let name: String
-        let anchor: CGPoint
-        let origin: CGPoint
-        let size: CGSize
-
-        var bounds: CGRect {
-            CGRect(origin: origin, size: size)
-        }
     }
 
     struct HorizonOverlayStyle {
@@ -56,16 +36,6 @@ struct StarMapCanvasView: View {
         )
     }
 
-    private struct HorizonLineCoefficients {
-        let a: Double
-        let b: Double
-        let c: Double
-
-        func value(at point: CGPoint) -> Double {
-            a * point.x + b * point.y + c
-        }
-    }
-
     private struct GnomonicProjectionContext {
         let cx: Double
         let cy: Double
@@ -77,8 +47,8 @@ struct StarMapCanvasView: View {
         init(size: CGSize, centerAlt: Double, centerAz: Double, rollDegrees: Double, fov: Double) {
             self.cx = size.width / 2
             self.cy = size.height / 2
-            self.scale = StarMapCanvasView.projectionScale(size: size, horizontalFOV: fov)
-            let basis = StarMapCanvasView.cameraBasis(
+            self.scale = GnomonicProjectionMath.projectionScale(size: size, horizontalFOV: fov)
+            let basis = GnomonicProjectionMath.cameraBasis(
                 centerAlt: centerAlt,
                 centerAz: centerAz,
                 roll: rollDegrees
@@ -89,7 +59,7 @@ struct StarMapCanvasView: View {
         }
 
         func project(altitudeRadians: Double, azimuthRadians: Double) -> CGPoint? {
-            StarMapCanvasView.projectPoint(
+            GnomonicProjectionMath.projectPoint(
                 cx: cx,
                 cy: cy,
                 scale: scale,
@@ -298,8 +268,8 @@ struct StarMapCanvasView: View {
             return (viewModel.viewAltitude, viewModel.viewAzimuth)
         }
         let fov = effectiveGnomonicFOV()
-        let scale = Self.projectionScale(size: size, horizontalFOV: fov)
-        return Self.adjustedCenter(
+        let scale = GnomonicProjectionMath.projectionScale(size: size, horizontalFOV: fov)
+        return GnomonicProjectionMath.adjustedCenter(
             altitude: viewModel.viewAltitude,
             azimuth: viewModel.viewAzimuth,
             translation: gestureDragOffset,
@@ -399,7 +369,7 @@ struct StarMapCanvasView: View {
                 }
             }
 
-            for placement in Self.optimizedConstellationLabelPlacements(
+            for placement in ConstellationLabelLayoutEngine.optimizedPlacements(
                 candidates: constellationLabelCandidates,
                 canvasSize: size,
                 reservedBottomInset: showsCardinalOverlay ? Double(cardinalOverlayBottomInset) + 20 : 0
@@ -485,7 +455,7 @@ struct StarMapCanvasView: View {
                                     size: CGSize,
                                     projection: GnomonicProjectionContext) {
         let rect = CGRect(origin: .zero, size: size)
-        let coefficients = Self.horizonLineCoefficients(
+        let coefficients = GnomonicProjectionMath.horizonLineCoefficients(
             cx: projection.cx,
             cy: projection.cy,
             scale: projection.scale,
@@ -493,7 +463,7 @@ struct StarMapCanvasView: View {
             rightZ: projection.right.z,
             upZ: projection.up.z
         )
-        let groundPolygon = Self.clippedGroundPolygon(in: rect, coefficients: coefficients)
+        let groundPolygon = GnomonicProjectionMath.clippedGroundPolygon(in: rect, coefficients: coefficients)
 
         if groundPolygon.count >= 3 {
             var groundPath = Path()
@@ -510,7 +480,7 @@ struct StarMapCanvasView: View {
             )
         }
 
-        if let horizonSegment = Self.horizonLineSegment(in: rect, coefficients: coefficients) {
+        if let horizonSegment = GnomonicProjectionMath.horizonLineSegment(in: rect, coefficients: coefficients) {
             var horizonPath = Path()
             horizonPath.move(to: horizonSegment.0)
             horizonPath.addLine(to: horizonSegment.1)
@@ -585,92 +555,6 @@ struct StarMapCanvasView: View {
         sizeHeight - bottomInset
     }
 
-    nonisolated static func optimizedConstellationLabelPlacements(
-        candidates: [ConstellationLabelCandidate],
-        canvasSize: CGSize,
-        reservedBottomInset: Double = 0,
-        fontSize: Double = 11
-    ) -> [ConstellationLabelPlacement] {
-        let sortedCandidates = candidates.sorted {
-            if $0.priority == $1.priority {
-                return $0.name.count < $1.name.count
-            }
-            return $0.priority > $1.priority
-        }
-        let reservedHeight = max(0, min(reservedBottomInset, canvasSize.height - 8))
-        let availableHeight = max(0, canvasSize.height - reservedHeight - 8)
-        let canvasRect = CGRect(x: 4, y: 4, width: max(0, canvasSize.width - 8), height: availableHeight)
-        guard canvasRect.width > 0, canvasRect.height > 0 else { return [] }
-        var acceptedPlacements: [ConstellationLabelPlacement] = []
-
-        for candidate in sortedCandidates {
-            let labelSize = estimateConstellationLabelSize(text: candidate.name, fontSize: fontSize)
-            let placementOrigins = candidateLabelOrigins(anchor: candidate.anchor, labelSize: labelSize)
-
-            for proposedOrigin in placementOrigins {
-                let fittedOrigin = clampLabelOrigin(
-                    proposedOrigin,
-                    labelSize: labelSize,
-                    canvasRect: canvasRect
-                )
-                let placement = ConstellationLabelPlacement(
-                    name: candidate.name,
-                    anchor: candidate.anchor,
-                    origin: fittedOrigin,
-                    size: labelSize
-                )
-                let paddedBounds = placement.bounds.insetBy(dx: -4, dy: -2)
-                let overlapsExisting = acceptedPlacements.contains {
-                    paddedBounds.intersects($0.bounds.insetBy(dx: -4, dy: -2))
-                }
-                if !overlapsExisting {
-                    acceptedPlacements.append(placement)
-                    break
-                }
-            }
-        }
-
-        return acceptedPlacements
-    }
-
-    nonisolated static func estimateConstellationLabelSize(
-        text: String,
-        fontSize: Double = 11
-    ) -> CGSize {
-        let measuredSize = NSString(string: text).size(
-            withAttributes: [.font: PlatformFont.systemFont(ofSize: fontSize)]
-        )
-        return CGSize(
-            width: ceil(max(measuredSize.width, fontSize * 2.6)),
-            height: ceil(max(measuredSize.height, fontSize + 4))
-        )
-    }
-
-    nonisolated private static func candidateLabelOrigins(anchor: CGPoint, labelSize: CGSize) -> [CGPoint] {
-        let horizontalOffset = 8.0
-        let verticalOffset = 6.0
-
-        return [
-            CGPoint(x: anchor.x + horizontalOffset, y: anchor.y - labelSize.height - verticalOffset),
-            CGPoint(x: anchor.x + horizontalOffset, y: anchor.y + verticalOffset),
-            CGPoint(x: anchor.x - labelSize.width - horizontalOffset, y: anchor.y - labelSize.height - verticalOffset),
-            CGPoint(x: anchor.x - labelSize.width - horizontalOffset, y: anchor.y + verticalOffset),
-            CGPoint(x: anchor.x - labelSize.width / 2, y: anchor.y - labelSize.height - 10),
-            CGPoint(x: anchor.x - labelSize.width / 2, y: anchor.y + 8)
-        ]
-    }
-
-    nonisolated private static func clampLabelOrigin(
-        _ origin: CGPoint,
-        labelSize: CGSize,
-        canvasRect: CGRect
-    ) -> CGPoint {
-        CGPoint(
-            x: min(max(origin.x, canvasRect.minX), canvasRect.maxX - labelSize.width),
-            y: min(max(origin.y, canvasRect.minY), canvasRect.maxY - labelSize.height)
-        )
-    }
-
     nonisolated private static func projectedCardinalLabelX(
         azimuthDegrees: Double,
         size: CGSize,
@@ -679,7 +563,7 @@ struct StarMapCanvasView: View {
         roll: Double,
         fov: Double
     ) -> Double? {
-        guard let point = projectPoint(
+        guard let point = GnomonicProjectionMath.projectPoint(
             size: size,
             centerAlt: centerAlt,
             centerAz: centerAz,
@@ -690,251 +574,7 @@ struct StarMapCanvasView: View {
         ) else {
             return nil
         }
-
         return clampedCardinalLabelX(point.x, sizeWidth: size.width)
-    }
-
-    nonisolated static func projectPoint(
-        size: CGSize,
-        centerAlt: Double,
-        centerAz: Double,
-        roll: Double,
-        fov: Double,
-        altitudeDegrees: Double,
-        azimuthDegrees: Double
-    ) -> CGPoint? {
-        let basis = cameraBasis(centerAlt: centerAlt, centerAz: centerAz, roll: roll)
-        return projectPoint(
-            cx: size.width / 2,
-            cy: size.height / 2,
-            scale: projectionScale(size: size, horizontalFOV: fov),
-            forward: basis.forward,
-            right: basis.right,
-            up: basis.up,
-            altitudeRadians: altitudeDegrees * .pi / 180,
-            azimuthRadians: azimuthDegrees * .pi / 180
-        )
-    }
-
-    nonisolated static func horizonLineValue(
-        size: CGSize,
-        centerAlt: Double,
-        centerAz: Double,
-        roll: Double,
-        fov: Double,
-        point: CGPoint
-    ) -> Double {
-        let basis = cameraBasis(centerAlt: centerAlt, centerAz: centerAz, roll: roll)
-        let coefficients = horizonLineCoefficients(
-            cx: size.width / 2,
-            cy: size.height / 2,
-            scale: projectionScale(size: size, horizontalFOV: fov),
-            forwardZ: basis.forward.z,
-            rightZ: basis.right.z,
-            upZ: basis.up.z
-        )
-        return coefficients.value(at: point)
-    }
-
-    nonisolated private static func altAzToCartesianStatic(alt: Double, az: Double) -> (Double, Double, Double) {
-        let x = cos(alt) * sin(az)
-        let y = cos(alt) * cos(az)
-        let z = sin(alt)
-        return (x, y, z)
-    }
-
-    nonisolated private static func cameraBasis(
-        centerAlt: Double,
-        centerAz: Double,
-        roll: Double
-    ) -> (
-        forward: (x: Double, y: Double, z: Double),
-        right: (x: Double, y: Double, z: Double),
-        up: (x: Double, y: Double, z: Double)
-    ) {
-        let altitudeRadians = centerAlt * .pi / 180
-        let azimuthRadians = centerAz * .pi / 180
-        let rollRadians = roll * .pi / 180
-        let forwardVector = altAzToCartesianStatic(alt: altitudeRadians, az: azimuthRadians)
-        let forward = (x: forwardVector.0, y: forwardVector.1, z: forwardVector.2)
-        let baseRight = (x: cos(azimuthRadians), y: -sin(azimuthRadians), z: 0.0)
-
-        let upCrossX = baseRight.y * forward.z - baseRight.z * forward.y
-        let upCrossY = baseRight.z * forward.x - baseRight.x * forward.z
-        let upCrossZ = baseRight.x * forward.y - baseRight.y * forward.x
-        let upLength = sqrt(upCrossX * upCrossX + upCrossY * upCrossY + upCrossZ * upCrossZ)
-        let baseUp = upLength > 1e-10
-            ? (x: upCrossX / upLength, y: upCrossY / upLength, z: upCrossZ / upLength)
-            : (x: 0.0, y: 0.0, z: 1.0)
-        let right = (
-            x: baseRight.x * cos(rollRadians) - baseUp.x * sin(rollRadians),
-            y: baseRight.y * cos(rollRadians) - baseUp.y * sin(rollRadians),
-            z: baseRight.z * cos(rollRadians) - baseUp.z * sin(rollRadians)
-        )
-        let up = (
-            x: baseRight.x * sin(rollRadians) + baseUp.x * cos(rollRadians),
-            y: baseRight.y * sin(rollRadians) + baseUp.y * cos(rollRadians),
-            z: baseRight.z * sin(rollRadians) + baseUp.z * cos(rollRadians)
-        )
-        return (forward: forward, right: right, up: up)
-    }
-
-    nonisolated private static func projectionScale(size: CGSize, horizontalFOV: Double) -> Double {
-        let halfFovRad = max(0.01, (horizontalFOV / 2) * .pi / 180)
-        return size.width / (2 * tan(halfFovRad))
-    }
-
-    nonisolated private static func projectPoint(
-        cx: Double,
-        cy: Double,
-        scale: Double,
-        forward: (x: Double, y: Double, z: Double),
-        right: (x: Double, y: Double, z: Double),
-        up: (x: Double, y: Double, z: Double),
-        altitudeRadians: Double,
-        azimuthRadians: Double
-    ) -> CGPoint? {
-        let point = altAzToCartesianStatic(alt: altitudeRadians, az: azimuthRadians)
-        let dot = point.0 * forward.x + point.1 * forward.y + point.2 * forward.z
-        guard dot > 0.1 else { return nil }
-
-        let projectedX = (point.0 * right.x + point.1 * right.y + point.2 * right.z) / dot * scale
-        let projectedY = (point.0 * up.x + point.1 * up.y + point.2 * up.z) / dot * scale
-        return CGPoint(x: cx + projectedX, y: cy - projectedY)
-    }
-
-    nonisolated private static func horizonLineCoefficients(
-        cx: Double,
-        cy: Double,
-        scale: Double,
-        forwardZ: Double,
-        rightZ: Double,
-        upZ: Double
-    ) -> HorizonLineCoefficients {
-        HorizonLineCoefficients(
-            a: rightZ,
-            b: -upZ,
-            c: forwardZ * scale - rightZ * cx + upZ * cy
-        )
-    }
-
-    nonisolated private static func clippedGroundPolygon(
-        in rect: CGRect,
-        coefficients: HorizonLineCoefficients
-    ) -> [CGPoint] {
-        let corners = [
-            CGPoint(x: rect.minX, y: rect.minY),
-            CGPoint(x: rect.maxX, y: rect.minY),
-            CGPoint(x: rect.maxX, y: rect.maxY),
-            CGPoint(x: rect.minX, y: rect.maxY)
-        ]
-        let epsilon = 1e-6
-        var clipped: [CGPoint] = []
-
-        for index in corners.indices {
-            let current = corners[index]
-            let next = corners[(index + 1) % corners.count]
-            let currentValue = coefficients.value(at: current)
-            let nextValue = coefficients.value(at: next)
-            let currentInside = currentValue <= epsilon
-            let nextInside = nextValue <= epsilon
-
-            if currentInside {
-                clipped.append(current)
-            }
-            if currentInside != nextInside,
-               let intersection = lineIntersection(
-                from: current,
-                to: next,
-                startValue: currentValue,
-                endValue: nextValue
-               ) {
-                clipped.append(intersection)
-            }
-        }
-
-        return clipped
-    }
-
-    nonisolated private static func horizonLineSegment(
-        in rect: CGRect,
-        coefficients: HorizonLineCoefficients
-    ) -> (CGPoint, CGPoint)? {
-        let corners = [
-            CGPoint(x: rect.minX, y: rect.minY),
-            CGPoint(x: rect.maxX, y: rect.minY),
-            CGPoint(x: rect.maxX, y: rect.maxY),
-            CGPoint(x: rect.minX, y: rect.maxY)
-        ]
-        let epsilon = 1e-6
-        var intersections: [CGPoint] = []
-
-        func appendUnique(_ point: CGPoint) {
-            let alreadyIncluded = intersections.contains { existing in
-                abs(existing.x - point.x) < epsilon && abs(existing.y - point.y) < epsilon
-            }
-            if !alreadyIncluded {
-                intersections.append(point)
-            }
-        }
-
-        for index in corners.indices {
-            let current = corners[index]
-            let next = corners[(index + 1) % corners.count]
-            let currentValue = coefficients.value(at: current)
-            let nextValue = coefficients.value(at: next)
-
-            if abs(currentValue) < epsilon {
-                appendUnique(current)
-            }
-            if currentValue * nextValue < 0,
-               let intersection = lineIntersection(
-                from: current,
-                to: next,
-                startValue: currentValue,
-                endValue: nextValue
-               ) {
-                appendUnique(intersection)
-            }
-        }
-
-        guard intersections.count >= 2 else { return nil }
-        return (intersections[0], intersections[1])
-    }
-
-    nonisolated private static func lineIntersection(
-        from start: CGPoint,
-        to end: CGPoint,
-        startValue: Double,
-        endValue: Double
-    ) -> CGPoint? {
-        let denominator = startValue - endValue
-        guard abs(denominator) > 1e-10 else { return nil }
-        let t = startValue / denominator
-        return CGPoint(
-            x: start.x + (end.x - start.x) * t,
-            y: start.y + (end.y - start.y) * t
-        )
-    }
-
-    nonisolated private static func adjustedCenter(
-        altitude: Double,
-        azimuth: Double,
-        translation: CGSize,
-        scale: Double
-    ) -> (alt: Double, az: Double) {
-        let yawRadians = atan2(translation.width, scale)
-        let pitchRadians = atan2(translation.height, scale)
-
-        var adjustedAltitude = altitude + pitchRadians * 180 / .pi
-        var adjustedAzimuth = azimuth - yawRadians * 180 / .pi
-
-        adjustedAltitude = max(-10, min(89, adjustedAltitude))
-        adjustedAzimuth = adjustedAzimuth.truncatingRemainder(dividingBy: 360)
-        if adjustedAzimuth < 0 {
-            adjustedAzimuth += 360
-        }
-        return (adjustedAltitude, adjustedAzimuth)
     }
 
     // MARK: - Drawing primitives
@@ -1061,27 +701,12 @@ struct StarMapCanvasView: View {
             fov: fov
         )
 
-        var nearest: StarPosition? = nil
-        var nearestDist: CGFloat = threshold
-
-        for pos in viewModel.starPositions where pos.star.magnitude <= 2.5 && pos.altitude > -3 {
-            let alt = pos.altitude * .pi / 180
-            let az = pos.azimuth * .pi / 180
-            guard let screenPoint = projection.project(
-                altitudeRadians: alt,
-                azimuthRadians: az
-            ) else {
-                continue
-            }
-            let dx = screenPoint.x - tapPoint.x
-            let dy = screenPoint.y - tapPoint.y
-            let dist = sqrt(dx * dx + dy * dy)
-            if dist < nearestDist {
-                nearestDist = dist
-                nearest = pos
-            }
-        }
-        return nearest
+        let index = StarMapSpatialIndex(
+            stars: viewModel.starPositions,
+            projection: { projection.project(altitudeRadians: $0, azimuthRadians: $1) },
+            canvasSize: size
+        )
+        return index.nearest(to: tapPoint, threshold: threshold)
     }
 
     // MARK: - Drag Gesture (心射図法 カメラ空間ドラッグ)
@@ -1093,8 +718,8 @@ struct StarMapCanvasView: View {
             }
             .onEnded { [self] value in
                 let fov = effectiveGnomonicFOV()
-                let scale = Self.projectionScale(size: size, horizontalFOV: fov)
-                let adjustedCenter = Self.adjustedCenter(
+                let scale = GnomonicProjectionMath.projectionScale(size: size, horizontalFOV: fov)
+                let adjustedCenter = GnomonicProjectionMath.adjustedCenter(
                     altitude: viewModel.viewAltitude,
                     azimuth: viewModel.viewAzimuth,
                     translation: value.translation,
