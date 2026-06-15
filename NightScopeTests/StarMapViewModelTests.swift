@@ -194,7 +194,7 @@ final class StarMapViewModelTests: XCTestCase {
 
         for roll in [0.0, 25.0] {
             for azimuth in stride(from: -20.0, through: 20.0, by: 10.0) {
-                let point = StarMapCanvasView.projectPoint(
+                let point = GnomonicProjectionMath.projectPoint(
                     size: size,
                     centerAlt: centerAlt,
                     centerAz: centerAz,
@@ -207,7 +207,7 @@ final class StarMapViewModelTests: XCTestCase {
                 XCTAssertNotNil(point)
                 if let point {
                     XCTAssertEqual(
-                        StarMapCanvasView.horizonLineValue(
+                        GnomonicProjectionMath.horizonLineValue(
                             size: size,
                             centerAlt: centerAlt,
                             centerAz: centerAz,
@@ -1627,24 +1627,24 @@ final class StarMapViewModelTests: XCTestCase {
 
     func test_StarMapCanvasView_optimizedConstellationLabelPlacements_avoidsOverlaps() {
         let candidates = [
-            StarMapCanvasView.ConstellationLabelCandidate(
+            ConstellationLabelCandidate(
                 name: "みなみじゅうじ座",
                 anchor: CGPoint(x: 150, y: 100),
                 priority: 40
             ),
-            StarMapCanvasView.ConstellationLabelCandidate(
+            ConstellationLabelCandidate(
                 name: "ケンタウルス座",
                 anchor: CGPoint(x: 154, y: 104),
                 priority: 39
             ),
-            StarMapCanvasView.ConstellationLabelCandidate(
+            ConstellationLabelCandidate(
                 name: "りゅうこつ座",
                 anchor: CGPoint(x: 158, y: 108),
                 priority: 38
             )
         ]
 
-        let placements = StarMapCanvasView.optimizedConstellationLabelPlacements(
+        let placements = ConstellationLabelLayoutEngine.optimizedPlacements(
             candidates: candidates,
             canvasSize: CGSize(width: 320, height: 220)
         )
@@ -1664,22 +1664,22 @@ final class StarMapViewModelTests: XCTestCase {
     func test_StarMapCanvasView_optimizedConstellationLabelPlacements_skipsLowerPriorityWhenSpaceRunsOut() {
         let primaryLabel = "みなみのかんむり座"
         let secondaryLabel = "みなみのさんかく座"
-        let primarySize = StarMapCanvasView.estimateConstellationLabelSize(text: primaryLabel)
-        let secondarySize = StarMapCanvasView.estimateConstellationLabelSize(text: secondaryLabel)
+        let primarySize = ConstellationLabelLayoutEngine.estimateLabelSize(text: primaryLabel)
+        let secondarySize = ConstellationLabelLayoutEngine.estimateLabelSize(text: secondaryLabel)
         let canvasSize = CGSize(
             width: max(primarySize.width, secondarySize.width) + 12,
             height: max(primarySize.height, secondarySize.height) + 12
         )
         let anchor = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
 
-        let placements = StarMapCanvasView.optimizedConstellationLabelPlacements(
+        let placements = ConstellationLabelLayoutEngine.optimizedPlacements(
             candidates: [
-                StarMapCanvasView.ConstellationLabelCandidate(
+                ConstellationLabelCandidate(
                     name: primaryLabel,
                     anchor: anchor,
                     priority: 30
                 ),
-                StarMapCanvasView.ConstellationLabelCandidate(
+                ConstellationLabelCandidate(
                     name: secondaryLabel,
                     anchor: anchor,
                     priority: 10
@@ -1692,9 +1692,9 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapCanvasView_optimizedConstellationLabelPlacements_clampsIntoCanvasBounds() throws {
-        let placements = StarMapCanvasView.optimizedConstellationLabelPlacements(
+        let placements = ConstellationLabelLayoutEngine.optimizedPlacements(
             candidates: [
-                StarMapCanvasView.ConstellationLabelCandidate(
+                ConstellationLabelCandidate(
                     name: "Corona Australis",
                     anchor: CGPoint(x: 6, y: 6),
                     priority: 20
@@ -1711,9 +1711,9 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapCanvasView_optimizedConstellationLabelPlacements_respectsReservedBottomInset() throws {
-        let placements = StarMapCanvasView.optimizedConstellationLabelPlacements(
+        let placements = ConstellationLabelLayoutEngine.optimizedPlacements(
             candidates: [
-                StarMapCanvasView.ConstellationLabelCandidate(
+                ConstellationLabelCandidate(
                     name: "みなみのうお座",
                     anchor: CGPoint(x: 120, y: 150),
                     priority: 20

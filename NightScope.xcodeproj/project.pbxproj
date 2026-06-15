@@ -155,6 +155,15 @@
 		BB0000000000000000005B11 /* StarMapDateLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000003F0B /* StarMapDateLogic.swift */; };
 		BB0000000000000000005B12 /* StarMapComputation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000003F0C /* StarMapComputation.swift */; };
 		BB0000000000000000005B13 /* StarMapCanvasOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000002F29 /* StarMapCanvasOverlays.swift */; };
+		FD0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001001 /* GnomonicProjectionMath.swift */; };
+		FD0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */; };
+		FD0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001004 /* StarMapObservationTimeline.swift */; };
+		FD0000000000000000001005 /* StarMapSpatialIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001005 /* StarMapSpatialIndex.swift */; };
+		FB0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001001 /* GnomonicProjectionMath.swift */; };
+		FB0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */; };
+		FB0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001004 /* StarMapObservationTimeline.swift */; };
+		FB0000000000000000001005 /* StarMapSpatialIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001005 /* StarMapSpatialIndex.swift */; };
+		FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001006 /* GnomonicProjectionMathTests.swift */; };
 		BB0000000000000000006B01 /* elevation_japan.bin.z in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000006F01 /* elevation_japan.bin.z */; };
 		BB0000000000000000006B02 /* elevation_japan.bin.z in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000006F01 /* elevation_japan.bin.z */; };
 		BB0000000000000000006B03 /* elevation_global.bin.z in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000006F02 /* elevation_global.bin.z */; };
@@ -317,6 +326,11 @@
 		BB0000000000000000002F21 /* StarCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarCatalog.swift; sourceTree = "<group>"; };
 		BB0000000000000000002F22 /* StarMapCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapCanvasView.swift; sourceTree = "<group>"; };
 		BB0000000000000000002F23 /* ConstellationData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstellationData.swift; sourceTree = "<group>"; };
+		FE0000000000000000001001 /* GnomonicProjectionMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GnomonicProjectionMath.swift; sourceTree = "<group>"; };
+		FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstellationLabelLayoutEngine.swift; sourceTree = "<group>"; };
+		FE0000000000000000001004 /* StarMapObservationTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapObservationTimeline.swift; sourceTree = "<group>"; };
+		FE0000000000000000001005 /* StarMapSpatialIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapSpatialIndex.swift; sourceTree = "<group>"; };
+		FE0000000000000000001006 /* GnomonicProjectionMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GnomonicProjectionMathTests.swift; sourceTree = "<group>"; };
 		BB0000000000000000002F24 /* StarInfoMacView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarInfoMacView.swift; sourceTree = "<group>"; };
 		BB0000000000000000002F25 /* MeteorShowerData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeteorShowerData.swift; sourceTree = "<group>"; };
 		BB0000000000000000002F29 /* StarMapCanvasOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapCanvasOverlays.swift; sourceTree = "<group>"; };
@@ -489,6 +503,9 @@
 				BB0000000000000000002F25 /* MeteorShowerData.swift */,
 				0A5FD175A6FD4FA2071B5F37 /* FavoriteLocation.swift */,
 				D47F16640345F9EC740C375E /* ObservationAdvisorInput.swift */,
+				FE0000000000000000001001 /* GnomonicProjectionMath.swift */,
+				FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */,
+				FE0000000000000000001005 /* StarMapSpatialIndex.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -576,6 +593,7 @@
 				E9018ABBBB27AE209C8B4401 /* FavoriteLocationTests.swift */,
 				D44CE03CCF477C8291BE4265 /* ObservationAdvisorInputBuilderTests.swift */,
 				A1421579CFF20984F582B235 /* ObservationAdvisorViewModelTests.swift */,
+				FE0000000000000000001006 /* GnomonicProjectionMathTests.swift */,
 			);
 			path = NightScopeTests;
 			sourceTree = "<group>";
@@ -596,6 +614,7 @@
 				BB0000000000000000003F0B /* StarMapDateLogic.swift */,
 				BB0000000000000000003F0C /* StarMapComputation.swift */,
 				3A2274D5B63FA53AAF40055E /* ObservationAdvisorViewModel.swift */,
+				FE0000000000000000001004 /* StarMapObservationTimeline.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -845,6 +864,10 @@
 				FF7EEB3C6BBEB0384CF21178 /* ObservationAdvisorService.swift in Sources */,
 				15AC41CBCC1C1DBC611100CE /* ObservationAdvisorInputBuilder.swift in Sources */,
 				04C543AB48645C86951265DE /* ObservationAdvisorViewModel.swift in Sources */,
+				FB0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */,
+				FB0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */,
+				FB0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */,
+				FB0000000000000000001005 /* StarMapSpatialIndex.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -932,6 +955,10 @@
 				DDF76BF265D9CD8568BDD679 /* ObservationAdvisorInputBuilder.swift in Sources */,
 				F7A7389617962715C8FD12CF /* ObservationAdvisorViewModel.swift in Sources */,
 				ADFC27704C1E29CC8B83162D /* ObservationAdviceCard.swift in Sources */,
+				FD0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */,
+				FD0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */,
+				FD0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */,
+				FD0000000000000000001005 /* StarMapSpatialIndex.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -961,6 +988,7 @@
 				E2B1BBFAE453C3FC09374E13 /* FavoriteLocationTests.swift in Sources */,
 				D48DDFB2487D6B3F11F21156 /* ObservationAdvisorInputBuilderTests.swift in Sources */,
 				8F7351C9A15449FAC35810E4 /* ObservationAdvisorViewModelTests.swift in Sources */,
+				FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
