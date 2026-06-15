@@ -4,7 +4,7 @@ import Combine
 import SwiftUI
 
 /// BV 色指数から恒星の見た目の色を近似する。
-func _starColorForBV(_ bvIndex: Double?) -> Color {
+func starColorForBV(_ bvIndex: Double?) -> Color {
     guard let bv = bvIndex else { return .white }
     let table: [(bv: Double, r: Double, g: Double, b: Double)] = [
         (-0.40, 0.55, 0.65, 1.00),

@@ -21,7 +21,7 @@ enum StarMapComputation {
     }
 
     private static let cachedStarColors: [Color] = {
-        StarCatalog.stars.map { _starColorForBV($0.colorIndex) }
+        StarCatalog.stars.map { starColorForBV($0.colorIndex) }
     }()
 
     static func compute(
