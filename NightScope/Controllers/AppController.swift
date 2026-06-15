@@ -264,7 +264,7 @@ final class AppController: ObservableObject {
         }
     }
 
-    func bringMainWindowToFront() {
+    private func bringMainWindowToFront() {
         #if os(macOS)
         if #available(macOS 14, *) {
             NSApp.activate()

@@ -604,14 +604,14 @@ final class StarMapViewModel: ObservableObject {
             trailingTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
                 guard !Task.isCancelled else { return }
-                self?._executeUpdate()
+                self?.executeUpdate()
             }
             return
         }
-        _executeUpdate()
+        executeUpdate()
     }
 
-    private func _executeUpdate() {
+    private func executeUpdate() {
         lastPositionUpdateTime = Date.timeIntervalSinceReferenceDate
         trailingTask?.cancel()
         trailingTask = nil
