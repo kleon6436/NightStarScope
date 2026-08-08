@@ -61,8 +61,8 @@ build/
 .nvim/
 buildServer.json
 
-# Idea
-docs/FEATURE_IDEAS.md
+# Documentation
+Docs/
 
 # Agent session state (Copilot / Sisyphus)
 BOULDER.md
