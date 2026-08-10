@@ -341,7 +341,7 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
 /// WeatherKit の WeatherAttribution から必要な情報を取り出したデータ構造。
 /// WeatherKit を import しないビュー層でも安全に利用できる。
 struct WeatherAttributionData {
-    let serviceName: String
+    fileprivate let serviceName: String
     let logoLightURL: URL
     let logoDarkURL: URL
     let legalPageURL: URL

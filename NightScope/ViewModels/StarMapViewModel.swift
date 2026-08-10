@@ -97,7 +97,7 @@ enum StarMapScreenOrientation: Sendable {
     case landscapeLeft
     case landscapeRight
 
-    var isLandscape: Bool {
+    fileprivate var isLandscape: Bool {
         switch self {
         case .landscapeLeft, .landscapeRight:
             true
@@ -106,7 +106,7 @@ enum StarMapScreenOrientation: Sendable {
         }
     }
 
-    var screenUpDeviceVector: (x: Double, y: Double, z: Double) {
+    fileprivate var screenUpDeviceVector: (x: Double, y: Double, z: Double) {
         switch self {
         case .portrait:
             (x: 0, y: 1, z: 0)
@@ -253,7 +253,7 @@ struct StarMapMotionMatrix {
     let m32: Double
     let m33: Double
 
-    func referenceVector(forDeviceVectorX x: Double, y: Double, z: Double) -> (east: Double, north: Double, up: Double) {
+    fileprivate func referenceVector(forDeviceVectorX x: Double, y: Double, z: Double) -> (east: Double, north: Double, up: Double) {
         // Core Motion の xTrueNorth / xMagneticNorth 系は基準座標が north-west-up なので、
         // 画面描画で使う east-north-up に変換してから扱う。
         let north = (m11 * x) + (m21 * y) + (m31 * z)
@@ -266,7 +266,7 @@ struct StarMapMotionMatrix {
         )
     }
 
-    func referenceVector(forDeviceVector vector: (x: Double, y: Double, z: Double)) -> (east: Double, north: Double, up: Double) {
+    fileprivate func referenceVector(forDeviceVector vector: (x: Double, y: Double, z: Double)) -> (east: Double, north: Double, up: Double) {
         referenceVector(forDeviceVectorX: vector.x, y: vector.y, z: vector.z)
     }
 }
@@ -833,7 +833,7 @@ final class StarMapViewModel: ObservableObject {
     var isNight: Bool { sunAltitude < 0 }
 
     /// 天文薄明 (太陽高度 < -18°) 以上の暗さか
-    var isAstronomicalDark: Bool { sunAltitude < -18 }
+    private var isAstronomicalDark: Bool { sunAltitude < -18 }
 
     /// 現在の観測日と時刻にリセット
     func resetToNow(referenceDate: Date = Date()) {
@@ -892,7 +892,7 @@ final class StarMapViewModel: ObservableObject {
     }
 
     /// 初期ポーズフラグをクリアする（心射図法デフォルトでは適用しない）。
-    func clearInitialPoseFlag() {
+    private func clearInitialPoseFlag() {
         shouldApplyInitialPose = false
     }
 

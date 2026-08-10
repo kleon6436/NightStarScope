@@ -54,9 +54,21 @@ struct ObservationAdviceCard: View {
         Button {
             viewModel.generate(input: input)
         } label: {
+            #if os(macOS)
             Label(String(localized: "advice.card.regenerate"), systemImage: "arrow.clockwise")
+            #else
+            Label(String(localized: "advice.card.regenerate"), systemImage: "arrow.clockwise")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, Spacing.xs)
+                .padding(.vertical, 6)
+                .background(.thinMaterial, in: Capsule())
+            #endif
         }
+        #if os(macOS)
         .glassButtonStyle()
+        #else
+        .buttonStyle(.plain)
+        #endif
         .disabled(matchesLoadingState)
     }
 
@@ -77,7 +89,11 @@ struct ObservationAdviceCard: View {
                 .frame(height: 16)
             RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
                 .fill(.quaternary)
+                #if os(macOS)
                 .frame(maxWidth: 320)
+                #else
+                .frame(maxWidth: 280)
+                #endif
                 .frame(height: 16)
         }
         .redacted(reason: .placeholder)

@@ -124,7 +124,7 @@ struct iOSTodayView: View {
             }
 
             if let input = observationAdvisorInput {
-                iOSObservationAdviceCard(viewModel: advisorViewModel, input: input)
+                ObservationAdviceCard(viewModel: advisorViewModel, input: input)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
