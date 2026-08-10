@@ -19,7 +19,7 @@
 		15AC41CBCC1C1DBC611100CE /* ObservationAdvisorInputBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 273CF9C5BAF8A19CD9647DD2 /* ObservationAdvisorInputBuilder.swift */; };
 		17FA0E9DCE59289B5F6D2F03 /* ObservationAdvisorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738F147B3FD3D30245014E71 /* ObservationAdvisorService.swift */; };
 		1A2B3C4D5E6F708192A3B4C5 /* iOSStarMapSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */; };
-		29439492FBB6330AD2C1A28C /* iOSObservationAdviceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48955933797D456E9FF10C87 /* iOSObservationAdviceCard.swift */; };
+		C8C92AA438CF4CBBA0C79605 /* ObservationAdviceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00AC14BF35B8A1BBCE59A96E /* ObservationAdviceCard.swift */; };
 		29624CDBDF973E033D5A20FC /* iOSMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E51B35725701CA2DB51488 /* iOSMapView.swift */; };
 		2F634825E4145753F51108E9 /* DetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F01 /* DetailViewModel.swift */; };
 		477B2E3CB5355CA1BA5757D3 /* ViewingWindowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F16 /* ViewingWindowsSection.swift */; };
@@ -244,7 +244,6 @@
 		2FA0C4060B1252A05AA86C03 /* FavoriteLocationStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FavoriteLocationStore.swift; sourceTree = "<group>"; };
 		3A2274D5B63FA53AAF40055E /* ObservationAdvisorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationAdvisorViewModel.swift; sourceTree = "<group>"; };
 		3C88010FC1657FBB75579A3E /* iOSTodayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSTodayView.swift; sourceTree = "<group>"; };
-		48955933797D456E9FF10C87 /* iOSObservationAdviceCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSObservationAdviceCard.swift; sourceTree = "<group>"; };
 		6C1674E72F8E7B7500AF040A /* ObservationTimeZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationTimeZone.swift; sourceTree = "<group>"; };
 		6C18B76F2F791309007949F3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6CD4ED0E2F83B99000ECC17B /* MapTileOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapTileOverlay.swift; sourceTree = "<group>"; };
@@ -437,7 +436,6 @@
 				2C4FF1AF217AF56546E11BB3 /* iOSLocationView.swift */,
 				BB0000000000000000004F01 /* iOSStarMapView.swift */,
 				1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */,
-				48955933797D456E9FF10C87 /* iOSObservationAdviceCard.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -859,7 +857,7 @@
 				05B006658CE59CC2B7E60657 /* FavoriteLocation.swift in Sources */,
 				CDE0B61ACA19A82237AAC59A /* FavoriteLocationStore.swift in Sources */,
 				D1A100000000000000000006 /* StarMapDisplaySettingsSection.swift in Sources */,
-				29439492FBB6330AD2C1A28C /* iOSObservationAdviceCard.swift in Sources */,
+				C8C92AA438CF4CBBA0C79605 /* ObservationAdviceCard.swift in Sources */,
 				DC3552013A12E2ED2174B8C6 /* ObservationAdvisorInput.swift in Sources */,
 				FF7EEB3C6BBEB0384CF21178 /* ObservationAdvisorService.swift in Sources */,
 				15AC41CBCC1C1DBC611100CE /* ObservationAdvisorInputBuilder.swift in Sources */,
