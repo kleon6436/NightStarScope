@@ -66,3 +66,4 @@ Docs/
 
 # Agent session state (Copilot / Sisyphus)
 BOULDER.md
+__pycache__/

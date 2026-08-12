@@ -69,7 +69,7 @@ struct AstroPhotoCalculatorView: View {
         Section("センサー設定") {
             Picker("センサーサイズ", selection: $viewModel.sensorSize) {
                 ForEach(SensorSize.allCases) { sensorSize in
-                    Text(sensorSize.rawValue).tag(sensorSize)
+                    Text(sensorSize.localizedLabel).tag(sensorSize)
                 }
             }
 
@@ -236,11 +236,11 @@ struct AstroPhotoCalculatorView: View {
     private func shutterDisplayText(_ seconds: Double) -> String {
         guard seconds > 0 else { return "-" }
         if seconds >= 1 {
-            return "\(L10n.number(seconds, fractionDigits: 1)) 秒"
+            return L10n.format("%@ 秒", L10n.number(seconds, fractionDigits: 1))
         }
 
         let denominator = max(1, Int((1 / seconds).rounded()))
-        return "1/\(denominator) 秒"
+        return L10n.format("1/%lld 秒", denominator)
     }
 
     private func clamp<T: Comparable>(_ value: T, lowerBound: T, upperBound: T) -> T {

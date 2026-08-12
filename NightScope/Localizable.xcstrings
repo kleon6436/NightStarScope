@@ -22,7 +22,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Failed to search for \"%@\". %@"
+            "value" : "Failed to search for \"%1$@\". %2$@"
           }
         }
       }
@@ -141,10 +141,26 @@
       }
     },
     "%@ 分" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ min"
+          }
+        }
+      }
     },
     "%@ 枚" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ frames"
+          }
+        }
+      }
     },
     "%@。現在時刻 %@。%@" : {
       "extractionState" : "manual",
@@ -172,7 +188,7 @@
       "localizations" : {
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$@/%2$@"
           }
         }
@@ -207,16 +223,56 @@
 
     },
     "%lld 分" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld minute"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld minutes"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "%lld 枚" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld frame"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld frames"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "%lld/%lld" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$lld/%2$lld"
           }
         }
@@ -652,10 +708,26 @@
 
     },
     "iCloud 同期" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud Sync"
+          }
+        }
+      }
     },
     "macOS・iPhone でお気に入りが共有されます。変更は次回起動後に反映されます。" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favorites are shared between macOS and iPhone. Changes take effect after the next launch."
+          }
+        }
+      }
     },
     "N" : {
 
@@ -1879,7 +1951,15 @@
       }
     },
     "お気に入り地点を同期する" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync favorite locations"
+          }
+        }
+      }
     },
     "カウス・オーストラリス" : {
       "extractionState" : "manual",
@@ -2652,7 +2732,7 @@
       }
     },
     "スコア順" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2790,7 +2870,7 @@
       }
     },
     "ダッシュボードのデータ取得に失敗しました" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3687,7 +3767,15 @@
       }
     },
     "モード" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
     },
     "やぎ座" : {
       "extractionState" : "manual",
@@ -4339,10 +4427,26 @@
       }
     },
     "最大 約%@/h" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to ~%@/h"
+          }
+        }
+      }
     },
     "最大 約%lld/h" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to ~%lld/h"
+          }
+        }
+      }
     },
     "最大高度 %.0f°" : {
       "extractionState" : "manual",
@@ -4378,7 +4482,7 @@
       }
     },
     "最良日順" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4812,7 +4916,15 @@
       }
     },
     "地形データ状態: %@" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terrain data status: %@"
+          }
+        }
+      }
     },
     "地点が選択されていません" : {
       "extractionState" : "manual",
@@ -4870,7 +4982,7 @@
       }
     },
     "地点名" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6196,7 +6308,15 @@
       }
     },
     "極大: %@" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peak: %@"
+          }
+        }
+      }
     },
     "権限ダイアログの完了後に背景を切り替えます" : {
       "extractionState" : "manual",
@@ -6290,11 +6410,18 @@
       "localizations" : {
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "活動期間: %1$@ 〜 %2$@"
           }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active: %1$@ – %2$@"
+          }
         }
-      }
+      },
+      "extractionState" : "manual"
     },
     "流星群カレンダー" : {
       "extractionState" : "manual",
@@ -6407,10 +6534,26 @@
       }
     },
     "現在値: Bortle %@" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current: Bortle %@"
+          }
+        }
+      }
     },
     "現在値: Bortle %lld" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current: Bortle %lld"
+          }
+        }
+      }
     },
     "現在地" : {
       "extractionState" : "manual",
@@ -6886,7 +7029,15 @@
       }
     },
     "観測モード" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observing Mode"
+          }
+        }
+      }
     },
     "観測可能時間" : {
       "extractionState" : "manual",
@@ -7280,6 +7431,347 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wind Speed Unit"
+          }
+        }
+      }
+    },
+    "今夜の惑星" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planets Tonight"
+          }
+        }
+      }
+    },
+    "等級 %.1f" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magnitude %.1f"
+          }
+        }
+      }
+    },
+    "最大高度 %.1f°" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max altitude %.1f°"
+          }
+        }
+      }
+    },
+    "%@、出 %@、南中 %@、没 %@、最大高度 %@度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, rises %2$@, transits %3$@, sets %4$@, max altitude %5$@ degrees"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "肉眼" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naked eye"
+          }
+        }
+      }
+    },
+    "双眼鏡" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Binoculars"
+          }
+        }
+      }
+    },
+    "望遠鏡" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telescope"
+          }
+        }
+      }
+    },
+    "フルサイズ (35mm)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full frame (35mm)"
+          }
+        }
+      }
+    },
+    "マイクロフォーサーズ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Micro Four Thirds"
+          }
+        }
+      }
+    },
+    "1インチ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 inch"
+          }
+        }
+      }
+    },
+    "カスタム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom"
+          }
+        }
+      }
+    },
+    "活発" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High"
+          }
+        }
+      }
+    },
+    "中程度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medium"
+          }
+        }
+      }
+    },
+    "散発的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low"
+          }
+        }
+      }
+    },
+    "%@、活動期間 %@から%@、極大 %@、最大 1時間あたり約%d個" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, active from %2$@ to %3$@, peak %4$@, up to about %5$d meteors per hour"
+          }
+        }
+      }
+    },
+    "出" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rise"
+          }
+        }
+      }
+    },
+    "出 方位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rise azimuth"
+          }
+        }
+      }
+    },
+    "南中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transit"
+          }
+        }
+      }
+    },
+    "南中 方位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transit azimuth"
+          }
+        }
+      }
+    },
+    "没" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        }
+      }
+    },
+    "没 方位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set azimuth"
+          }
+        }
+      }
+    },
+    "最大高度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max altitude"
+          }
+        }
+      }
+    },
+    "観測難易度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Difficulty"
+          }
+        }
+      }
+    },
+    "高度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altitude"
+          }
+        }
+      }
+    },
+    "地平線" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizon"
+          }
+        }
+      }
+    },
+    "観測閾値" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observing threshold"
+          }
+        }
+      }
+    },
+    "撮影計算" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo Calc"
+          }
+        }
+      }
+    },
+    "%@ 秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ s"
+          }
+        }
+      }
+    },
+    "1/%lld 秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1/%lld s"
+          }
+        }
+      }
+    },
+    "%@ ・ %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
           }
         }
       }

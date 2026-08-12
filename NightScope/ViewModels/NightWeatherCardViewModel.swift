@@ -47,7 +47,7 @@ final class NightWeatherCardViewModel: ObservableObject {
     }
 
     func formatMetrics(precipitation: Double, cloudCover: Double) -> String {
-        "\(formatPrecipitation(precipitation)) ・ \(formatCloudCover(cloudCover))"
+        L10n.format("%@ ・ %@", formatPrecipitation(precipitation), formatCloudCover(cloudCover))
     }
 
     /// 選択済み単位で風速を整形する。
