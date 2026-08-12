@@ -566,9 +566,9 @@ enum ObservationDifficulty: Sendable, Equatable {
 
     var localizedLabel: String {
         switch self {
-        case .nakedEye: return "肉眼"
-        case .binoculars: return "双眼鏡"
-        case .telescope: return "望遠鏡"
+        case .nakedEye: return L10n.tr("肉眼")
+        case .binoculars: return L10n.tr("双眼鏡")
+        case .telescope: return L10n.tr("望遠鏡")
         }
     }
 }

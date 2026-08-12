@@ -89,10 +89,7 @@ struct PlanetVisibilityView: View {
     }
 
     private var nightDateLabel: String {
-        let cal   = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let month = cal.component(.month, from: selectedDate)
-        let day   = cal.component(.day,   from: selectedDate)
-        return L10n.format("%d月%d日", month, day)
+        DateFormatters.monthDayString(from: selectedDate, timeZone: timeZone)
     }
 }
 
@@ -262,13 +259,13 @@ private struct PlanetDetailSheet: View {
         Chart {
             ForEach(summary.altitudeSamples, id: \.time) { sample in
                 LineMark(
-                    x: .value("時刻", sample.time),
-                    y: .value("高度", sample.altitude)
+                    x: .value(L10n.tr("時刻"), sample.time),
+                    y: .value(L10n.tr("高度"), sample.altitude)
                 )
             }
-            RuleMark(y: .value("地平線", 0.0))
+            RuleMark(y: .value(L10n.tr("地平線"), 0.0))
                 .foregroundStyle(.secondary)
-            RuleMark(y: .value("観測閾値", 10.0))
+            RuleMark(y: .value(L10n.tr("観測閾値"), 10.0))
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 2]))
                 .foregroundStyle(.orange)
         }

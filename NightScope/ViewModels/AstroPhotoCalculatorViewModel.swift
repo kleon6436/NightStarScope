@@ -11,6 +11,9 @@ enum SensorSize: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// 表示用のローカライズ名。rawValue は UserDefaults の保存値なので変更しない。
+    var localizedLabel: String { L10n.tr(rawValue) }
+
     /// センサー幅 (mm)。custom の場合は 0。
     var sensorWidthMm: Double {
         switch self {

@@ -118,9 +118,9 @@ struct MeteorShowerCalendarView: View {
     private var legendRow: some View {
         HStack(spacing: Spacing.sm) {
             Spacer()
-            legendItem(color: .orange, label: "活発")
-            legendItem(color: .blue,   label: "中程度")
-            legendItem(color: .teal,   label: "散発的")
+            legendItem(color: .orange, label: L10n.tr("活発"))
+            legendItem(color: .blue,   label: L10n.tr("中程度"))
+            legendItem(color: .teal,   label: L10n.tr("散発的"))
             selectedDateLegendItem
         }
         .font(.caption2)
@@ -242,7 +242,7 @@ private struct ShowerTimelineRow: View {
     }
 
     private func dateLabel(month: Int, day: Int) -> String {
-        L10n.format("%d月%d日", month, day)
+        DateFormatters.monthDayString(month: month, day: day)
     }
 
     private var showerLabel: some View {
@@ -398,6 +398,6 @@ private struct MeteorShowerDetailSheet: View {
     }
 
     private func dateLabel(month: Int, day: Int) -> String {
-        L10n.format("%d月%d日", month, day)
+        DateFormatters.monthDayString(month: month, day: day)
     }
 }
