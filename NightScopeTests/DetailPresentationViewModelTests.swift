@@ -290,7 +290,7 @@ final class NightWeatherCardViewModelTests: XCTestCase {
         let vm = NightWeatherCardViewModel()
         XCTAssertEqual(
             vm.formatMetrics(precipitation: 2.5, cloudCover: 75.0),
-            "\(vm.formatPrecipitation(2.5)) ・ \(vm.formatCloudCover(75.0))"
+            L10n.format("%@ ・ %@", vm.formatPrecipitation(2.5), vm.formatCloudCover(75.0))
         )
     }
 

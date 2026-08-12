@@ -52,6 +52,8 @@
 		A0F100000000000000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000001 /* Localization.swift */; };
 		A0F100000000000000000003 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000001 /* Localization.swift */; };
 		A0F100000000000000000005 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000004 /* Localizable.xcstrings */; };
+		A0F100000000000000000007 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000009 /* InfoPlist.xcstrings */; };
+		A0F100000000000000000008 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000009 /* InfoPlist.xcstrings */; };
 		A0F100000000000000000006 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000004 /* Localizable.xcstrings */; };
 		A1B2C3D4E5F60718293A4B01 /* GeoStateValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */; };
 		A1B2C3D4E5F60718293A4B02 /* GeoStateValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */; };
@@ -117,6 +119,7 @@
 		AA000000000000000000TB14 /* SearchResultsLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF14 /* SearchResultsLayoutTests.swift */; };
 		AA000000000000000000TB15 /* CalendarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF15 /* CalendarViewTests.swift */; };
 		AA000000000000000000TB16 /* AstroPhotoCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF16 /* AstroPhotoCalculatorTests.swift */; };
+		AA000000000000000000TB60 /* LocalizationCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF60 /* LocalizationCatalogTests.swift */; };
 		AA000000000000000000TB17 /* WeatherModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF17 /* WeatherModelsTests.swift */; };
 		AA000000000000000000TB20 /* PlanetVisibilitySummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF20 /* PlanetVisibilitySummaryTests.swift */; };
 		AA9B7CDA3046C922B1100A01 /* ObservationMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A11 /* ObservationMode.swift */; };
@@ -258,6 +261,7 @@
 		9645065BBBF802A955B5582A /* NightScopeiOS.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = NightScopeiOS.entitlements; sourceTree = "<group>"; };
 		A0F100000000000000000001 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		A0F100000000000000000004 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		A0F100000000000000000009 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		A1421579CFF20984F582B235 /* ObservationAdvisorViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationAdvisorViewModelTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoStateValidator.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F01 /* NightScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeApp.swift; sourceTree = "<group>"; };
@@ -318,6 +322,7 @@
 		AA000000000000000000TF14 /* SearchResultsLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsLayoutTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF15 /* CalendarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF16 /* AstroPhotoCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AstroPhotoCalculatorTests.swift; sourceTree = "<group>"; };
+		AA000000000000000000TF60 /* LocalizationCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationCatalogTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF17 /* WeatherModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherModelsTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF20 /* PlanetVisibilitySummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanetVisibilitySummaryTests.swift; sourceTree = "<group>"; };
 		AEF100000000000000000001 /* WeatherKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitService.swift; sourceTree = "<group>"; };
@@ -464,6 +469,7 @@
 				AA000000000000000000GR06 /* Views */,
 				AA0000000000000000001F05 /* Assets.xcassets */,
 				A0F100000000000000000004 /* Localizable.xcstrings */,
+				A0F100000000000000000009 /* InfoPlist.xcstrings */,
 				AA0000000000000000001F06 /* NightScope.entitlements */,
 				6D4A1F7B2E9C4100A1B2C3D3 /* PrivacyInfo.xcprivacy */,
 			);
@@ -579,6 +585,7 @@
 				AA000000000000000000TF05 /* AstroModelsTests.swift */,
 				AA000000000000000000TF06 /* ViewModelTestSupport.swift */,
 				AA000000000000000000TF16 /* AstroPhotoCalculatorTests.swift */,
+				AA000000000000000000TF60 /* LocalizationCatalogTests.swift */,
 				AA000000000000000000TF07 /* StarMapViewModelTests.swift */,
 				AA000000000000000000TF08 /* LocationControllerTests.swift */,
 				AA000000000000000000TF10 /* SidebarViewModelTests.swift */,
@@ -748,6 +755,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A0F100000000000000000006 /* Localizable.xcstrings in Resources */,
+				A0F100000000000000000008 /* InfoPlist.xcstrings in Resources */,
 				BB0000000000000000003B02 /* stars_fill.json in Resources */,
 				BB0000000000000000007B02 /* constellations_iau.json in Resources */,
 				BB0000000000000000003B04 /* bortle_map.bin in Resources */,
@@ -764,6 +772,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A0F100000000000000000005 /* Localizable.xcstrings in Resources */,
+				A0F100000000000000000007 /* InfoPlist.xcstrings in Resources */,
 				BB0000000000000000003B01 /* stars_fill.json in Resources */,
 				BB0000000000000000007B01 /* constellations_iau.json in Resources */,
 				BB0000000000000000003B03 /* bortle_map.bin in Resources */,
@@ -973,6 +982,7 @@
 				AA000000000000000000TB05 /* AstroModelsTests.swift in Sources */,
 				AA000000000000000000TB06 /* ViewModelTestSupport.swift in Sources */,
 				AA000000000000000000TB16 /* AstroPhotoCalculatorTests.swift in Sources */,
+				AA000000000000000000TB60 /* LocalizationCatalogTests.swift in Sources */,
 				AA000000000000000000TB07 /* StarMapViewModelTests.swift in Sources */,
 				AA000000000000000000TB08 /* LocationControllerTests.swift in Sources */,
 				AA000000000000000000TB10 /* SidebarViewModelTests.swift in Sources */,
@@ -1034,6 +1044,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -1072,6 +1083,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -1140,7 +1152,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -1199,7 +1211,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;

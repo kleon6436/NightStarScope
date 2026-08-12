@@ -544,6 +544,29 @@ enum DateFormatters {
         FormatterFactory.localizedDate(template: "yMMMM", timeZone: timeZone).string(from: date)
     }
 
+    /// ロケールに応じた「月日」表記を返す (ja: 8月12日 / en: Aug 12)。
+    static func monthDayString(from date: Date, timeZone: TimeZone = .current) -> String {
+        FormatterFactory.localizedDate(template: "MMMd", timeZone: timeZone).string(from: date)
+    }
+
+    /// 年を持たない月日の組を、referenceDate の年に当てはめてロケール表記へ変換する。
+    static func monthDayString(
+        month: Int,
+        day: Int,
+        timeZone: TimeZone = .current,
+        referenceDate: Date = Date()
+    ) -> String {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        var components = DateComponents()
+        components.year = calendar.component(.year, from: referenceDate)
+        components.month = month
+        components.day = day
+        guard let date = calendar.date(from: components) else {
+            return "\(month)/\(day)"
+        }
+        return monthDayString(from: date, timeZone: timeZone)
+    }
+
     static func fullDateString(from date: Date, timeZone: TimeZone = .current) -> String {
         FormatterFactory.observationTimeZone(
             dateStyle: .full,
