@@ -151,17 +151,6 @@
         }
       }
     },
-    "%@ 枚" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ frames"
-          }
-        }
-      }
-    },
     "%@。現在時刻 %@。%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -238,29 +227,6 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld minutes"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld 枚" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld frame"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld frames"
                 }
               }
             }
@@ -761,17 +727,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opens NightScope settings."
-          }
-        }
-      }
-    },
-    "NPF ルールで推奨シャッタースピードと ISO を計算します" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calculates recommended shutter speed and ISO using the NPF rule"
           }
         }
       }
@@ -2016,17 +1971,6 @@
         }
       }
     },
-    "カスタムピクセルピッチ (µm)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom Pixel Pitch (µm)"
-          }
-        }
-      }
-    },
     "カストル" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2687,17 +2631,6 @@
         }
       }
     },
-    "シャッタースピード" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shutter Speed"
-          }
-        }
-      }
-    },
     "シリウス" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2744,17 +2677,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スコア順"
-          }
-        }
-      }
-    },
-    "スタッキング撮影" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stacking"
           }
         }
       }
@@ -2821,28 +2743,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Segin"
-          }
-        }
-      }
-    },
-    "センサーサイズ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sensor Size"
-          }
-        }
-      }
-    },
-    "センサー設定" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sensor Settings"
           }
         }
       }
@@ -3278,28 +3178,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Peacock"
-          }
-        }
-      }
-    },
-    "ピクセルピッチ (µm)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pixel Pitch (µm)"
-          }
-        }
-      }
-    },
-    "ピクセルピッチ (µm)（参考）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pixel Pitch (µm) (ref)"
           }
         }
       }
@@ -3898,17 +3776,6 @@
         }
       }
     },
-    "レンズ設定" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lens Settings"
-          }
-        }
-      }
-    },
     "ワサット" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4305,17 +4172,6 @@
         }
       }
     },
-    "光害（Bortle クラス）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Light Pollution (Bortle Class)"
-          }
-        }
-      }
-    },
     "光害データなし" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4378,17 +4234,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Light pollution: Bortle %.0f"
-          }
-        }
-      }
-    },
-    "入力値を確認してください" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Please check the input values"
           }
         }
       }
@@ -4725,16 +4570,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Updating the information on the right"
-          }
-        }
-      }
-    },
-    "合計露出時間" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Total Exposure Time"
           }
         }
       }
@@ -5174,28 +5009,6 @@
         }
       }
     },
-    "天体写真設定" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Astrophotography Settings"
-          }
-        }
-      }
-    },
-    "天体写真設定計算機を開く" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Astrophotography Calculator"
-          }
-        }
-      }
-    },
     "天候・月明かりを考慮" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5559,28 +5372,6 @@
         }
       }
     },
-    "推奨 ISO" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recommended ISO"
-          }
-        }
-      }
-    },
-    "推奨枚数" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recommended Frames"
-          }
-        }
-      }
-    },
     "撮影に適しています" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5588,17 +5379,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Good for photos"
-          }
-        }
-      }
-    },
-    "撮影設定" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shooting Settings"
           }
         }
       }
@@ -6263,17 +6043,6 @@
         }
       }
     },
-    "枚" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "frames"
-          }
-        }
-      }
-    },
     "検索に失敗しました" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6478,17 +6247,6 @@
         }
       }
     },
-    "焦点距離 (mm)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Focal Length (mm)"
-          }
-        }
-      }
-    },
     "現在" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6529,28 +6287,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Current Azimuth"
-          }
-        }
-      }
-    },
-    "現在値: Bortle %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current: Bortle %@"
-          }
-        }
-      }
-    },
-    "現在値: Bortle %lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current: Bortle %lld"
           }
         }
       }
@@ -6610,17 +6346,6 @@
         }
       }
     },
-    "画素数 (MP)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Megapixels (MP)"
-          }
-        }
-      }
-    },
     "画面ごとの調整" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6639,17 +6364,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Already saved"
-          }
-        }
-      }
-    },
-    "目標枚数" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Target Frames"
           }
         }
       }
@@ -6716,17 +6430,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Light flurries"
-          }
-        }
-      }
-    },
-    "絞り (F値)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aperture (f-number)"
           }
         }
       }
@@ -7068,17 +6771,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Very poor"
-          }
-        }
-      }
-    },
-    "観測地点から自動取得" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto-populated from observation site"
           }
         }
       }
@@ -7523,39 +7215,6 @@
         }
       }
     },
-    "フルサイズ (35mm)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Full frame (35mm)"
-          }
-        }
-      }
-    },
-    "マイクロフォーサーズ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Micro Four Thirds"
-          }
-        }
-      }
-    },
-    "1インチ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 inch"
-          }
-        }
-      }
-    },
     "カスタム" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7728,39 +7387,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Observing threshold"
-          }
-        }
-      }
-    },
-    "撮影計算" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo Calc"
-          }
-        }
-      }
-    },
-    "%@ 秒" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ s"
-          }
-        }
-      }
-    },
-    "1/%lld 秒" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1/%lld s"
           }
         }
       }
