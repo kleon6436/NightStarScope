@@ -11,7 +11,6 @@ struct DetailView: View {
     @StateObject private var upcomingGridViewModel: UpcomingNightsGridViewModel
     @StateObject private var advisorViewModel: ObservationAdvisorViewModel
     @ObservedObject var starMapViewModel: StarMapViewModel
-    @State private var isAstroPhotoOpen = false
 
     init(
         viewModel: DetailViewModel,
@@ -43,9 +42,6 @@ struct DetailView: View {
         .toolbarBackground(.hidden, for: .windowToolbar)
         .sheet(isPresented: $starMapViewModel.isStarMapOpen) {
             MacStarMapSheet(viewModel: starMapViewModel)
-        }
-        .sheet(isPresented: $isAstroPhotoOpen) {
-            AstroPhotoCalculatorView(bortleClass: viewModel.lightPollutionService.bortleClass)
         }
         .onChange(of: starMapViewModel.isStarMapOpen) { _, isOpen in
             if isOpen {
@@ -154,14 +150,6 @@ struct DetailView: View {
                     Text("星空観測情報")
                         .font(.title3.bold())
                     Spacer()
-                    Button {
-                        isAstroPhotoOpen = true
-                    } label: {
-                        Label("天体写真設定", systemImage: "camera.aperture")
-                    }
-                    .glassButtonStyle()
-                    .help(L10n.tr("天体写真設定計算機を開く"))
-                    .accessibilityHint(L10n.tr("NPF ルールで推奨シャッタースピードと ISO を計算します"))
                     Button {
                         starMapViewModel.isStarMapOpen = true
                     } label: {
