@@ -39,20 +39,11 @@ struct iOSRootView: View {
                 }
                 .tag(2)
 
-            AstroPhotoCalculatorView(
-                bortleClass: rootStore.detailViewModel.lightPollutionService.bortleClass,
-                isSheet: false
-            )
-            .tabItem {
-                Label("撮影計算", systemImage: "camera.aperture")
-            }
-            .tag(3)
-
             iOSStarMapView(viewModel: rootStore.starMapViewModel)
                 .tabItem {
                     Label("星空", systemImage: "sparkles")
                 }
-                .tag(4)
+                .tag(3)
         }
         .onAppear {
             handleActiveSceneIfNeeded()
