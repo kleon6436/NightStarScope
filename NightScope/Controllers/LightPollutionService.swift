@@ -30,18 +30,6 @@ protocol LightPollutionProviding: AnyObject, ObservableObject {
     func fetchBortle(latitude: Double, longitude: Double) async throws -> Double
 }
 
-enum LightPollutionBundleDataSource {
-    /// Map overlay と service の両方から使う共有グリッドデータ。
-    static let sharedGridData: BortleGridData? = loadBundledGridData()
-
-    private static func loadBundledGridData() -> BortleGridData? {
-        guard let url = Bundle.main.url(forResource: "bortle_map", withExtension: "bin"),
-              let data = try? Data(contentsOf: url, options: .mappedIfSafe)
-        else { return nil }
-        return BortleGridData(data: data)
-    }
-}
-
 /// 人工輝度から Bortle スケールへ変換する。
 struct BortleScaleConverter {
     private enum Constants {
@@ -98,7 +86,7 @@ struct BortleScaleConverter {
 ///   - Data:      zlib compressed Float32[] LE
 ///
 /// 生成: Tools/generate_bortle_map.py
-struct BortleGridData {
+struct BortleGridData: Sendable {
     private let latCells: Int
     private let lonCells: Int
     /// Float32 配列データを保持。
@@ -207,6 +195,44 @@ struct BortleGridData {
     }
 }
 
+/// バンドルされた光害グリッドをバックグラウンドで一度だけ読み込む共有 provider。
+actor BortleGridProvider {
+    /// Tile service がグリッドをキャッシュした後に再描画を通知するための名前空間付き通知名。
+    static let gridDidLoadNotification = Notification.Name("BortleGridProvider.gridDidLoad")
+
+    /// 全画面で共有するグリッド provider。
+    static let shared = BortleGridProvider()
+
+    private var cachedGrid: BortleGridData?
+    private var hasLoaded = false
+    private var inFlightTask: Task<BortleGridData?, Never>?
+
+    /// バンドルグリッドを読み込み、結果をキャッシュして返す。
+    /// 初回のファイル読み込みと解凍はメインアクターから切り離して実行する。
+    func grid() async -> BortleGridData? {
+        if hasLoaded {
+            return cachedGrid
+        }
+        if let inFlightTask {
+            return await inFlightTask.value
+        }
+
+        let task = Task.detached(priority: .utility) { () -> BortleGridData? in
+            guard let url = Bundle.main.url(forResource: "bortle_map", withExtension: "bin"),
+                  let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
+                return nil
+            }
+            return BortleGridData(data: data)
+        }
+        inFlightTask = task
+        let result = await task.value
+        inFlightTask = nil
+        cachedGrid = result
+        hasLoaded = true
+        return result
+    }
+}
+
 private extension Int {
     func clamped(to range: Range<Int>) -> Int {
         Swift.max(range.lowerBound, Swift.min(self, range.upperBound - 1))
@@ -235,6 +261,9 @@ final class LightPollutionTileService: @unchecked Sendable {
         cache.totalCostLimit = TileConfig.memoryCacheCostLimit
         return cache
     }()
+    private let gridLock = NSLock()
+    private var gridData: BortleGridData?
+    private var hasStartedGridWarmup = false
 
     func cachedTileData(for path: MKTileOverlayPath) -> Data? {
         memoryCache.object(forKey: cacheKey(for: path)) as Data?
@@ -242,6 +271,33 @@ final class LightPollutionTileService: @unchecked Sendable {
 
     func storeTileData(_ data: Data, for path: MKTileOverlayPath) {
         memoryCache.setObject(data as NSData, forKey: cacheKey(for: path), cost: data.count)
+    }
+
+    /// キャッシュ済みのグリッドを同期的に返す。タイル要求を非同期化しないためのアクセサ。
+    func sharedGrid() -> BortleGridData? {
+        gridLock.withLock { gridData }
+    }
+
+    /// バックグラウンド読み込み結果を保存する。async コンテキストから安全に呼べるよう
+    /// 非 async な `withLock` スコープに閉じ込める。
+    private func storeGrid(_ grid: BortleGridData) {
+        gridLock.withLock { gridData = grid }
+    }
+
+    /// グリッドのバックグラウンド読み込みを一度だけ開始する。
+    func startGridWarmup() {
+        let shouldStart = gridLock.withLock {
+            guard !hasStartedGridWarmup else { return false }
+            hasStartedGridWarmup = true
+            return true
+        }
+        guard shouldStart else { return }
+
+        Task.detached(priority: .utility) {
+            guard let grid = await BortleGridProvider.shared.grid() else { return }
+            self.storeGrid(grid)
+            NotificationCenter.default.post(name: BortleGridProvider.gridDidLoadNotification, object: nil)
+        }
     }
 
     private func cacheKey(for path: MKTileOverlayPath) -> NSString {
@@ -279,16 +335,23 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
 
     private var lastFetchResult: FetchResult?
 
-    /// バンドルデータ（アプリ起動時に一度だけロード）
-    private let gridData: BortleGridData?
+    /// バンドルデータ。未ロード時は provider から非同期に取得する。
+    private var gridData: BortleGridData?
+    private let gridProvider: BortleGridProvider?
     private let scaleConverter: BortleScaleConverter
 
     init(
-        gridData: BortleGridData? = LightPollutionBundleDataSource.sharedGridData,
+        gridData: BortleGridData? = nil,
+        gridProvider: BortleGridProvider? = .shared,
         scaleConverter: BortleScaleConverter = BortleScaleConverter()
     ) {
         self.gridData = gridData
+        self.gridProvider = gridProvider
         self.scaleConverter = scaleConverter
+        guard gridData == nil, let gridProvider else { return }
+        Task { [weak self] in
+            self?.gridData = await gridProvider.grid()
+        }
     }
 
     /// 観測地変更前に、表示中の光害状態を初期化する。
@@ -346,9 +409,18 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
 
     /// バンドルデータから Bortle 値を直接算出する。
     func fetchBortle(latitude: Double, longitude: Double) async throws -> Double {
-        guard let grid = gridData else {
+        let grid: BortleGridData?
+        if let gridData {
+            grid = gridData
+        } else if let gridProvider {
+            grid = await gridProvider.grid()
+        } else {
+            grid = nil
+        }
+        guard let grid else {
             throw LightPollutionServiceError.noData
         }
+        gridData = grid
         let brightness = grid.brightness(latitude: latitude, longitude: longitude)
         return scaleConverter.bortleClass(for: brightness)
     }

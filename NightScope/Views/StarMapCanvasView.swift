@@ -132,6 +132,7 @@ struct StarMapCanvasView: View {
                 }
             }
             .onAppear {
+                viewModel.activatePresentationIfNeeded()
                 onCanvasAppear(size)
 #if os(macOS)
                 installMacScrollWheelMonitor()

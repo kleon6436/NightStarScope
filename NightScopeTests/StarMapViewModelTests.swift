@@ -722,6 +722,7 @@ final class StarMapViewModelTests: XCTestCase {
         if let initialCancellable {
             initialCancellable.store(in: &cancellables)
         }
+        viewModel.activatePresentationIfNeeded()
         wait(for: [initialExpectation], timeout: 5)
 
         let reducedExpectation = expectation(description: "reduced star positions")
@@ -1431,6 +1432,7 @@ final class StarMapViewModelTests: XCTestCase {
             terrainDependency: terrainDependency,
             computationDependency: makeStaticComputationDependency()
         )
+        viewModel.activatePresentationIfNeeded()
 
         await waitUntil(timeout: 1.0) {
             viewModel.terrainProfile?.horizonAngles.first == 1
@@ -1472,6 +1474,7 @@ final class StarMapViewModelTests: XCTestCase {
             terrainDependency: terrainDependency,
             computationDependency: makeStaticComputationDependency()
         )
+        viewModel.activatePresentationIfNeeded()
 
         await waitUntil(timeout: 1.0) {
             viewModel.terrainFetchState == .available
