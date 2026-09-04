@@ -45,7 +45,7 @@ struct DetailView: View {
         }
         .onChange(of: starMapViewModel.isStarMapOpen) { _, isOpen in
             if isOpen {
-                starMapViewModel.prepareForStarMapPresentation()
+                starMapViewModel.activatePresentationIfNeeded()
                 starMapViewModel.syncWithSelectedDate()
             }
         }

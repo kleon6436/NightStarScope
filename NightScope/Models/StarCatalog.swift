@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "com.nightscope", category: "StarCatalog"
 // MARK: - Star Model
 
 /// 恒星 1 件のカタログデータ。
-struct Star {
+struct Star: Sendable {
     let name: String        // 日本語名 (明るい星のみ)
     let ra: Double          // 赤経 (度, J2000.0)
     let dec: Double         // 赤緯 (度, J2000.0)
@@ -28,6 +28,16 @@ struct Star {
 /// 表示用の恒星カタログを組み立てる。
 enum StarCatalog {
     static let stars: [Star] = namedStars + fillStars
+
+    /// 星カタログの読み込みをバックグラウンドで完了させ、その結果を返す。
+    static func preloadedStars() async -> [Star] {
+        await warmupTask.value
+    }
+
+    // stars と同じ配列を参照するため、同期アクセスと先読みが競合しても JSON を二重にデコードしない。
+    private static let warmupTask: Task<[Star], Never> = Task.detached(priority: .utility) {
+        StarCatalog.stars
+    }
 
     /// stars_fill.json の数値配列を `Star` 配列へ変換する。
     static func makeFillStars(from entries: [[Double]]) -> [Star] {
