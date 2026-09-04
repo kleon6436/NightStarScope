@@ -105,8 +105,10 @@ struct MapKitViewRepresentable: NSViewRepresentable {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                guard let self, let mapView = self.observedMapView else { return }
-                MapKitViewSharedLogic.reloadLightPollutionOverlay(on: mapView)
+                Task { @MainActor [weak self] in
+                    guard let self, let mapView = self.observedMapView else { return }
+                    MapKitViewSharedLogic.reloadLightPollutionOverlay(on: mapView)
+                }
             }
         }
 
