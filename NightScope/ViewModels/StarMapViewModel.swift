@@ -44,7 +44,8 @@ struct StarMapComputationDependency: Sendable {
 
     static let live = StarMapComputationDependency(
         computeSnapshot: { latitude, longitude, julianDate, localSiderealTime, activeMeteorShowers, density in
-            await Task.detached(priority: .userInitiated) {
+            _ = await StarCatalog.preloadedStars()
+            return await Task.detached(priority: .userInitiated) {
                 StarMapComputation.compute(
                     latitude: latitude,
                     longitude: longitude,
@@ -531,7 +532,6 @@ final class StarMapViewModel: ObservableObject {
         setupBindings()
         updateNightRange(referenceDate: displayDate)
         syncTimeSliderWithDisplayDate()
-        update()
     }
 
     deinit {
@@ -593,6 +593,9 @@ final class StarMapViewModel: ObservableObject {
     }
 
     func update() {
+        // VM はアプリ起動時から常駐するため、星図が実際に表示されるまで初回計算を保留する。
+        guard hasPreparedInitialPresentation else { return }
+
         let now = Date.timeIntervalSinceReferenceDate
         let elapsed = now - lastPositionUpdateTime
         let minUpdateInterval = currentMinUpdateInterval
@@ -867,7 +870,9 @@ final class StarMapViewModel: ObservableObject {
     func activatePresentationIfNeeded(referenceDate: Date = Date()) {
         guard !hasPreparedInitialPresentation else { return }
         prepareForStarMapPresentation()
-        syncWithSelectedDate(referenceDate: referenceDate)
+        if !syncWithSelectedDate(referenceDate: referenceDate) {
+            update()
+        }
     }
 
     /// 星空マップ描画領域の最新サイズを記録する。
@@ -896,18 +901,24 @@ final class StarMapViewModel: ObservableObject {
         shouldApplyInitialPose = false
     }
 
-    /// 選択日へ現在の時刻を反映し、昼間なら当日夕方側の夜へ寄せて表示日時を決める。
-    func syncWithSelectedDate(referenceDate: Date = Date()) {
+    /// 選択日へ現在の時刻を反映し、表示日時を変更した場合は true を返す。
+    @discardableResult
+    func syncWithSelectedDate(referenceDate: Date = Date()) -> Bool {
         let context = observationContext
         updateNightRange(referenceDate: referenceDate)
-        if let date = resolvedPresentationDate(
+        guard let date = resolvedPresentationDate(
             for: context.selectedDate,
             referenceDate: referenceDate,
             location: context.location,
             timeZone: context.timeZone
-        ) {
-            displayDate = date
+        ) else {
+            return false
         }
+        guard displayDate != date else {
+            return false
+        }
+        displayDate = date
+        return true
     }
 
     /// 夜間スライダーの値を表示日時へ反映します。

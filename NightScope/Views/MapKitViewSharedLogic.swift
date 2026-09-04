@@ -50,6 +50,15 @@ enum MapKitViewSharedLogic {
         }
     }
 
+    /// グリッド読み込み後、表示中の光害タイルを再取得する。
+    static func reloadLightPollutionOverlay(on mapView: MKMapView) {
+        guard let overlay = mapView.overlays.first(where: { $0 is LightPollutionTileOverlay }),
+              let renderer = mapView.renderer(for: overlay) as? MKTileOverlayRenderer else {
+            return
+        }
+        renderer.reloadData()
+    }
+
     static func currentPinAnnotation(in mapView: MKMapView) -> MKPointAnnotation? {
         mapView.annotations.compactMap { $0 as? MKPointAnnotation }.first
     }

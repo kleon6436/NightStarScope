@@ -59,6 +59,7 @@ struct MapKitViewRepresentable: NSViewRepresentable {
         mapView.cameraZoomRange = MKMapView.CameraZoomRange(minCenterCoordinateDistance: MapKitViewSharedLogic.minCenterCoordinateDistance)
         // 光害オーバーレイを常駐させタブ切り替え時のタイル再描画を防ぐ（alpha で表示/非表示を切り替える）
         mapView.addOverlay(LightPollutionTileOverlay(urlTemplate: nil), level: .aboveRoads)
+        context.coordinator.observeBortleGridLoad(on: mapView)
         MapKitViewSharedLogic.setInitialRegionIfNeeded(on: mapView, pinCoordinate: pinCoordinate)
         let click = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         mapView.addGestureRecognizer(click)
@@ -85,6 +86,8 @@ struct MapKitViewRepresentable: NSViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapKitViewRepresentable
         let state: MapKitCoordinatorState
+        private var gridLoadObserver: NSObjectProtocol?
+        private weak var observedMapView: MKMapView?
 
         init(_ parent: MapKitViewRepresentable) {
             self.parent = parent
@@ -92,6 +95,25 @@ struct MapKitViewRepresentable: NSViewRepresentable {
                 syncTrigger: parent.syncState.trigger,
                 centerTrigger: parent.centerTrigger
             )
+        }
+
+        func observeBortleGridLoad(on mapView: MKMapView) {
+            guard gridLoadObserver == nil else { return }
+            observedMapView = mapView
+            gridLoadObserver = NotificationCenter.default.addObserver(
+                forName: BortleGridProvider.gridDidLoadNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self, let mapView = self.observedMapView else { return }
+                MapKitViewSharedLogic.reloadLightPollutionOverlay(on: mapView)
+            }
+        }
+
+        deinit {
+            if let gridLoadObserver {
+                NotificationCenter.default.removeObserver(gridLoadObserver)
+            }
         }
 
         @objc func handleTap(_ gr: NSClickGestureRecognizer) {

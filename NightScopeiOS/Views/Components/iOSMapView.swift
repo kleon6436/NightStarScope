@@ -22,6 +22,7 @@ struct iOSMapView: UIViewRepresentable {
             minCenterCoordinateDistance: MapKitViewSharedLogic.minCenterCoordinateDistance
         )
         mapView.addOverlay(LightPollutionTileOverlay(urlTemplate: nil), level: .aboveRoads)
+        context.coordinator.observeBortleGridLoad(on: mapView)
         MapKitViewSharedLogic.setInitialRegionIfNeeded(on: mapView, pinCoordinate: pinCoordinate)
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -51,6 +52,10 @@ struct iOSMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: iOSMapView
         let state: MapKitCoordinatorState
+        // `makeUIView` 内で MainActor 上から一度だけ代入され、以降 deinit まで不変。
+        // deinit からの読み出しは競合しない。
+        nonisolated(unsafe) private var gridLoadObserver: NSObjectProtocol?
+        private weak var observedMapView: MKMapView?
 
         init(_ parent: iOSMapView) {
             self.parent = parent
@@ -58,6 +63,25 @@ struct iOSMapView: UIViewRepresentable {
                 syncTrigger: parent.syncState.trigger,
                 centerTrigger: parent.centerTrigger
             )
+        }
+
+        func observeBortleGridLoad(on mapView: MKMapView) {
+            guard gridLoadObserver == nil else { return }
+            observedMapView = mapView
+            gridLoadObserver = NotificationCenter.default.addObserver(
+                forName: BortleGridProvider.gridDidLoadNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self, let mapView = self.observedMapView else { return }
+                MapKitViewSharedLogic.reloadLightPollutionOverlay(on: mapView)
+            }
+        }
+
+        deinit {
+            if let gridLoadObserver {
+                NotificationCenter.default.removeObserver(gridLoadObserver)
+            }
         }
 
         @objc func handleTap(_ gr: UITapGestureRecognizer) {

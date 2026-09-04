@@ -30,20 +30,6 @@ struct MapKitSyncState: Equatable {
     }
 }
 
-// handler は init 後に変更されない定数クロージャのため Sendable として安全。
-// MKTileOverlay のネットワークコールバックから呼ばれるので @unchecked が必要。
-private final class TileLoadResultHandler: @unchecked Sendable {
-    private let handler: (Data?, Error?) -> Void
-
-    init(_ handler: @escaping (Data?, Error?) -> Void) {
-        self.handler = handler
-    }
-
-    func callAsFunction(_ data: Data?, _ error: Error?) {
-        handler(data, error)
-    }
-}
-
 // MARK: - LightPollutionTileOverlay
 
 /// バンドル済み光害グリッドを MKTileOverlay として描画する。
@@ -59,7 +45,7 @@ final class LightPollutionTileOverlay: MKTileOverlay {
 
     let tileService: LightPollutionTileService
 
-    /// Falchi Atlas バンドルデータ（LightPollutionService と同じインスタンスを使う）
+    /// Falchi Atlas バンドルデータ。初期化時には読み込まず、タイル要求時に取得する。
     private let bortleGrid: BortleGridData?
 
     /// タイルレンダリングの同時実行数を制限するキュー
@@ -72,9 +58,10 @@ final class LightPollutionTileOverlay: MKTileOverlay {
 
     override init(urlTemplate: String?) {
         self.tileService = .shared
-        self.bortleGrid = LightPollutionBundleDataSource.sharedGridData
+        self.bortleGrid = nil
         super.init(urlTemplate: urlTemplate)
         configureOverlay()
+        tileService.startGridWarmup()
     }
 
     init(
@@ -86,6 +73,9 @@ final class LightPollutionTileOverlay: MKTileOverlay {
         self.bortleGrid = gridData
         super.init(urlTemplate: urlTemplate)
         configureOverlay()
+        if gridData == nil {
+            tileService.startGridWarmup()
+        }
     }
 
     override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, Error?) -> Void) {
@@ -93,17 +83,17 @@ final class LightPollutionTileOverlay: MKTileOverlay {
             result(cached, nil)
             return
         }
-        guard let grid = bortleGrid else {
+        let tileService = self.tileService
+        let grid = bortleGrid ?? tileService.sharedGrid()
+        guard let grid else {
             result(Self.transparentTileData(), nil)
             return
         }
-        let tileService = self.tileService
-        let resultHandler = TileLoadResultHandler(result)
-        Self.renderQueue.addOperation { [tileService, resultHandler] in
+        Self.renderQueue.addOperation { [tileService] in
             let data = Self.renderTile(path: path, grid: grid, size: OverlayConfig.tilePixelSize)
             let tileData = data ?? Self.transparentTileData()
             tileService.storeTileData(tileData, for: path)
-            resultHandler(tileData, nil)
+            result(tileData, nil)
         }
     }
 

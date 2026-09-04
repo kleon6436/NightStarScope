@@ -94,7 +94,13 @@ final class AppController: ObservableObject {
     private var lastActiveReferenceDate: Date
     private var observationStateBatchDepth = 0
 
-    // MARK: - Init
+    // MARK: - Startup Stage 0
+
+    /// Stage 0 は同期・最小の初期化に限定し、サービスのインスタンスだけを生成する。
+    /// ファイル I/O・解凍・デコード・天体計算は行わない。
+    /// 重いデータは起動後にロードする。
+    /// 重いデータのロードは各サービスが非同期に行う。
+    /// 光害グリッドは BortleGridProvider、星カタログは StarCatalog.preloadedStars() が担当する。
     init(locationController: LocationController? = nil,
          weatherService: (any WeatherProviding)? = nil,
          lightPollutionService: LightPollutionService? = nil,
@@ -112,10 +118,9 @@ final class AppController: ObservableObject {
         self.lastActiveReferenceDate = Date()
         publishObservationState()
         setupObservers()
-        // 星カタログ（JSON 693KB）と色テーブルをバックグラウンドでプリウォーム。
-        // StarMapViewModel が初回 _compute を実行する前に準備を完了させる。
-        Task.detached(priority: .background) {
-            _ = StarCatalog.stars.count
+        // Stage 1 相当。星図を開く前に星カタログを先読みしてデコードを済ませる。
+        Task.detached(priority: .utility) {
+            _ = await StarCatalog.preloadedStars()
         }
     }
 
@@ -172,9 +177,9 @@ final class AppController: ObservableObject {
         UserDefaults.standard.set(true, forKey: migrationKey)
     }
 
-    // MARK: - Public Methods
+    // MARK: - Startup Stage 1
 
-    /// 初期表示に必要な計算と外部データ取得を一度だけ開始します。
+    /// Stage 1 の開始点。描画後に当夜・予報計算と外部データ取得を非同期で開始する。
     func onStart(referenceDate: Date = Date(), refreshExternalData: Bool = true) {
         guard !hasStarted else { return }
         hasStarted = true
@@ -187,7 +192,8 @@ final class AppController: ObservableObject {
         }
     }
 
-    /// アプリが前景へ戻ったときに、日付跨ぎと外部データ更新を反映します。
+    /// Stage 1 の再開点。前景復帰時も計算と外部データ取得を非同期で開始する。
+    /// 再計算や更新処理は UI をブロックしない。
     func handleSceneDidBecomeActive(referenceDate: Date = Date(), refreshExternalData: Bool = true) {
         guard hasStarted else {
             onStart(referenceDate: referenceDate, refreshExternalData: refreshExternalData)
@@ -223,6 +229,13 @@ final class AppController: ObservableObject {
             refreshExternalDataInBackground()
         }
     }
+
+    // MARK: - Startup Stage 2
+
+    /// Stage 2 は遅延・オンデマンドで、星図の初回計算は表示時に行う。
+    /// 地形データは TerrainService の初回使用時に読み込む。
+
+    // MARK: - Public Methods
 
     /// 選択中の観測地に対応する天気予報を更新します。
     func refreshWeather() async {
