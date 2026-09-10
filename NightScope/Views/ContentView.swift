@@ -34,11 +34,6 @@ struct ContentView: View {
             )
             .navigationTitle("NightScope")
             .toolbar(removing: .sidebarToggle)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Color.clear.frame(width: 1)
-                }
-            }
         } detail: {
             DetailView(
                 viewModel: rootStore.detailViewModel,
