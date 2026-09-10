@@ -5,10 +5,10 @@ import Combine
 final class ObservationAdvisorViewModel: ObservableObject {
     enum State: Equatable {
         case idle
-        case unavailable
+        case unavailable(ObservationAdvisorAvailability.Reason)
         case loading
-        case streaming(String)
-        case complete(String)
+        case streaming(ObservationAdvisorAdvicePartial)
+        case complete(ObservationAdvisorAdvice)
         case error(String)
     }
 
@@ -20,13 +20,26 @@ final class ObservationAdvisorViewModel: ObservableObject {
     init(service: (any ObservationAdvising)? = nil) {
         let resolved = service ?? ObservationAdvisorService()
         self.service = resolved
-        self.state = resolved.isAvailable ? .idle : .unavailable
+        self.state = Self.state(for: resolved.availability)
+    }
+
+#if DEBUG
+    static func preview(state: State) -> ObservationAdvisorViewModel {
+        let viewModel = ObservationAdvisorViewModel()
+        viewModel.state = state
+        return viewModel
+    }
+#endif
+
+    func prewarm() {
+        service.prewarm()
     }
 
     func generate(input: ObservationAdvisorInput) {
-        guard service.isAvailable else {
-            cancel()
-            state = .unavailable
+        guard case .available = service.availability else {
+            generationTask?.cancel()
+            generationTask = nil
+            state = Self.state(for: service.availability)
             return
         }
 
@@ -35,14 +48,9 @@ final class ObservationAdvisorViewModel: ObservableObject {
 
         generationTask = Task {
             do {
-                let stream = try await service.generateAdvice(for: input)
-                let finalText = try await resolveWithTimeout(stream: stream)
+                let finalPartial = try await generateWithContextRetry(input: input)
                 guard !Task.isCancelled else { return }
-                if finalText.isEmpty {
-                    state = .error(String(localized: "advice.error.generation_failed"))
-                } else {
-                    state = .complete(finalText)
-                }
+                state = try makeCompleteState(from: finalPartial)
             } catch is CancellationError {
                 state = .idle
             } catch {
@@ -54,36 +62,91 @@ final class ObservationAdvisorViewModel: ObservableObject {
     func cancel() {
         generationTask?.cancel()
         generationTask = nil
-        state = service.isAvailable ? .idle : .unavailable
+        state = Self.state(for: service.availability)
+    }
+
+    private func makeCompleteState(from partial: ObservationAdvisorAdvicePartial) throws -> State {
+        .complete(try ObservationAdvisorAdvice(partial: partial))
+    }
+
+    private func generateWithContextRetry(
+        input: ObservationAdvisorInput
+    ) async throws -> ObservationAdvisorAdvicePartial {
+        do {
+            let stream = try await service.generateAdvice(for: input)
+            return try await resolveWithTimeout(stream: stream)
+        } catch let error as ObservationAdvisorServiceError {
+            guard error == .contextExceeded else { throw error }
+
+            // Retry once with a compact context after the model reports a context overflow.
+            state = .loading
+            let retryInput = input.shortenedForRetry()
+            let retryStream = try await service.generateAdvice(for: retryInput)
+            return try await resolveWithTimeout(stream: retryStream, timeout: .seconds(20))
+        }
     }
 
     // Consumes the stream on the main actor (Task inherits @MainActor from generate()).
-    // Deadline is checked between token emissions; if the model hangs between tokens
-    // the outer generationTask cancellation propagates via Task.checkCancellation().
-    private func resolveWithTimeout(stream: AsyncThrowingStream<String, Error>) async throws -> String {
-        let deadline = ContinuousClock.now + .seconds(30)
-        var latest = ""
+    // The deadline is checked between snapshot emissions; cancellation covers a stalled stream.
+    private func resolveWithTimeout(
+        stream: AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>,
+        timeout: Duration = .seconds(30)
+    ) async throws -> ObservationAdvisorAdvicePartial {
+        let deadline = ContinuousClock.now + timeout
+        var latest: ObservationAdvisorAdvicePartial?
         for try await partial in stream {
             try Task.checkCancellation()
             guard ContinuousClock.now < deadline else { throw ObservationAdvisorTimeoutError() }
-            let normalized = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty else { continue }
-            latest = normalized
-            state = .streaming(normalized)
+            latest = partial
+            guard state != .streaming(partial) else { continue }
+            state = .streaming(partial)
         }
-        return Self.normalizeAdviceText(latest)
+        guard let latest else {
+            throw ObservationAdvisorAdviceValidationError.missingRequiredField
+        }
+        return latest
     }
 
-    static func normalizeAdviceText(_ text: String) -> String {
-        let lines = text.components(separatedBy: .newlines)
-        let cleaned = lines.compactMap { line -> String? in
-            var s = line
-            s = s.replacingOccurrences(of: #"^[\s]*[・\-\*•]\s*"#, with: "", options: .regularExpression)
-            s = s.replacingOccurrences(of: #"^\s*\d+[\.．]\s*"#, with: "", options: .regularExpression)
-            let trimmed = s.trimmingCharacters(in: .whitespaces)
-            return trimmed.isEmpty ? nil : trimmed
+    static func shouldShowCard(for state: State) -> Bool {
+        guard case .unavailable(let reason) = state else { return true }
+        return reason != .deviceNotEligible && reason != .unsupportedOS
+    }
+
+    private static func state(for availability: ObservationAdvisorAvailability) -> State {
+        switch availability {
+        case .available:
+            .idle
+        case .unavailable(let reason):
+            .unavailable(reason)
         }
-        return cleaned.joined(separator: " ")
+    }
+}
+
+private extension ObservationAdvisorInput {
+    func shortenedForRetry() -> Self {
+        Self(
+            language: language,
+            isUnfavorable: isUnfavorable,
+            dateString: dateString,
+            locationName: locationName,
+            tierLabel: tierLabel,
+            viewingWindowSummary: compactForRetry(viewingWindowSummary, maxLength: 80),
+            moonSummary: compactForRetry(moonSummary, maxLength: 48),
+            weatherSummary: compactForRetry(weatherSummary, maxLength: 48),
+            lightPollutionSummary: "",
+            isRetryPrompt: true
+        )
+    }
+
+    private func compactForRetry(_ value: String, maxLength: Int) -> String {
+        guard value.count > maxLength else { return value }
+
+        let prefix = String(value.prefix(maxLength))
+        let boundaryCharacters: Set<Character> = ["。", ".", "！", "!", "？", "?", "、", ",", " "]
+        guard let boundary = prefix.lastIndex(where: { boundaryCharacters.contains($0) }) else {
+            return prefix
+        }
+        return String(prefix[...boundary])
     }
 }
 

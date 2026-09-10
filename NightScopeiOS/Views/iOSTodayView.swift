@@ -177,7 +177,10 @@ struct iOSTodayView: View {
                 Button {
                     presentedSheet = .observationMode
                 } label: {
-                    Label(L10n.tr(observationModePreference.mode.shortTitleKey), systemImage: observationModePreference.mode.iconSystemName)
+                    Label(
+                        L10n.tr(observationModePreference.mode.shortTitleKey),
+                        systemImage: observationModePreference.mode.iconSystemName
+                    )
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
                         .padding(.horizontal, Spacing.xs)
@@ -306,6 +309,7 @@ private extension iOSTodayView {
     }
 
     func updateObservationAdvice() {
+        advisorViewModel.prewarm()
         guard let input = observationAdvisorInput else {
             advisorViewModel.cancel()
             return

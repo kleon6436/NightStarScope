@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		00162992377780D5DE3995BD /* UpcomingNightsGridViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F03 /* UpcomingNightsGridViewModel.swift */; };
 		04C543AB48645C86951265DE /* ObservationAdvisorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2274D5B63FA53AAF40055E /* ObservationAdvisorViewModel.swift */; };
+		B20000000000000000000002 /* StargazingAdvice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StargazingAdvice.swift */; };
+		B20000000000000000000003 /* StargazingAdvice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StargazingAdvice.swift */; };
+		B20000000000000000000005 /* StargazingAdviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* StargazingAdviceTests.swift */; };
 		05B006658CE59CC2B7E60657 /* FavoriteLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5FD175A6FD4FA2071B5F37 /* FavoriteLocation.swift */; };
 		0C21A9833046DD44B1100A01 /* ComparisonMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */; };
 		0C21A9833046DD44B1100A02 /* ComparisonController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A12 /* ComparisonController.swift */; };
@@ -254,6 +257,8 @@
 		A0F100000000000000000004 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		A0F100000000000000000009 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		A1421579CFF20984F582B235 /* ObservationAdvisorViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationAdvisorViewModelTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000001 /* StargazingAdvice.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StargazingAdvice.swift; sourceTree = "<group>"; };
+		B20000000000000000000004 /* StargazingAdviceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StargazingAdviceTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoStateValidator.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F01 /* NightScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeApp.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F03 /* MilkyWayCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculator.swift; sourceTree = "<group>"; };
@@ -492,6 +497,7 @@
 				BB0000000000000000002F25 /* MeteorShowerData.swift */,
 				0A5FD175A6FD4FA2071B5F37 /* FavoriteLocation.swift */,
 				D47F16640345F9EC740C375E /* ObservationAdvisorInput.swift */,
+				B20000000000000000000001 /* StargazingAdvice.swift */,
 				FE0000000000000000001001 /* GnomonicProjectionMath.swift */,
 				FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */,
 				FE0000000000000000001005 /* StarMapSpatialIndex.swift */,
@@ -580,6 +586,7 @@
 				E9018ABBBB27AE209C8B4401 /* FavoriteLocationTests.swift */,
 				D44CE03CCF477C8291BE4265 /* ObservationAdvisorInputBuilderTests.swift */,
 				A1421579CFF20984F582B235 /* ObservationAdvisorViewModelTests.swift */,
+				B20000000000000000000004 /* StargazingAdviceTests.swift */,
 				FE0000000000000000001006 /* GnomonicProjectionMathTests.swift */,
 			);
 			path = NightScopeTests;
@@ -845,6 +852,7 @@
 				D1A100000000000000000006 /* StarMapDisplaySettingsSection.swift in Sources */,
 				C8C92AA438CF4CBBA0C79605 /* ObservationAdviceCard.swift in Sources */,
 				DC3552013A12E2ED2174B8C6 /* ObservationAdvisorInput.swift in Sources */,
+				B20000000000000000000002 /* StargazingAdvice.swift in Sources */,
 				FF7EEB3C6BBEB0384CF21178 /* ObservationAdvisorService.swift in Sources */,
 				15AC41CBCC1C1DBC611100CE /* ObservationAdvisorInputBuilder.swift in Sources */,
 				04C543AB48645C86951265DE /* ObservationAdvisorViewModel.swift in Sources */,
@@ -931,6 +939,7 @@
 				78BC796E939B65C3054D3651 /* FavoriteLocation.swift in Sources */,
 				4F871C5177B328F9DFC5EEAA /* FavoriteLocationStore.swift in Sources */,
 				4B25322B8D00132E41C5C122 /* ObservationAdvisorInput.swift in Sources */,
+				B20000000000000000000003 /* StargazingAdvice.swift in Sources */,
 				17FA0E9DCE59289B5F6D2F03 /* ObservationAdvisorService.swift in Sources */,
 				DDF76BF265D9CD8568BDD679 /* ObservationAdvisorInputBuilder.swift in Sources */,
 				F7A7389617962715C8FD12CF /* ObservationAdvisorViewModel.swift in Sources */,
@@ -968,6 +977,7 @@
 				E2B1BBFAE453C3FC09374E13 /* FavoriteLocationTests.swift in Sources */,
 				D48DDFB2487D6B3F11F21156 /* ObservationAdvisorInputBuilderTests.swift in Sources */,
 				8F7351C9A15449FAC35810E4 /* ObservationAdvisorViewModelTests.swift in Sources */,
+				B20000000000000000000005 /* StargazingAdviceTests.swift in Sources */,
 				FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

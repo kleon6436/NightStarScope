@@ -20,7 +20,11 @@ struct DetailView: View {
         self.viewModel = viewModel
         self.starMapViewModel = starMapViewModel
         self.observationModePreference = observationModePreference
-        _starGazingIndexCardViewModel = StateObject(wrappedValue: StarGazingIndexCardViewModel(lightPollutionService: viewModel.lightPollutionService))
+        _starGazingIndexCardViewModel = StateObject(
+            wrappedValue: StarGazingIndexCardViewModel(
+                lightPollutionService: viewModel.lightPollutionService
+            )
+        )
         _nightWeatherCardViewModel = StateObject(wrappedValue: NightWeatherCardViewModel())
         _upcomingGridViewModel = StateObject(wrappedValue: UpcomingNightsGridViewModel(detailViewModel: viewModel))
         _advisorViewModel = StateObject(wrappedValue: ObservationAdvisorViewModel())
@@ -237,6 +241,7 @@ struct DetailView: View {
     }
 
     private func updateObservationAdvice() {
+        advisorViewModel.prewarm()
         guard let input = observationAdvisorInput else {
             advisorViewModel.cancel()
             return

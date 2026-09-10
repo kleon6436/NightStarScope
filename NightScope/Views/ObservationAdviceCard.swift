@@ -5,7 +5,7 @@ struct ObservationAdviceCard: View {
     let input: ObservationAdvisorInput
 
     var body: some View {
-        if viewModel.state != .unavailable {
+        if shouldShowCard {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.sm) {
                     CardHeader(
@@ -14,7 +14,7 @@ struct ObservationAdviceCard: View {
                         title: String(localized: "advice.card.title")
                     )
                     Spacer()
-                    regenerateButton
+                    headerAction
                 }
 
                 content
@@ -31,13 +31,10 @@ struct ObservationAdviceCard: View {
                 .foregroundStyle(.secondary)
         case .loading:
             placeholder
-        case .streaming(let text):
-            HStack(alignment: .top, spacing: 0) {
-                adviceText(text)
-                Text(" ▍").accessibilityHidden(true)
-            }
-        case .complete(let text):
-            adviceText(text)
+        case .streaming(let partial):
+            adviceContent(partial: partial, isStreaming: true)
+        case .complete(let advice):
+            adviceContent(partial: ObservationAdvisorAdvicePartial(advice), isStreaming: false)
         case .error(let message):
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(message)
@@ -45,8 +42,107 @@ struct ObservationAdviceCard: View {
                 regenerateButton
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-        case .unavailable:
-            EmptyView()
+        case .unavailable(let reason):
+            unavailableContent(for: reason)
+        }
+    }
+
+    @ViewBuilder
+    private func adviceContent(
+        partial: ObservationAdvisorAdvicePartial,
+        isStreaming: Bool
+    ) -> some View {
+        let headline = partial.headline
+        let verdict = partial.verdict.map(AdviceVerdict.init(modelValue:))
+        let bestWindow = partial.bestWindow
+        let reasons = partial.reasons ?? []
+        let tips = partial.tips ?? []
+
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                Text(headline ?? String(localized: "advice.card.headline_placeholder"))
+                    .font(.headline)
+                    .redacted(reason: redaction(for: headline))
+
+                Spacer(minLength: 0)
+
+                verdictBadge(verdict: verdict)
+            }
+
+            if let bestWindow, !bestWindow.isEmpty {
+                Label(bestWindow, systemImage: "clock")
+                    .foregroundStyle(.secondary)
+            }
+
+            adviceList(
+                reasons,
+                title: String(localized: "advice.card.reasons"),
+                systemImage: "checkmark.circle"
+            )
+            adviceList(
+                tips,
+                title: String(localized: "advice.card.tips"),
+                systemImage: "lightbulb"
+            )
+            if isStreaming {
+                Text(" ▍")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "advice.card.title"))
+    }
+
+    private func verdictBadge(verdict: AdviceVerdict?) -> some View {
+        HStack(spacing: 4) {
+            if let verdict {
+                Image(systemName: "star.fill")
+                    .accessibilityHidden(true)
+                Text(verdict.localizedTitle)
+            } else {
+                Text(String(localized: "advice.card.verdict_placeholder"))
+            }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(verdict.map(verdictColor) ?? .secondary)
+        .padding(.horizontal, Spacing.xs)
+        .padding(.vertical, 5)
+        .background((verdict.map(verdictColor) ?? .secondary).opacity(0.15), in: Capsule())
+        .redacted(reason: verdict == nil ? .placeholder : [])
+        .accessibilityLabel(verdict?.localizedTitle ?? String(localized: "advice.card.verdict_placeholder"))
+    }
+
+    @ViewBuilder
+    private func adviceList(_ values: [String], title: String, systemImage: String) -> some View {
+        if !values.isEmpty {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Label(title, systemImage: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                    Text(value)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel(value)
+                }
+            }
+        }
+    }
+
+    private func redaction(for value: String?) -> RedactionReasons {
+        value?.isEmpty == false ? [] : .placeholder
+    }
+
+    private func verdictColor(_ verdict: AdviceVerdict) -> Color {
+        switch verdict {
+        case .excellent:
+            .green
+        case .good:
+            .mint
+        case .fair:
+            .orange
+        case .poor, .bad:
+            .red
         }
     }
 
@@ -54,22 +150,31 @@ struct ObservationAdviceCard: View {
         Button {
             viewModel.generate(input: input)
         } label: {
-            #if os(macOS)
             Label(String(localized: "advice.card.regenerate"), systemImage: "arrow.clockwise")
-            #else
-            Label(String(localized: "advice.card.regenerate"), systemImage: "arrow.clockwise")
+                #if !os(macOS)
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, Spacing.xs)
                 .padding(.vertical, 6)
                 .background(.thinMaterial, in: Capsule())
-            #endif
+                #endif
         }
         #if os(macOS)
         .glassButtonStyle()
         #else
         .buttonStyle(.plain)
         #endif
+        .frame(minWidth: 44, minHeight: 44)
         .disabled(matchesLoadingState)
+    }
+
+    @ViewBuilder
+    private var headerAction: some View {
+        switch viewModel.state {
+        case .idle, .streaming, .complete:
+            regenerateButton
+        case .loading, .error, .unavailable:
+            EmptyView()
+        }
     }
 
     private var matchesLoadingState: Bool {
@@ -77,6 +182,31 @@ struct ObservationAdviceCard: View {
             return true
         }
         return false
+    }
+
+    private var shouldShowCard: Bool {
+        ObservationAdvisorViewModel.shouldShowCard(for: viewModel.state)
+    }
+
+    @ViewBuilder
+    private func unavailableContent(for reason: ObservationAdvisorAvailability.Reason) -> some View {
+        switch reason {
+        // These cases remain exhaustive even though shouldShowCard hides them.
+        case .unsupportedOS, .deviceNotEligible:
+            EmptyView()
+        case .modelNotReady:
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(LocalizedStringKey("advice.availability.model_not_ready"))
+                    .foregroundStyle(.secondary)
+                regenerateButton
+            }
+        case .appleIntelligenceOff:
+            Text(LocalizedStringKey("advice.availability.apple_intelligence_off"))
+                .foregroundStyle(.secondary)
+        case .unknown:
+            Text(String(localized: "advice.error.unavailable"))
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var placeholder: some View {
@@ -98,11 +228,70 @@ struct ObservationAdviceCard: View {
         }
         .redacted(reason: .placeholder)
     }
+}
 
-    private func adviceText(_ text: String) -> some View {
-        Text(text)
-            .font(.title3)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
+#if DEBUG
+#Preview("All verdicts") {
+    ScrollView {
+        VStack(spacing: Spacing.sm) {
+            ForEach(AdviceVerdict.allCases) { verdict in
+                ObservationAdviceCard(
+                    viewModel: ObservationAdvisorViewModel.preview(
+                        state: .complete(previewAdvice.with(verdict: verdict))
+                    ),
+                    input: previewInput
+                )
+            }
+        }
+        .padding()
     }
 }
+
+#Preview("Streaming") {
+    ObservationAdviceCard(
+        viewModel: ObservationAdvisorViewModel.preview(state: .streaming(
+            ObservationAdvisorAdvicePartial(
+                headline: "今夜は好条件",
+                verdict: "good",
+                bestWindow: "21:30〜23:00",
+                reasons: ["雲が少ない"],
+                tips: ["暗順応を待つ"]
+            )
+        )),
+        input: previewInput
+    )
+    .padding()
+}
+
+private let previewInput = ObservationAdvisorInput(
+    language: "ja",
+    isUnfavorable: false,
+    dateString: "2026年5月13日（水）",
+    locationName: "長野県 乗鞍高原",
+    tierLabel: "良好",
+    viewingWindowSummary: "22:15〜03:30",
+    moonSummary: "上弦の月",
+    weatherSummary: "薄曇り",
+    lightPollutionSummary: "郊外の空"
+)
+
+private let previewAdvice = ObservationAdvisorAdvice(
+    headline: "今夜は観測日和",
+    verdict: .excellent,
+    bestWindow: "22:15〜03:30",
+    reasons: ["雲が少なく透明度が良好です", "月明かりの影響が小さいです"],
+    tips: ["暗順応のため15分待ちます", "南の空から天の川を探します"]
+)
+
+private extension ObservationAdvisorAdvice {
+    func with(verdict: AdviceVerdict) -> Self {
+        Self(
+            headline: headline,
+            verdict: verdict,
+            bestWindow: bestWindow,
+            reasons: reasons,
+            tips: tips
+        )
+    }
+}
+#endif
