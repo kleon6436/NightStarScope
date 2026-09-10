@@ -341,6 +341,7 @@ private extension iOSTodayView {
     }
 
     func updateObservationAdvice() async {
+        guard await ObservationAdvisorDebounce.wait() else { return }
         let payload = makeAdvisorPayload()
         advisorPayload = payload
         guard let payload else {

@@ -187,16 +187,16 @@ private final class FoundationModelsConversationSession: AssistantConversationSe
                 do {
                     let stream: LanguageModelSession.ResponseStream<String>
                     if #available(macOS 27.0, iOS 27.0, *) {
-                        let contextOptions = resolution.kind == .privateCloud
-                            ? ContextOptions(reasoningLevel: .moderate)
-                            : ContextOptions()
                         stream = session.streamResponse(
                             to: text,
-                            options: GenerationOptions(),
-                            contextOptions: contextOptions
+                            options: AssistantGenerationOptions.conversationGenerationOptions(),
+                            contextOptions: AssistantGenerationOptions.contextOptions(for: resolution.kind)
                         )
                     } else {
-                        stream = session.streamResponse(to: text, options: GenerationOptions())
+                        stream = session.streamResponse(
+                            to: text,
+                            options: AssistantGenerationOptions.conversationGenerationOptions()
+                        )
                     }
 
                     for try await snapshot in stream {
@@ -225,31 +225,12 @@ private final class FoundationModelsConversationSession: AssistantConversationSe
     }
 
     private static func mapError(_ error: any Error) -> AssistantConversationError {
-        if #available(macOS 27.0, iOS 27.0, *) {
-            if error is PrivateCloudComputeLanguageModel.Error {
-                return .generationFailed
-            }
-
-            if let error = error as? LanguageModelError {
-                switch error {
-                case .contextSizeExceeded:
-                    return .contextLimitReached
-                default:
-                    return .generationFailed
-                }
-            }
+        switch mapFoundationModelsError(error) {
+        case .contextExceeded:
+            return .contextLimitReached
+        case .guardrail, .other:
+            return .generationFailed
         }
-
-        if let error = error as? LanguageModelSession.GenerationError {
-            switch error {
-            case .exceededContextWindowSize:
-                return .contextLimitReached
-            default:
-                return .generationFailed
-            }
-        }
-
-        return .generationFailed
     }
 
 }

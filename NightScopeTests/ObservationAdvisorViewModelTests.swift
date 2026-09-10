@@ -41,6 +41,42 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         cancellable.cancel()
     }
 
+    func test_streamingKeepsRawAlternativesUntilCompletion() async {
+        let candidate = UpcomingNightToolSnapshot(
+            dateString: "2026年5月14日（木）",
+            locationName: "長野県 乗鞍高原",
+            tier: "良好"
+        )
+        let toolContext = ObservationAdvisorToolContext(
+            language: "ja",
+            upcomingNights: [candidate]
+        )
+        let rawAlternative = "2026年5月14日（木） 長野県 乗鞍高原"
+        let service = MockObservationAdvisorService(
+            streamFactory: { _ in
+                AsyncThrowingStream { continuation in
+                    continuation.yield(samplePartial(alternatives: [rawAlternative]))
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(50))
+                        continuation.finish()
+                    }
+                }
+            }
+        )
+        let viewModel = ObservationAdvisorViewModel(service: service)
+
+        viewModel.generate(input: sampleInput, toolContext: toolContext)
+        await waitForStreamingState(in: viewModel)
+
+        if case .streaming(let partial) = viewModel.state {
+            XCTAssertEqual(partial.alternatives, [rawAlternative])
+        } else {
+            XCTFail("Expected a streaming state")
+        }
+
+        await waitForState(.complete(sampleAdviceWithAlternative), in: viewModel)
+    }
+
     func test_cancel_midStream_returnsToIdle() async {
         let service = MockObservationAdvisorService(
             streamFactory: { service in
@@ -255,14 +291,16 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
 
 private func samplePartial(
     headline: String = "今夜のまとめ",
-    reasons: [String]? = ["雲が少ない", "透明度が良い"]
+    reasons: [String]? = ["雲が少ない", "透明度が良い"],
+    alternatives: [String]? = nil
 ) -> ObservationAdvisorAdvicePartial {
     ObservationAdvisorAdvicePartial(
         headline: headline,
         verdict: "excellent",
         bestWindow: "22:15〜03:30",
         reasons: reasons,
-        tips: ["暗順応を待つ"]
+        tips: ["暗順応を待つ"],
+        alternatives: alternatives
     )
 }
 
@@ -289,6 +327,15 @@ private let sampleAdvice = ObservationAdvisorAdvice(
     bestWindow: "22:15〜03:30",
     reasons: ["雲が少ない", "透明度が良い"],
     tips: ["暗順応を待つ"]
+)
+
+private let sampleAdviceWithAlternative = ObservationAdvisorAdvice(
+    headline: "今夜のまとめ",
+    verdict: .excellent,
+    bestWindow: "22:15〜03:30",
+    reasons: ["雲が少ない", "透明度が良い"],
+    tips: ["暗順応を待つ"],
+    alternatives: ["2026年5月14日（木） · 長野県 乗鞍高原"]
 )
 
 private let shortenedAdvice = ObservationAdvisorAdvice(

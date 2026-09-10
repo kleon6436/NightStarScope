@@ -1,5 +1,8 @@
 import XCTest
 @testable import NightScope
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 @MainActor
 final class AssistantModelRuntimeTests: XCTestCase {
@@ -24,4 +27,29 @@ final class AssistantModelRuntimeTests: XCTestCase {
         XCTAssertEqual(status.availability, .notEntitled)
         XCTAssertFalse(status.isAvailable)
     }
+
+    #if canImport(FoundationModels)
+    func test_adviceGenerationOptionsAreGreedyAndCapped() {
+        guard #available(macOS 26.0, iOS 26.0, *) else { return }
+
+        let options = AssistantGenerationOptions.adviceGenerationOptions()
+
+        XCTAssertEqual(options.samplingMode, .greedy)
+        XCTAssertNil(options.temperature)
+        XCTAssertEqual(options.maximumResponseTokens, 400)
+        if #available(macOS 27.0, iOS 27.0, *) {
+            XCTAssertEqual(options.toolCallingMode, .allowed)
+        }
+    }
+
+    func test_conversationGenerationOptionsKeepDefaultSamplingAndCapResponse() {
+        guard #available(macOS 26.0, iOS 26.0, *) else { return }
+
+        let options = AssistantGenerationOptions.conversationGenerationOptions()
+
+        XCTAssertNil(options.samplingMode)
+        XCTAssertNil(options.temperature)
+        XCTAssertEqual(options.maximumResponseTokens, 500)
+    }
+    #endif
 }

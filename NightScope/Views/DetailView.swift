@@ -273,6 +273,7 @@ struct DetailView: View {
     }
 
     private func updateObservationAdvice() async {
+        guard await ObservationAdvisorDebounce.wait() else { return }
         let payload = makeAdvisorPayload()
         advisorPayload = payload
         guard let payload else {

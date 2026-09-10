@@ -33,6 +33,7 @@ extension ObservationAdvisorService {
         )
     }
 
+    #if DEBUG
     func logTokenUsage(prompt: String) async {
         // This measures only the user prompt; instructions, tool schemas, and runtime tool results are not included.
         // contextSize is back-deployed to 26.0; only tokenCount(for:) requires 26.4.
@@ -60,6 +61,7 @@ extension ObservationAdvisorService {
             }
         }
     }
+    #endif
 
     func makeStream(
         for input: ObservationAdvisorInput,
@@ -80,14 +82,12 @@ extension ObservationAdvisorService {
                         toolContext: toolContext,
                         resolution: resolution
                     )
+                    #if DEBUG
                     Task { @MainActor [weak self] in
                         await self?.logTokenUsage(prompt: prompt)
                     }
-                    let options: GenerationOptions = if #available(macOS 27.0, iOS 27.0, *) {
-                        GenerationOptions(toolCallingMode: .allowed)
-                    } else {
-                        GenerationOptions()
-                    }
+                    #endif
+                    let options = AssistantGenerationOptions.adviceGenerationOptions()
                     let stream = makeResponseStream(
                         session: session,
                         prompt: prompt,
@@ -119,14 +119,11 @@ extension ObservationAdvisorService {
         resolution: AssistantModelResolution
     ) -> LanguageModelSession.ResponseStream<StargazingAdvice> {
         if #available(macOS 27.0, iOS 27.0, *) {
-            let contextOptions = resolution.kind == .privateCloud
-                ? ContextOptions(includeSchemaInPrompt: true, reasoningLevel: .moderate)
-                : ContextOptions(includeSchemaInPrompt: true)
             return session.streamResponse(
                 to: prompt,
                 generating: StargazingAdvice.self,
                 options: options,
-                contextOptions: contextOptions
+                contextOptions: AssistantGenerationOptions.contextOptions(for: resolution.kind)
             )
         }
 
@@ -142,60 +139,26 @@ extension ObservationAdvisorService {
 @available(macOS 27.0, iOS 27.0, *)
 extension ObservationAdvisorService {
     static func mapModernError(_ error: any Error) -> ObservationAdvisorServiceError {
-        if let toolCallError = error as? LanguageModelSession.ToolCallError {
-            return mapModernError(toolCallError.underlyingError)
-        }
-
-        if error is PrivateCloudComputeLanguageModel.Error {
+        switch mapFoundationModelsError(error) {
+        case .contextExceeded:
+            return .contextExceeded
+        case .guardrail:
+            return .guardrailViolation
+        case .other:
             return .generationFailed
         }
-
-        if let error = error as? LanguageModelError {
-            switch error {
-            case .contextSizeExceeded:
-                return .contextExceeded
-            case .guardrailViolation:
-                return .guardrailViolation
-            default:
-                return .generationFailed
-            }
-        }
-
-        if error is SystemLanguageModel.Error || error is LanguageModelSession.Error {
-            return .generationFailed
-        }
-
-        if let error = error as? LanguageModelSession.GenerationError {
-            return mapLegacyError(error)
-        }
-
-        Self.logger.error(
-            "Unexpected observation advisor generation error: \(String(describing: error), privacy: .public)"
-        )
-        return .generationFailed
     }
 }
 
 @available(macOS 26.0, iOS 26.0, *)
 extension ObservationAdvisorService {
     static func mapLegacyError(_ error: any Error) -> ObservationAdvisorServiceError {
-        if let toolCallError = error as? LanguageModelSession.ToolCallError {
-            return mapLegacyError(toolCallError.underlyingError)
-        }
-
-        guard let error = error as? LanguageModelSession.GenerationError else {
-            Self.logger.error(
-                "Unexpected observation advisor generation error: \(String(describing: error), privacy: .public)"
-            )
-            return .generationFailed
-        }
-
-        switch error {
-        case .exceededContextWindowSize:
+        switch mapFoundationModelsError(error) {
+        case .contextExceeded:
             return .contextExceeded
-        case .guardrailViolation:
+        case .guardrail:
             return .guardrailViolation
-        default:
+        case .other:
             return .generationFailed
         }
     }

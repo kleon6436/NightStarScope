@@ -108,28 +108,21 @@ final class ObservationAdvisorViewModel: ObservableObject {
         resolution: AssistantModelResolution
     ) async throws -> ObservationAdvisorAdvicePartial {
         do {
-            return try await resolveWithTimeout(
-                stream: try await service.generateAdvice(
-                    for: input,
-                    toolContext: toolContext,
-                    resolution: resolution
-                ),
-                toolContext: toolContext
+            return try await runGeneration(
+                input: input,
+                toolContext: toolContext,
+                resolution: resolution
             )
         } catch let error as ObservationAdvisorServiceError {
             if error == .contextExceeded {
                 // Retry once with a compact context after the model reports a context overflow.
                 state = .loading
                 let retryInput = input.shortenedForRetry()
-                let retryStream = try await service.generateAdvice(
-                    for: retryInput,
+                return try await runGeneration(
+                    input: retryInput,
                     toolContext: toolContext,
-                    resolution: resolution
-                )
-                return try await resolveWithTimeout(
-                    stream: retryStream,
-                    timeout: .seconds(20),
-                    toolContext: toolContext
+                    resolution: resolution,
+                    timeout: .seconds(20)
                 )
             }
 
@@ -143,33 +136,42 @@ final class ObservationAdvisorViewModel: ObservableObject {
                 transientNotice = String(localized: "advice.notice.pcc_generation_fallback")
             }
             let onDeviceResolution = AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
-            return try await resolveWithTimeout(
-                stream: try await service.generateAdvice(
-                    for: input,
-                    toolContext: toolContext,
-                    resolution: onDeviceResolution
-                ),
-                toolContext: toolContext
+            return try await runGeneration(
+                input: input,
+                toolContext: toolContext,
+                resolution: onDeviceResolution
             )
         }
+    }
+
+    private func runGeneration(
+        input: ObservationAdvisorInput,
+        toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution,
+        timeout: Duration = .seconds(30)
+    ) async throws -> ObservationAdvisorAdvicePartial {
+        let stream = try await service.generateAdvice(
+            for: input,
+            toolContext: toolContext,
+            resolution: resolution
+        )
+        return try await resolveWithTimeout(stream: stream, timeout: timeout)
     }
 
     // Consumes the stream on the main actor (Task inherits @MainActor from generate()).
     // The deadline is checked between snapshot emissions; cancellation covers a stalled stream.
     private func resolveWithTimeout(
         stream: AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>,
-        timeout: Duration = .seconds(30),
-        toolContext: ObservationAdvisorToolContext
+        timeout: Duration = .seconds(30)
     ) async throws -> ObservationAdvisorAdvicePartial {
         let deadline = ContinuousClock.now + timeout
         var latest: ObservationAdvisorAdvicePartial?
         for try await partial in stream {
             try Task.checkCancellation()
             guard ContinuousClock.now < deadline else { throw ObservationAdvisorTimeoutError() }
-            let groundedPartial = partial.withGroundedAlternatives(using: toolContext)
-            latest = groundedPartial
-            guard state != .streaming(groundedPartial) else { continue }
-            state = .streaming(groundedPartial)
+            latest = partial
+            guard state != .streaming(partial) else { continue }
+            state = .streaming(partial)
         }
         guard let latest else {
             throw ObservationAdvisorAdviceValidationError.missingRequiredField

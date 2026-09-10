@@ -102,7 +102,9 @@ private extension ObservationAdviceCard {
         let bestWindow = partial.bestWindow
         let reasons = partial.reasons ?? []
         let tips = partial.tips ?? []
-        let alternatives = toolContext.groundedAlternatives(from: partial.alternatives)
+        let alternatives = isStreaming
+            ? []
+            : toolContext.groundedAlternatives(from: partial.alternatives)
 
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
