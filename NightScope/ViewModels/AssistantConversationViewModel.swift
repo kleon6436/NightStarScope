@@ -20,6 +20,8 @@ final class AssistantConversationViewModel: ObservableObject {
     private var session: (any AssistantConversationSession)?
     private var generationTask: Task<Void, Never>?
     private var shouldRenewSession = false
+    private var forceOnDeviceSession = false
+    private var sessionResolution: AssistantModelResolution?
     private var hasReportedFallback = false
 
     init(
@@ -85,6 +87,12 @@ final class AssistantConversationViewModel: ObservableObject {
             shouldRenewSession = true
             state = .error(error.localizedDescription)
         } catch {
+            if sessionResolution?.kind == .privateCloud {
+                // The next send retries on the on-device model; the notice is surfaced then
+                // (see sessionForNextMessage) so a fresh send() does not clear it first.
+                shouldRenewSession = true
+                forceOnDeviceSession = true
+            }
             state = .error(error.localizedDescription)
         }
     }
@@ -93,6 +101,8 @@ final class AssistantConversationViewModel: ObservableObject {
         generationTask?.cancel()
         generationTask = nil
         session = nil
+        sessionResolution = nil
+        forceOnDeviceSession = false
         shouldRenewSession = true
         messages.removeAll()
         transientNotice = nil
@@ -107,13 +117,20 @@ final class AssistantConversationViewModel: ObservableObject {
         let initialContext = shouldRenewSession
             ? context.summary + "\nRecent conversation:\n" + recentConversation
             : context.summary
+        let wasForcedOnDevice = forceOnDeviceSession
         let result = try await factory.makeSession(
             language: context.language,
-            initialContext: initialContext
+            initialContext: initialContext,
+            forceOnDevice: forceOnDeviceSession
         )
         session = result.session
+        sessionResolution = result.resolution
         shouldRenewSession = false
-        if result.resolution.fallbackReason == .quotaLimitReached, !hasReportedFallback {
+        forceOnDeviceSession = false
+        if wasForcedOnDevice, !hasReportedFallback {
+            hasReportedFallback = true
+            transientNotice = String(localized: "advice.notice.pcc_generation_fallback")
+        } else if result.resolution.fallbackReason == .quotaLimitReached, !hasReportedFallback {
             hasReportedFallback = true
             transientNotice = String(localized: "advice.notice.pcc_fallback")
         }

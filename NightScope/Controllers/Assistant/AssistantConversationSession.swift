@@ -86,7 +86,8 @@ protocol AssistantConversationSession: AnyObject, Sendable {
 protocol AssistantConversationSessionFactory: Sendable {
     func makeSession(
         language: String,
-        initialContext: String
+        initialContext: String,
+        forceOnDevice: Bool
     ) async throws -> AssistantConversationSessionResult
 }
 
@@ -94,7 +95,8 @@ protocol AssistantConversationSessionFactory: Sendable {
 private final class UnavailableConversationSessionFactory: AssistantConversationSessionFactory {
     func makeSession(
         language _: String,
-        initialContext _: String
+        initialContext _: String,
+        forceOnDevice _: Bool
     ) async throws -> AssistantConversationSessionResult {
         throw AssistantConversationError.unavailable
     }
@@ -113,9 +115,12 @@ final class FoundationConversationSessionFactory: AssistantConversationSessionFa
 
     func makeSession(
         language: String,
-        initialContext: String
+        initialContext: String,
+        forceOnDevice: Bool
     ) async throws -> AssistantConversationSessionResult {
-        let resolution = await modelRuntime.resolve(language: language)
+        let resolution = forceOnDevice
+            ? AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+            : await modelRuntime.resolve(language: language)
         guard resolution.kind == .privateCloud || isOnDeviceAvailable else {
             throw AssistantConversationError.unavailable
         }
@@ -221,6 +226,10 @@ private final class FoundationModelsConversationSession: AssistantConversationSe
 
     private static func mapError(_ error: any Error) -> AssistantConversationError {
         if #available(macOS 27.0, iOS 27.0, *) {
+            if error is PrivateCloudComputeLanguageModel.Error {
+                return .generationFailed
+            }
+
             if let error = error as? LanguageModelError {
                 switch error {
                 case .contextSizeExceeded:

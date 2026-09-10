@@ -162,6 +162,31 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         XCTAssertEqual(service.generateCallCount, 2)
     }
 
+    func test_privateCloudFailureFallsBackToOnDeviceOnceWithNotice() async {
+        let service = MockObservationAdvisorService(
+            firstError: ObservationAdvisorServiceError.generationFailed,
+            streamFactory: { _ in
+                AsyncThrowingStream { continuation in
+                    continuation.yield(samplePartial())
+                    continuation.finish()
+                }
+            }
+        )
+        let viewModel = ObservationAdvisorViewModel(service: service)
+        let privateCloudResolution = AssistantModelResolution(kind: .privateCloud, fallbackReason: nil)
+
+        viewModel.generate(
+            input: sampleInput,
+            toolContext: sampleToolContext,
+            resolution: privateCloudResolution
+        )
+        await waitForState(.complete(sampleAdvice), in: viewModel)
+
+        XCTAssertEqual(service.generateCallCount, 2)
+        XCTAssertEqual(service.resolutions.map(\.kind), [.privateCloud, .onDevice])
+        XCTAssertEqual(viewModel.transientNotice, String(localized: "advice.notice.pcc_generation_fallback"))
+    }
+
     func test_missingRequiredFields_setsGenerationError() async {
         let service = MockObservationAdvisorService(
             streamFactory: { _ in
@@ -301,6 +326,7 @@ private final class MockObservationAdvisorService: ObservationAdvising {
     var cancelledCount = 0
     var generateCallCount = 0
     var inputs: [ObservationAdvisorInput] = []
+    var resolutions: [AssistantModelResolution] = []
     var streamFactory: @MainActor (MockObservationAdvisorService)
         -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> = { _ in
         AsyncThrowingStream { continuation in
@@ -332,10 +358,11 @@ private final class MockObservationAdvisorService: ObservationAdvising {
     func generateAdvice(
         for input: ObservationAdvisorInput,
         toolContext _: ObservationAdvisorToolContext,
-        resolution _: AssistantModelResolution
+        resolution: AssistantModelResolution
     ) async throws -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> {
         generateCallCount += 1
         inputs.append(input)
+        resolutions.append(resolution)
         guard case .available = availability else {
             throw ObservationAdvisorServiceError.unavailable
         }

@@ -127,6 +127,7 @@ struct SettingsView: View {
     }
 
     private var shouldShowAssistantSettings: Bool {
+        guard AssistantModelRuntime.isPrivateCloudComputeEnabled else { return false }
         guard let onDeviceAvailability else { return true }
         guard case .unavailable(let reason) = onDeviceAvailability else { return true }
         return reason != .unsupportedOS && reason != .deviceNotEligible
@@ -138,6 +139,8 @@ private extension AssistantPCCAvailability {
         switch self {
         case .available:
             String(localized: "advice.settings.pcc.available")
+        case .notEntitled:
+            String(localized: "advice.settings.pcc.not_entitled")
         case .unsupportedOS:
             String(localized: "advice.settings.pcc.unsupported_os")
         case .deviceNotEligible:

@@ -122,7 +122,9 @@ final class AssistantConversationViewModelTests: XCTestCase {
         }
         let secondSession = MockConversationSession { _ in
             AsyncThrowingStream { continuation in
-                continuation.yield(AssistantConversationStreamSnapshot(text: "復帰しました", totalTokenCount: nil))
+                continuation.yield(
+                    AssistantConversationStreamSnapshot(text: "復帰しました", totalTokenCount: nil)
+                )
                 continuation.finish()
             }
         }
@@ -136,6 +138,35 @@ final class AssistantConversationViewModelTests: XCTestCase {
 
         XCTAssertEqual(factory.makeCount, 2)
         XCTAssertEqual(viewModel.messages.last?.text, "復帰しました")
+    }
+
+    func test_privateCloudFailureUsesOnDeviceSessionOnNextSend() async {
+        let firstSession = MockConversationSession { _ in
+            AsyncThrowingStream { continuation in
+                continuation.finish(throwing: MockConversationError.failed)
+            }
+        }
+        let secondSession = MockConversationSession { _ in
+            AsyncThrowingStream { continuation in
+                continuation.yield(
+                    AssistantConversationStreamSnapshot(text: "デバイス回答", totalTokenCount: nil)
+                )
+                continuation.finish()
+            }
+        }
+        let factory = MockConversationSessionFactory(
+            sessions: [firstSession, secondSession],
+            resolution: AssistantModelResolution(kind: .privateCloud, fallbackReason: nil)
+        )
+        let viewModel = AssistantConversationViewModel(context: sampleContext, factory: factory)
+
+        viewModel.send("クラウドで質問")
+        await waitForError(with: viewModel)
+        viewModel.send("デバイスで再試行")
+        await waitForIdle(with: viewModel)
+
+        XCTAssertEqual(factory.forceOnDeviceRequests, [false, true])
+        XCTAssertEqual(viewModel.transientNotice, String(localized: "advice.notice.pcc_generation_fallback"))
     }
 
     func test_startNewConversationClearsMessagesAndCreatesFreshSession() async {
@@ -227,6 +258,7 @@ private final class MockConversationSessionFactory: AssistantConversationSession
     private let resolution: AssistantModelResolution
     private(set) var makeCount = 0
     private(set) var initialContexts: [String] = []
+    private(set) var forceOnDeviceRequests: [Bool] = []
 
     init(
         session: MockConversationSession,
@@ -236,21 +268,28 @@ private final class MockConversationSessionFactory: AssistantConversationSession
         self.resolution = resolution
     }
 
-    init(sessions: [MockConversationSession]) {
+    init(
+        sessions: [MockConversationSession],
+        resolution: AssistantModelResolution = AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+    ) {
         self.sessions = sessions
-        self.resolution = AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+        self.resolution = resolution
     }
 
     func makeSession(
         language _: String,
-        initialContext: String
+        initialContext: String,
+        forceOnDevice: Bool
     ) async throws -> AssistantConversationSessionResult {
         let index = min(makeCount, sessions.count - 1)
         makeCount += 1
         initialContexts.append(initialContext)
+        forceOnDeviceRequests.append(forceOnDevice)
         return AssistantConversationSessionResult(
             session: sessions[index],
-            resolution: resolution
+            resolution: forceOnDevice
+                ? AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+                : resolution
         )
     }
 }

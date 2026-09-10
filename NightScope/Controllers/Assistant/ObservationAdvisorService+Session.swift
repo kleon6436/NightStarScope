@@ -146,6 +146,10 @@ extension ObservationAdvisorService {
             return mapModernError(toolCallError.underlyingError)
         }
 
+        if error is PrivateCloudComputeLanguageModel.Error {
+            return .generationFailed
+        }
+
         if let error = error as? LanguageModelError {
             switch error {
             case .contextSizeExceeded:

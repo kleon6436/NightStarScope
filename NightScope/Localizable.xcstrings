@@ -911,6 +911,23 @@
         }
       }
     },
+    "advice.notice.pcc_generation_fallback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud processing failed, so on-device processing was used."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウド処理に失敗したため、デバイス上で処理しました。"
+          }
+        }
+      }
+    },
     "advice.settings.description" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -975,6 +992,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このデバイスでは高精度モード（クラウド処理）を利用できません。"
+          }
+        }
+      }
+    },
+    "advice.settings.pcc.not_entitled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High accuracy cloud processing is not enabled for this build."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドでは高精度モード（クラウド処理）が有効になっていません。"
           }
         }
       }

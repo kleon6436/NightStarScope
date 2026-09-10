@@ -17,6 +17,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
 
     private let service: any ObservationAdvising
     private var generationTask: Task<Void, Never>?
+    private var hasReportedPCCFallback = false
 
     init(service: (any ObservationAdvising)? = nil) {
         let resolved = service ?? ObservationAdvisorService()
@@ -107,26 +108,47 @@ final class ObservationAdvisorViewModel: ObservableObject {
         resolution: AssistantModelResolution
     ) async throws -> ObservationAdvisorAdvicePartial {
         do {
-            let stream = try await service.generateAdvice(
-                for: input,
-                toolContext: toolContext,
-                resolution: resolution
-            )
-            return try await resolveWithTimeout(stream: stream, toolContext: toolContext)
-        } catch let error as ObservationAdvisorServiceError {
-            guard error == .contextExceeded else { throw error }
-
-            // Retry once with a compact context after the model reports a context overflow.
-            state = .loading
-            let retryInput = input.shortenedForRetry()
-            let retryStream = try await service.generateAdvice(
-                for: retryInput,
-                toolContext: toolContext,
-                resolution: resolution
-            )
             return try await resolveWithTimeout(
-                stream: retryStream,
-                timeout: .seconds(20),
+                stream: try await service.generateAdvice(
+                    for: input,
+                    toolContext: toolContext,
+                    resolution: resolution
+                ),
+                toolContext: toolContext
+            )
+        } catch let error as ObservationAdvisorServiceError {
+            if error == .contextExceeded {
+                // Retry once with a compact context after the model reports a context overflow.
+                state = .loading
+                let retryInput = input.shortenedForRetry()
+                let retryStream = try await service.generateAdvice(
+                    for: retryInput,
+                    toolContext: toolContext,
+                    resolution: resolution
+                )
+                return try await resolveWithTimeout(
+                    stream: retryStream,
+                    timeout: .seconds(20),
+                    toolContext: toolContext
+                )
+            }
+
+            guard resolution.kind == .privateCloud,
+                  error == .generationFailed || error == .unavailable else {
+                throw error
+            }
+
+            if !hasReportedPCCFallback {
+                hasReportedPCCFallback = true
+                transientNotice = String(localized: "advice.notice.pcc_generation_fallback")
+            }
+            let onDeviceResolution = AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+            return try await resolveWithTimeout(
+                stream: try await service.generateAdvice(
+                    for: input,
+                    toolContext: toolContext,
+                    resolution: onDeviceResolution
+                ),
                 toolContext: toolContext
             )
         }

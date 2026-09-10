@@ -31,6 +31,7 @@
 		D4000000000000000000000A /* AssistantConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000005 /* AssistantConversationView.swift */; };
 		D4000000000000000000000B /* AssistantModelResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000006 /* AssistantModelResolverTests.swift */; };
 		D4000000000000000000000C /* AssistantConversationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000007 /* AssistantConversationViewModelTests.swift */; };
+		D4000000000000000000000D /* AssistantModelRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000008 /* AssistantModelRuntimeTests.swift */; };
 		05B006658CE59CC2B7E60657 /* FavoriteLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5FD175A6FD4FA2071B5F37 /* FavoriteLocation.swift */; };
 		0C21A9833046DD44B1100A01 /* ComparisonMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */; };
 		0C21A9833046DD44B1100A02 /* ComparisonController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A12 /* ComparisonController.swift */; };
@@ -289,6 +290,7 @@
 		D41000000000000000000005 /* AssistantConversationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationView.swift; sourceTree = "<group>"; };
 		D41000000000000000000006 /* AssistantModelResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModelResolverTests.swift; sourceTree = "<group>"; };
 		D41000000000000000000007 /* AssistantConversationViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationViewModelTests.swift; sourceTree = "<group>"; };
+		D41000000000000000000008 /* AssistantModelRuntimeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModelRuntimeTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoStateValidator.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F01 /* NightScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeApp.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F03 /* MilkyWayCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculator.swift; sourceTree = "<group>"; };
@@ -612,6 +614,7 @@
 			children = (
 				D41000000000000000000006 /* AssistantModelResolverTests.swift */,
 				D41000000000000000000007 /* AssistantConversationViewModelTests.swift */,
+				D41000000000000000000008 /* AssistantModelRuntimeTests.swift */,
 				AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */,
 				AA000000000000000000TF20 /* PlanetVisibilitySummaryTests.swift */,
 				AA000000000000000000TF02 /* StarGazingIndexTests.swift */,
@@ -1046,6 +1049,7 @@
 				B3000000000000000000000B /* ObservationAdvisorToolsTests.swift in Sources */,
 				D4000000000000000000000B /* AssistantModelResolverTests.swift in Sources */,
 				D4000000000000000000000C /* AssistantConversationViewModelTests.swift in Sources */,
+				D4000000000000000000000D /* AssistantModelRuntimeTests.swift in Sources */,
 				FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

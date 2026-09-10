@@ -14,6 +14,7 @@ enum AssistantModelFallbackReason: Equatable, Sendable {
 
 enum AssistantPCCAvailability: Equatable, Sendable {
     case available
+    case notEntitled
     case unsupportedOS
     case deviceNotEligible
     case systemNotReady

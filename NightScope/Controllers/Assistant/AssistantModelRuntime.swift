@@ -5,6 +5,22 @@ import FoundationModels
 
 @MainActor
 final class AssistantModelRuntime {
+    /// Private Cloud Compute needs Apple's managed `com.apple.developer.private-cloud-compute`
+    /// entitlement, which is not yet approved for this app. Constructing
+    /// `PrivateCloudComputeLanguageModel()` without it traps at runtime, so every PCC code path
+    /// is gated on this flag and stays off until the entitlement is granted.
+    ///
+    /// To enable after approval: confirm the entitlement is embedded in the signed app
+    /// (`codesign -d --entitlements :- NightScope.app`), then add `PCC_HIGH_ACCURACY` to the
+    /// `SWIFT_ACTIVE_COMPILATION_CONDITIONS` of the NightScope and NightScopeiOS targets.
+    static var isPrivateCloudComputeEnabled: Bool {
+        #if PCC_HIGH_ACCURACY
+        true
+        #else
+        false
+        #endif
+    }
+
     private let userDefaults: UserDefaults
 
     init(userDefaults: UserDefaults = .standard) {
@@ -13,9 +29,13 @@ final class AssistantModelRuntime {
 
     func resolve(language: String) async -> AssistantModelResolution {
         let highAccuracyEnabled = userDefaults.bool(forKey: "assistantHighAccuracyMode")
+        guard Self.isPrivateCloudComputeEnabled else {
+            return AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+        }
+
         guard highAccuracyEnabled else {
             return AssistantModelResolver.resolve(
-            AssistantModelResolverInput(
+                AssistantModelResolverInput(
                     highAccuracyEnabled: false,
                     osSupportsPrivateCloud: false,
                     pccAvailability: .unsupportedOS,
@@ -83,6 +103,10 @@ final class AssistantModelRuntime {
     }
 
     static func settingsStatus() -> AssistantPCCSettingsStatus {
+        guard isPrivateCloudComputeEnabled else {
+            return AssistantPCCSettingsStatus(availability: .notEntitled, quota: .unavailable)
+        }
+
         #if canImport(FoundationModels)
         if #available(macOS 27.0, iOS 27.0, *) {
             let model = PrivateCloudComputeLanguageModel()
@@ -103,7 +127,8 @@ final class AssistantModelRuntime {
         tools: [any Tool],
         instructions: String
     ) -> LanguageModelSession {
-        if resolution.kind == .privateCloud,
+        if Self.isPrivateCloudComputeEnabled,
+           resolution.kind == .privateCloud,
            #available(macOS 27.0, iOS 27.0, *) {
             return LanguageModelSession(
                 model: PrivateCloudComputeLanguageModel(),
@@ -121,7 +146,8 @@ final class AssistantModelRuntime {
 
     @available(macOS 26.0, iOS 26.0, *)
     func contextSize(for resolution: AssistantModelResolution) async -> Int {
-        if resolution.kind == .privateCloud,
+        if Self.isPrivateCloudComputeEnabled,
+           resolution.kind == .privateCloud,
            #available(macOS 27.0, iOS 27.0, *) {
             return (try? await PrivateCloudComputeLanguageModel().contextSize)
                 ?? SystemLanguageModel.default.contextSize
