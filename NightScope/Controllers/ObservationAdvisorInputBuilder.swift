@@ -35,7 +35,7 @@ enum ObservationAdvisorInputBuilder {
         )
     }
 
-    private static func sanitize(_ locationName: String, language: String) -> String {
+    static func sanitize(_ locationName: String, language: String) -> String {
         let filteredScalars = locationName.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }
         let cleaned = String(String.UnicodeScalarView(filteredScalars)).trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned.count <= 100 {
@@ -48,7 +48,7 @@ enum ObservationAdvisorInputBuilder {
         language == "ja" ? "観測地未設定" : "Observation location not set"
     }
 
-    private static func tierLabel(for tier: StarGazingIndex.Tier, language: String) -> String {
+    static func tierLabel(for tier: StarGazingIndex.Tier, language: String) -> String {
         guard language == "en" else {
             switch tier {
             case .excellent: return "絶好"

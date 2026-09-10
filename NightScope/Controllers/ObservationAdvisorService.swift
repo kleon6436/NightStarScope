@@ -21,9 +21,10 @@ enum ObservationAdvisorAvailability: Equatable, Sendable {
 protocol ObservationAdvising: Sendable {
     var availability: ObservationAdvisorAvailability { get }
     func generateAdvice(
-        for input: ObservationAdvisorInput
+        for input: ObservationAdvisorInput,
+        toolContext: ObservationAdvisorToolContext
     ) async throws -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>
-    func prewarm()
+    func prewarm(for toolContext: ObservationAdvisorToolContext)
 }
 
 enum ObservationAdvisorServiceError: LocalizedError, Equatable, Sendable {
@@ -48,9 +49,9 @@ enum ObservationAdvisorServiceError: LocalizedError, Equatable, Sendable {
 
 @MainActor
 final class ObservationAdvisorService: ObservationAdvising {
-    private static let logger = Logger(subsystem: "com.nightscope", category: "ObservationAdvisor")
+    static let logger = Logger(subsystem: "com.nightscope", category: "ObservationAdvisor")
     // LanguageModelSession is availability-gated, so stored cross-deployment state uses Sendable type erasure.
-    private var pendingPrewarmedSessions: [String: any Sendable] = [:]
+    var pendingPrewarmedSessions: [String: PendingPrewarmedSession] = [:]
 
     var availability: ObservationAdvisorAvailability {
         #if canImport(FoundationModels)
@@ -76,7 +77,8 @@ final class ObservationAdvisorService: ObservationAdvising {
     }
 
     func generateAdvice(
-        for input: ObservationAdvisorInput
+        for input: ObservationAdvisorInput,
+        toolContext: ObservationAdvisorToolContext
     ) async throws -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> {
         guard case .available = availability else {
             throw ObservationAdvisorServiceError.unavailable
@@ -86,15 +88,17 @@ final class ObservationAdvisorService: ObservationAdvising {
         if #available(macOS 27.0, iOS 27.0, *) {
             return makeStream(
                 for: input,
+                toolContext: toolContext,
                 prompt: makePrompt(for: input),
-                mapError: Self.mapModernError
+                mapError: { error in Self.mapModernError(error) }
             )
         }
         if #available(macOS 26.0, iOS 26.0, *) {
             return makeStream(
                 for: input,
+                toolContext: toolContext,
                 prompt: makePrompt(for: input),
-                mapError: Self.mapLegacyError
+                mapError: { error in Self.mapLegacyError(error) }
             )
         }
         #endif
@@ -102,17 +106,30 @@ final class ObservationAdvisorService: ObservationAdvising {
         throw ObservationAdvisorServiceError.unavailable
     }
 
-    func prewarm() {
+    func prewarm(for toolContext: ObservationAdvisorToolContext) {
         guard case .available = availability else { return }
 
         #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *) {
-            let language = Locale.current.language.languageCode?.identifier == "en" ? "en" : "ja"
-            guard pendingPrewarmedSessions[language] == nil else { return }
+            let language = toolContext.language
+            if let pending = pendingPrewarmedSessions[language] {
+                if pending.context == toolContext {
+                    return
+                }
+                pendingPrewarmedSessions.removeValue(forKey: language)
+            }
 
-            let session = makeSession(language: language, consumesPendingSession: false)
+            let session = makeSession(
+                language: language,
+                toolContext: toolContext,
+                consumesPendingSession: false
+            )
+            // Match the snapshot so the first generation can reuse this tool-bearing session safely.
             session.prewarm()
-            pendingPrewarmedSessions[language] = session
+            pendingPrewarmedSessions[language] = PendingPrewarmedSession(
+                context: toolContext,
+                session: session
+            )
             Self.logger.debug("Prewarmed observation advisor session")
         }
         #endif
@@ -125,7 +142,7 @@ final class ObservationAdvisorService: ObservationAdvising {
 
         let tierInstruction = input.isUnfavorable
             ? "【出力指示】条件が悪い理由を説明すること。"
-                + "別日・別地点の提案はしないこと。"
+                + "upcoming_nights_lookupの候補からのみ代替案を選ぶこと。"
             : "【出力指示】条件の説明と、具体的な観測のポイントを述べること。"
         let retryInstruction = input.isRetryPrompt
             ? "【追加指示】入力を簡潔に要約し、短い文章で出力すること。"
@@ -147,7 +164,7 @@ final class ObservationAdvisorService: ObservationAdvising {
     private func makeEnglishPrompt(for input: ObservationAdvisorInput) -> String {
         let tierInstruction = input.isUnfavorable
             ? "[Output instruction] Explain specifically why conditions are poor. "
-                + "Do not suggest other dates or locations."
+                + "Choose alternatives only from upcoming_nights_lookup candidates."
             : "[Output instruction] Explain the conditions and provide concrete observing tips."
         let retryInstruction = input.isRetryPrompt
             ? "[Additional instruction] Summarize the input concisely and respond briefly."
@@ -166,27 +183,58 @@ final class ObservationAdvisorService: ObservationAdvising {
         """
     }
 
-    private static func systemPrompt(language: String) -> String {
+    private static let englishPromptContract = """
+    Output contract (strictly follow):
+    - Write every field in English.
+    - headline is a concise heading of 20 characters or fewer.
+    - verdict must be exactly one of: excellent, good, fair, poor, bad.
+    - bestWindow is the useful observing window, or an empty string when unavailable.
+    - reasons contains 2 to 4 evidence items, each 40 characters or fewer.
+    - tips contains 1 to 4 concrete tips, each 40 characters or fewer.
+    - alternatives contains at most 2 candidates returned by upcoming_nights_lookup, or is empty.
+    - For poor or unfavorable conditions, call upcoming_nights_lookup and choose alternatives only
+      from its returned candidates. If there are no candidates, return an empty array.
+    - Never invent a date or location, and do not suggest dates or locations outside the candidates.
+    - Do not perform any new calculations, predictions, or evaluations.
+    - Do not estimate weather or celestial positions.
+    - You may quote numeric values from the precomputed data as evidence; do not invent values.
+    - For poor conditions, explain the reasons specifically and honestly.
+    - Concrete tips may cover direction, a target, equipment, and dark adaptation.
+    - Do not suggest unsupported actions such as indoor observing.
+    - Stargazing assumes outdoor observation.
+    """
+
+    private static let japanesePromptContract = """
+    出力契約（厳守）:
+    - すべてのフィールドを必ず日本語で書くこと。
+    - headlineは20文字以内の簡潔な見出しにすること。
+    - verdictは英語キーexcellent、good、fair、poor、badのいずれか1つだけにすること。
+    - bestWindowは観測に適した時間帯。不明なら空文字にすること。
+    - reasonsは評価の根拠を2〜4個。各40文字以内にすること。
+    - tipsは具体的な観測アドバイスを1〜4個。各40文字以内にすること。
+    - alternativesはupcoming_nights_lookupが返した候補から最大2個。
+      候補がなければ空配列にすること。
+    - 悪条件（不向き・観測困難）の場合のみupcoming_nights_lookupを呼び、
+      返された候補からのみalternativesを選ぶこと。
+    - ツールの候補にない日付や地名を決して作らないこと。
+    - 新たな計算・予測・評価を行わないこと。
+    - 気象予報・天体位置の推定を行わないこと。
+    - 事前計算済みデータの数値は根拠として引用してよいが、
+      存在しない数値を作らないこと。
+    - 悪条件では理由を具体的かつ正直に説明すること。
+    - tipsでは方角、観測ターゲット、持ち物、暗順応など具体的な助言を述べてよい。
+    - 入力にない室内観測や未掲載の場所・別日などは提案しないこと。
+    - 星空観察は屋外での観察が前提であること。
+    """
+
+    static func systemPrompt(language: String) -> String {
         if language == "en" {
             return """
             You are a stargazing guide.
-            All following data is precomputed. Explain it for beginners and return the structured StargazingAdvice card.
+            The following data is precomputed. Explain it for beginners and return the structured
+            StargazingAdvice card.
 
-            Output contract (strictly follow):
-            - Write every field in English.
-            - headline is a concise heading of 20 characters or fewer.
-            - verdict must be exactly one of: excellent, good, fair, poor, bad.
-            - bestWindow is the useful observing window, or an empty string when unavailable.
-            - reasons contains 2 to 4 evidence items, each 40 characters or fewer.
-            - tips contains 1 to 4 concrete tips, each 40 characters or fewer.
-            - Do not perform any new calculations, predictions, or evaluations
-            - Do not estimate weather or celestial positions
-            - You may quote numeric values from the input as evidence; do not invent values.
-            - For poor conditions, explain the reasons specifically and honestly.
-            - Do not suggest other dates or locations.
-            - Concrete tips may cover direction, a target, equipment, and dark adaptation.
-            - Do not suggest unsupported actions such as indoor observing or an unlisted location or date.
-            - Stargazing assumes outdoor observation
+            \(englishPromptContract)
             """
         }
 
@@ -195,157 +243,7 @@ final class ObservationAdvisorService: ObservationAdvising {
         以下のデータはすべて事前に計算済みです。初心者向けの構造化された
         StargazingAdviceカードを返してください。
 
-        出力契約（厳守）:
-        - すべてのフィールドを必ず日本語で書くこと。
-        - headlineは20文字以内の簡潔な見出しにすること。
-        - verdictは英語キーexcellent、good、fair、poor、badのいずれか1つだけにすること。
-        - bestWindowは観測に適した時間帯。不明なら空文字にすること。
-        - reasonsは評価の根拠を2〜4個。各40文字以内にすること。
-        - tipsは具体的な観測アドバイスを1〜4個。各40文字以内にすること。
-        - 新たな計算・予測・評価を行わないこと
-        - 気象予報・天体位置の推定を行わないこと
-        - 入力に含まれる数値は根拠として引用してよいが、
-          存在しない数値を作らないこと
-        - 悪条件では理由を具体的かつ正直に説明し、別日・別地点は提案しないこと
-        - tipsでは方角、観測ターゲット、持ち物、暗順応など具体的な助言を述べてよい
-        - 入力にない室内観測、未掲載の場所や別日などは提案しないこと
-        - 星空観察は屋外での観察が前提であり、入力にない行動は提案しないこと
+        \(japanesePromptContract)
         """
     }
 }
-
-#if canImport(FoundationModels)
-@available(macOS 26.0, iOS 26.0, *)
-private extension ObservationAdvisorService {
-    func makeSession(language: String, consumesPendingSession: Bool = true) -> LanguageModelSession {
-        if consumesPendingSession,
-           let prewarmedSession = pendingPrewarmedSessions.removeValue(forKey: language) as? LanguageModelSession {
-            return prewarmedSession
-        }
-
-        return LanguageModelSession(
-            model: .default,
-            instructions: Self.systemPrompt(language: language)
-        )
-    }
-
-    func logTokenUsage(prompt: String) async {
-        // contextSize is back-deployed to 26.0; only tokenCount(for:) requires 26.4.
-        let contextSize = SystemLanguageModel.default.contextSize
-        if #available(macOS 26.4, iOS 26.4, *) {
-            do {
-                let tokenCount = try await SystemLanguageModel.default.tokenCount(for: prompt)
-                Self.logger.info(
-                    "Prompt tokens=\(tokenCount, privacy: .public), contextSize=\(contextSize, privacy: .public)"
-                )
-                if Double(tokenCount) > Double(contextSize) * 0.8 {
-                    Self.logger.warning("Prompt token usage exceeds 80 percent of context size")
-                }
-            } catch {
-                Self.logger.error("Prompt token count unavailable: \(String(describing: error), privacy: .public)")
-            }
-        } else {
-            // Note: Character count is a conservative estimate until tokenCount is available on the deployment OS.
-            let estimatedTokenCount = prompt.count
-            Self.logger.info(
-                "Estimated prompt tokens=\(estimatedTokenCount, privacy: .public), contextSize=\(contextSize, privacy: .public)"
-            )
-            if Double(estimatedTokenCount) > Double(contextSize) * 0.8 {
-                Self.logger.warning("Estimated prompt token usage exceeds 80 percent of context size")
-            }
-        }
-    }
-}
-
-@available(macOS 26.0, iOS 26.0, *)
-private extension ObservationAdvisorService {
-    func makeStream(
-        for input: ObservationAdvisorInput,
-        prompt: String,
-        mapError: @escaping @MainActor @Sendable (any Error) -> ObservationAdvisorServiceError
-    ) -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task { @MainActor [weak self] in
-                do {
-                    guard let self else {
-                        throw CancellationError()
-                    }
-
-                    let session = self.makeSession(language: input.language)
-                    Task { @MainActor [weak self] in
-                        await self?.logTokenUsage(prompt: prompt)
-                    }
-                    let stream = session.streamResponse(
-                        to: prompt,
-                        generating: StargazingAdvice.self,
-                        includeSchemaInPrompt: true
-                    )
-                    for try await snapshot in stream {
-                        try Task.checkCancellation()
-                        // FoundationModels streams cumulative snapshots, not deltas.
-                        continuation.yield(ObservationAdvisorAdvicePartial(snapshot.content))
-                    }
-                    continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: CancellationError())
-                } catch {
-                    continuation.finish(throwing: mapError(error))
-                }
-            }
-            continuation.onTermination = { _ in
-                task.cancel()
-            }
-        }
-    }
-}
-
-@available(macOS 27.0, iOS 27.0, *)
-private extension ObservationAdvisorService {
-    static func mapModernError(_ error: any Error) -> ObservationAdvisorServiceError {
-        if let error = error as? LanguageModelError {
-            switch error {
-            case .contextSizeExceeded:
-                return .contextExceeded
-            case .guardrailViolation:
-                return .guardrailViolation
-            default:
-                return .generationFailed
-            }
-        }
-
-        if error is SystemLanguageModel.Error || error is LanguageModelSession.Error {
-            return .generationFailed
-        }
-
-        if let error = error as? LanguageModelSession.GenerationError {
-            return mapLegacyError(error)
-        }
-
-        Self.logger.error(
-            "Unexpected observation advisor generation error: \(String(describing: error), privacy: .public)"
-        )
-        return .generationFailed
-    }
-}
-
-@available(macOS 26.0, iOS 26.0, *)
-private extension ObservationAdvisorService {
-    static func mapLegacyError(_ error: any Error) -> ObservationAdvisorServiceError {
-        guard let error = error as? LanguageModelSession.GenerationError else {
-            Self.logger.error(
-                "Unexpected observation advisor generation error: \(String(describing: error), privacy: .public)"
-            )
-            return .generationFailed
-        }
-
-        switch error {
-        case .exceededContextWindowSize:
-            return .contextExceeded
-        case .guardrailViolation:
-            return .guardrailViolation
-        default:
-            return .generationFailed
-        }
-    }
-}
-#endif

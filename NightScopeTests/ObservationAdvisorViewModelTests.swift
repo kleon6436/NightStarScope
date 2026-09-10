@@ -10,10 +10,16 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
                 AsyncThrowingStream { continuation in
                     continuation.yield(samplePartial(headline: "今夜のまとめ"))
                     continuation.yield(
-                        samplePartial(headline: "今夜のまとめ", reasons: ["雲が少ない", "透明度が良い"])
+                        samplePartial(
+                            headline: "今夜のまとめ",
+                            reasons: ["雲が少ない", "透明度が良い"]
+                        )
                     )
                     continuation.yield(
-                        samplePartial(headline: "今夜のまとめ", reasons: ["雲が少ない", "透明度が良い"])
+                        samplePartial(
+                            headline: "今夜のまとめ",
+                            reasons: ["雲が少ない", "透明度が良い"]
+                        )
                     )
                     continuation.finish()
                 }
@@ -23,7 +29,7 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         var states: [ObservationAdvisorViewModel.State] = []
         let cancellable = viewModel.$state.sink { states.append($0) }
 
-        viewModel.generate(input: sampleInput)
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
         await waitForState(.complete(sampleAdvice), in: viewModel)
 
         XCTAssertEqual(viewModel.state, .complete(sampleAdvice))
@@ -61,7 +67,7 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         )
         let viewModel = ObservationAdvisorViewModel(service: service)
 
-        viewModel.generate(input: sampleInput)
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
         await waitForStreamingState(in: viewModel)
         viewModel.cancel()
         await waitForState(.idle, in: viewModel)
@@ -76,7 +82,7 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(viewModel.state, .unavailable(.deviceNotEligible))
-        viewModel.generate(input: sampleInput)
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
         XCTAssertEqual(viewModel.state, .unavailable(.deviceNotEligible))
     }
 
@@ -130,7 +136,7 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         )
         let viewModel = ObservationAdvisorViewModel(service: service)
 
-        viewModel.generate(input: longRetryInput)
+        viewModel.generate(input: longRetryInput, toolContext: sampleToolContext)
         await waitForState(.complete(shortenedAdvice), in: viewModel)
 
         XCTAssertEqual(service.generateCallCount, 2)
@@ -147,7 +153,7 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         )
         let viewModel = ObservationAdvisorViewModel(service: service)
 
-        viewModel.generate(input: sampleInput)
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
         await waitForState(
             .error(String(localized: "advice.error.context_exceeded")),
             in: viewModel
@@ -167,7 +173,7 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         )
         let viewModel = ObservationAdvisorViewModel(service: service)
 
-        viewModel.generate(input: sampleInput)
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
         await waitForState(
             .error(String(localized: "advice.error.generation_failed")),
             in: viewModel
@@ -179,7 +185,7 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
             service: MockObservationAdvisorService(error: MockObservationAdvisorError.failed)
         )
 
-        viewModel.generate(input: sampleInput)
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
         await waitForState(
             .error(MockObservationAdvisorError.failed.localizedDescription),
             in: viewModel
@@ -245,6 +251,11 @@ private let sampleInput = ObservationAdvisorInput(
     moonSummary: "上弦の月（照度32%、23:10に沈む）",
     weatherSummary: "薄曇り、雲量35%、透明度良好、風速2m/s",
     lightPollutionSummary: "郊外の空（天の川は肉眼でうっすら見える）"
+)
+
+private let sampleToolContext = ObservationAdvisorToolContext(
+    language: sampleInput.language,
+    upcomingNights: []
 )
 
 private let sampleAdvice = ObservationAdvisorAdvice(
@@ -315,7 +326,8 @@ private final class MockObservationAdvisorService: ObservationAdvising {
     }
 
     func generateAdvice(
-        for input: ObservationAdvisorInput
+        for input: ObservationAdvisorInput,
+        toolContext _: ObservationAdvisorToolContext
     ) async throws -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> {
         generateCallCount += 1
         inputs.append(input)
@@ -328,7 +340,7 @@ private final class MockObservationAdvisorService: ObservationAdvising {
         return streamFactory(self)
     }
 
-    func prewarm() {}
+    func prewarm(for _: ObservationAdvisorToolContext) {}
 }
 
 private enum MockObservationAdvisorError: LocalizedError, Sendable {

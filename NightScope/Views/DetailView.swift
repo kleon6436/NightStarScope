@@ -10,6 +10,7 @@ struct DetailView: View {
     @StateObject private var nightWeatherCardViewModel: NightWeatherCardViewModel
     @StateObject private var upcomingGridViewModel: UpcomingNightsGridViewModel
     @StateObject private var advisorViewModel: ObservationAdvisorViewModel
+    @State private var advisorPayload: ObservationAdvisorPayload?
     @ObservedObject var starMapViewModel: StarMapViewModel
 
     init(
@@ -78,8 +79,12 @@ struct DetailView: View {
                     isWeatherLoading: viewModel.isWeatherLoading,
                     isSummaryRefreshing: viewModel.isCalculating
                 )
-                if let input = observationAdvisorInput {
-                    ObservationAdviceCard(viewModel: advisorViewModel, input: input)
+                if let payload = advisorPayload {
+                    ObservationAdviceCard(
+                        viewModel: advisorViewModel,
+                        input: payload.input,
+                        toolContext: payload.toolContext
+                    )
                 }
                 UpcomingNightsGrid(viewModel: upcomingGridViewModel)
                 MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
@@ -198,13 +203,13 @@ struct DetailView: View {
         }
     }
 
-    private var observationAdvisorInput: ObservationAdvisorInput? {
+    private func makeAdvisorPayload() -> ObservationAdvisorPayload? {
         guard let summary = viewModel.nightSummary,
               let index = viewModel.displayedStarGazingIndex else {
             return nil
         }
 
-        return ObservationAdvisorInputBuilder.build(
+        let input = ObservationAdvisorInputBuilder.build(
             nightSummary: summary,
             index: index,
             weather: viewModel.currentWeather,
@@ -212,6 +217,17 @@ struct DetailView: View {
             locationName: viewModel.locationName,
             timeZone: viewModel.selectedTimeZone
         )
+        let toolContext = ObservationAdvisorToolContextBuilder.build(
+            source: ObservationAdvisorToolContextBuilder.Source(
+                upcomingNights: viewModel.upcomingNights,
+                upcomingIndexes: viewModel.upcomingIndexes,
+                locationName: viewModel.locationName,
+                timeZone: viewModel.selectedTimeZone,
+                localeIdentifier: input.language == "ja" ? "ja_JP" : "en_US"
+            )
+        )
+
+        return ObservationAdvisorPayload(input: input, toolContext: toolContext)
     }
 
     private var advisorTriggerKey: String {
@@ -228,6 +244,11 @@ struct DetailView: View {
             String(format: "%.1f", $0)
         } ?? "bortle:nil"
         let dayKey = Int(summary.date.timeIntervalSince1970 / 86_400)
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: viewModel.selectedTimeZone)
+        let upcomingDates = viewModel.upcomingNights.map {
+            calendar.startOfDay(for: $0.date).timeIntervalSince1970
+        }
+        let upcomingKey = "\(upcomingDates.count)-\(upcomingDates.first ?? 0)-\(upcomingDates.last ?? 0)"
 
         return [
             String(dayKey),
@@ -235,18 +256,21 @@ struct DetailView: View {
             String(index.weatherScore),
             weatherKey,
             bortleKey,
+            upcomingKey,
             viewModel.locationName,
             viewModel.selectedTimeZone.identifier
         ].joined(separator: "|")
     }
 
     private func updateObservationAdvice() {
-        advisorViewModel.prewarm()
-        guard let input = observationAdvisorInput else {
+        let payload = makeAdvisorPayload()
+        advisorPayload = payload
+        guard let payload else {
             advisorViewModel.cancel()
             return
         }
-        advisorViewModel.generate(input: input)
+        advisorViewModel.prewarm(for: payload.toolContext)
+        advisorViewModel.generate(input: payload.input, toolContext: payload.toolContext)
     }
 }
 

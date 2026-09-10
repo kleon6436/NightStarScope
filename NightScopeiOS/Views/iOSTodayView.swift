@@ -32,6 +32,7 @@ struct iOSTodayView: View {
     @StateObject private var advisorViewModel: ObservationAdvisorViewModel
     @State private var presentedSheet: PresentedSheet?
     @State private var calendarDraftDate = Date()
+    @State private var advisorPayload: ObservationAdvisorPayload?
 
     /// 詳細画面の ViewModel と観測モード設定を受け取る。
     init(
@@ -123,8 +124,12 @@ struct iOSTodayView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if let input = observationAdvisorInput {
-                ObservationAdviceCard(viewModel: advisorViewModel, input: input)
+            if let payload = advisorPayload {
+                ObservationAdviceCard(
+                    viewModel: advisorViewModel,
+                    input: payload.input,
+                    toolContext: payload.toolContext
+                )
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -267,13 +272,13 @@ struct iOSTodayView: View {
 }
 
 private extension iOSTodayView {
-    var observationAdvisorInput: ObservationAdvisorInput? {
+    func makeAdvisorPayload() -> ObservationAdvisorPayload? {
         guard let summary = nightSummary,
               let index = starGazingIndex else {
             return nil
         }
 
-        return ObservationAdvisorInputBuilder.build(
+        let input = ObservationAdvisorInputBuilder.build(
             nightSummary: summary,
             index: index,
             weather: weather,
@@ -281,6 +286,17 @@ private extension iOSTodayView {
             locationName: detailViewModel.locationName,
             timeZone: detailViewModel.selectedTimeZone
         )
+        let toolContext = ObservationAdvisorToolContextBuilder.build(
+            source: ObservationAdvisorToolContextBuilder.Source(
+                upcomingNights: detailViewModel.upcomingNights,
+                upcomingIndexes: detailViewModel.upcomingIndexes,
+                locationName: detailViewModel.locationName,
+                timeZone: detailViewModel.selectedTimeZone,
+                localeIdentifier: input.language == "ja" ? "ja_JP" : "en_US"
+            )
+        )
+
+        return ObservationAdvisorPayload(input: input, toolContext: toolContext)
     }
 
     var advisorTriggerKey: String {
@@ -296,6 +312,11 @@ private extension iOSTodayView {
             String(format: "%.1f", $0)
         } ?? "bortle:nil"
         let dayKey = Int(summary.date.timeIntervalSince1970 / 86_400)
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: detailViewModel.selectedTimeZone)
+        let upcomingDates = detailViewModel.upcomingNights.map {
+            calendar.startOfDay(for: $0.date).timeIntervalSince1970
+        }
+        let upcomingKey = "\(upcomingDates.count)-\(upcomingDates.first ?? 0)-\(upcomingDates.last ?? 0)"
 
         return [
             String(dayKey),
@@ -303,18 +324,21 @@ private extension iOSTodayView {
             String(index.weatherScore),
             weatherKey,
             bortleKey,
+            upcomingKey,
             detailViewModel.locationName,
             detailViewModel.selectedTimeZone.identifier
         ].joined(separator: "|")
     }
 
     func updateObservationAdvice() {
-        advisorViewModel.prewarm()
-        guard let input = observationAdvisorInput else {
+        let payload = makeAdvisorPayload()
+        advisorPayload = payload
+        guard let payload else {
             advisorViewModel.cancel()
             return
         }
-        advisorViewModel.generate(input: input)
+        advisorViewModel.prewarm(for: payload.toolContext)
+        advisorViewModel.generate(input: payload.input, toolContext: payload.toolContext)
     }
 }
 

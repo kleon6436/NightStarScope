@@ -82,6 +82,18 @@ final class StargazingAdviceTests: XCTestCase {
         XCTAssertEqual(advice.tips.count, 1)
     }
 
+    func test_alternativesPassThroughFromPartial() throws {
+        let advice = try ObservationAdvisorAdvice(
+            partial: ObservationAdvisorAdvicePartial(
+                headline: "代替候補",
+                verdict: "poor",
+                alternatives: ["5月14日（水）・乗鞍高原"]
+            )
+        )
+
+        XCTAssertEqual(advice.alternatives, ["5月14日（水）・乗鞍高原"])
+    }
+
     func test_adviceFieldsSupportGuideBoundaryCounts() throws {
         let advice = try ObservationAdvisorAdvice(
             partial: ObservationAdvisorAdvicePartial(
@@ -105,7 +117,8 @@ final class StargazingAdviceTests: XCTestCase {
           "verdict": "excellent",
           "bestWindow": "22:00-23:00",
           "reasons": ["Few clouds", "Good transparency"],
-          "tips": ["Wait for dark adaptation"]
+          "tips": ["Wait for dark adaptation"],
+          "alternatives": []
         }
         """)
         let generated = try StargazingAdvice(content)

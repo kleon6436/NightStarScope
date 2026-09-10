@@ -401,6 +401,23 @@
         }
       }
     },
+    "advice.card.alternatives" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alternatives"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代替案"
+          }
+        }
+      }
+    },
     "advice.card.tips" : {
       "extractionState" : "manual",
       "localizations" : {

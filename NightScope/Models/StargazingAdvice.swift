@@ -75,18 +75,21 @@ struct ObservationAdvisorAdvicePartial: Equatable, Sendable {
     let bestWindow: String?
     let reasons: [String]?
     let tips: [String]?
+    let alternatives: [String]?
     init(
         headline: String? = nil,
         verdict: String? = nil,
         bestWindow: String? = nil,
         reasons: [String]? = nil,
-        tips: [String]? = nil
+        tips: [String]? = nil,
+        alternatives: [String]? = nil
     ) {
         self.headline = headline
         self.verdict = verdict
         self.bestWindow = bestWindow
         self.reasons = reasons
         self.tips = tips
+        self.alternatives = alternatives
     }
 }
 
@@ -96,19 +99,22 @@ struct ObservationAdvisorAdvice: Equatable, Sendable {
     let bestWindow: String
     let reasons: [String]
     let tips: [String]
+    let alternatives: [String]
 
     init(
         headline: String,
         verdict: AdviceVerdict,
         bestWindow: String = "",
         reasons: [String] = [],
-        tips: [String] = []
+        tips: [String] = [],
+        alternatives: [String] = []
     ) {
         self.headline = headline
         self.verdict = verdict
         self.bestWindow = bestWindow
         self.reasons = reasons
         self.tips = tips
+        self.alternatives = alternatives
     }
 
     init(partial: ObservationAdvisorAdvicePartial) throws {
@@ -124,7 +130,8 @@ struct ObservationAdvisorAdvice: Equatable, Sendable {
             verdict: AdviceVerdict(modelValue: verdict),
             bestWindow: partial.bestWindow?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
             reasons: partial.reasons ?? [],
-            tips: partial.tips ?? []
+            tips: partial.tips ?? [],
+            alternatives: partial.alternatives ?? []
         )
     }
 }
@@ -136,7 +143,8 @@ extension ObservationAdvisorAdvicePartial {
             verdict: advice.verdict.rawValue,
             bestWindow: advice.bestWindow,
             reasons: advice.reasons,
-            tips: advice.tips
+            tips: advice.tips,
+            alternatives: advice.alternatives
         )
     }
 }
@@ -174,6 +182,12 @@ struct StargazingAdvice: Equatable, Sendable {
     )
     var tips: [String]
 
+    @Guide(
+        description: "Alternative dates or locations from the upcoming candidate list only; empty when unavailable.",
+        .maximumCount(2)
+    )
+    var alternatives: [String]
+
 }
 
 @available(macOS 26.0, iOS 26.0, *)
@@ -184,7 +198,8 @@ extension ObservationAdvisorAdvicePartial {
             verdict: generated.verdict,
             bestWindow: generated.bestWindow,
             reasons: completedAdviceValues(generated.reasons),
-            tips: completedAdviceValues(generated.tips)
+            tips: completedAdviceValues(generated.tips),
+            alternatives: completedAdviceValues(generated.alternatives)
         )
     }
 
@@ -194,7 +209,8 @@ extension ObservationAdvisorAdvicePartial {
             verdict: generated.verdict,
             bestWindow: generated.bestWindow,
             reasons: generated.reasons,
-            tips: generated.tips
+            tips: generated.tips,
+            alternatives: generated.alternatives
         )
     }
 }

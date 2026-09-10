@@ -3,6 +3,17 @@ import SwiftUI
 struct ObservationAdviceCard: View {
     @ObservedObject var viewModel: ObservationAdvisorViewModel
     let input: ObservationAdvisorInput
+    let toolContext: ObservationAdvisorToolContext
+
+    init(
+        viewModel: ObservationAdvisorViewModel,
+        input: ObservationAdvisorInput,
+        toolContext: ObservationAdvisorToolContext
+    ) {
+        self.viewModel = viewModel
+        self.input = input
+        self.toolContext = toolContext
+    }
 
     var body: some View {
         if shouldShowCard {
@@ -57,6 +68,7 @@ struct ObservationAdviceCard: View {
         let bestWindow = partial.bestWindow
         let reasons = partial.reasons ?? []
         let tips = partial.tips ?? []
+        let alternatives = toolContext.groundedAlternatives(from: partial.alternatives)
 
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
@@ -84,6 +96,13 @@ struct ObservationAdviceCard: View {
                 title: String(localized: "advice.card.tips"),
                 systemImage: "lightbulb"
             )
+            if verdict == .poor || verdict == .bad {
+                adviceList(
+                    alternatives,
+                    title: String(localized: "advice.card.alternatives"),
+                    systemImage: "arrow.triangle.branch"
+                )
+            }
             if isStreaming {
                 Text(" ▍")
                     .font(.caption)
@@ -148,7 +167,8 @@ struct ObservationAdviceCard: View {
 
     private var regenerateButton: some View {
         Button {
-            viewModel.generate(input: input)
+            viewModel.prewarm(for: toolContext)
+            viewModel.generate(input: input, toolContext: toolContext)
         } label: {
             Label(String(localized: "advice.card.regenerate"), systemImage: "arrow.clockwise")
                 #if !os(macOS)
@@ -239,7 +259,8 @@ struct ObservationAdviceCard: View {
                     viewModel: ObservationAdvisorViewModel.preview(
                         state: .complete(previewAdvice.with(verdict: verdict))
                     ),
-                    input: previewInput
+                    input: previewInput,
+                    toolContext: previewToolContext
                 )
             }
         }
@@ -258,7 +279,8 @@ struct ObservationAdviceCard: View {
                 tips: ["暗順応を待つ"]
             )
         )),
-        input: previewInput
+        input: previewInput,
+        toolContext: previewToolContext
     )
     .padding()
 }
@@ -280,7 +302,19 @@ private let previewAdvice = ObservationAdvisorAdvice(
     verdict: .excellent,
     bestWindow: "22:15〜03:30",
     reasons: ["雲が少なく透明度が良好です", "月明かりの影響が小さいです"],
-    tips: ["暗順応のため15分待ちます", "南の空から天の川を探します"]
+    tips: ["暗順応のため15分待ちます", "南の空から天の川を探します"],
+    alternatives: ["5月14日（水）・乗鞍高原"]
+)
+
+private let previewToolContext = ObservationAdvisorToolContext(
+    language: "ja",
+    upcomingNights: [
+        UpcomingNightToolSnapshot(
+            dateString: "5月14日（水）",
+            locationName: "乗鞍高原",
+            tier: "良好"
+        )
+    ]
 )
 
 private extension ObservationAdvisorAdvice {
@@ -290,7 +324,8 @@ private extension ObservationAdvisorAdvice {
             verdict: verdict,
             bestWindow: bestWindow,
             reasons: reasons,
-            tips: tips
+            tips: tips,
+            alternatives: alternatives
         )
     }
 }

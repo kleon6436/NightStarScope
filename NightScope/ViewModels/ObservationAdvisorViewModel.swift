@@ -31,11 +31,14 @@ final class ObservationAdvisorViewModel: ObservableObject {
     }
 #endif
 
-    func prewarm() {
-        service.prewarm()
+    func prewarm(for toolContext: ObservationAdvisorToolContext) {
+        service.prewarm(for: toolContext)
     }
 
-    func generate(input: ObservationAdvisorInput) {
+    func generate(
+        input: ObservationAdvisorInput,
+        toolContext: ObservationAdvisorToolContext
+    ) {
         guard case .available = service.availability else {
             generationTask?.cancel()
             generationTask = nil
@@ -48,9 +51,12 @@ final class ObservationAdvisorViewModel: ObservableObject {
 
         generationTask = Task {
             do {
-                let finalPartial = try await generateWithContextRetry(input: input)
+                let finalPartial = try await generateWithContextRetry(
+                    input: input,
+                    toolContext: toolContext
+                )
                 guard !Task.isCancelled else { return }
-                state = try makeCompleteState(from: finalPartial)
+                state = try makeCompleteState(from: finalPartial, toolContext: toolContext)
             } catch is CancellationError {
                 state = .idle
             } catch {
@@ -65,24 +71,36 @@ final class ObservationAdvisorViewModel: ObservableObject {
         state = Self.state(for: service.availability)
     }
 
-    private func makeCompleteState(from partial: ObservationAdvisorAdvicePartial) throws -> State {
-        .complete(try ObservationAdvisorAdvice(partial: partial))
+    private func makeCompleteState(
+        from partial: ObservationAdvisorAdvicePartial,
+        toolContext: ObservationAdvisorToolContext
+    ) throws -> State {
+        let groundedPartial = partial.withGroundedAlternatives(using: toolContext)
+        return .complete(try ObservationAdvisorAdvice(partial: groundedPartial))
     }
 
     private func generateWithContextRetry(
-        input: ObservationAdvisorInput
+        input: ObservationAdvisorInput,
+        toolContext: ObservationAdvisorToolContext
     ) async throws -> ObservationAdvisorAdvicePartial {
         do {
-            let stream = try await service.generateAdvice(for: input)
-            return try await resolveWithTimeout(stream: stream)
+            let stream = try await service.generateAdvice(for: input, toolContext: toolContext)
+            return try await resolveWithTimeout(stream: stream, toolContext: toolContext)
         } catch let error as ObservationAdvisorServiceError {
             guard error == .contextExceeded else { throw error }
 
             // Retry once with a compact context after the model reports a context overflow.
             state = .loading
             let retryInput = input.shortenedForRetry()
-            let retryStream = try await service.generateAdvice(for: retryInput)
-            return try await resolveWithTimeout(stream: retryStream, timeout: .seconds(20))
+            let retryStream = try await service.generateAdvice(
+                for: retryInput,
+                toolContext: toolContext
+            )
+            return try await resolveWithTimeout(
+                stream: retryStream,
+                timeout: .seconds(20),
+                toolContext: toolContext
+            )
         }
     }
 
@@ -90,16 +108,18 @@ final class ObservationAdvisorViewModel: ObservableObject {
     // The deadline is checked between snapshot emissions; cancellation covers a stalled stream.
     private func resolveWithTimeout(
         stream: AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>,
-        timeout: Duration = .seconds(30)
+        timeout: Duration = .seconds(30),
+        toolContext: ObservationAdvisorToolContext
     ) async throws -> ObservationAdvisorAdvicePartial {
         let deadline = ContinuousClock.now + timeout
         var latest: ObservationAdvisorAdvicePartial?
         for try await partial in stream {
             try Task.checkCancellation()
             guard ContinuousClock.now < deadline else { throw ObservationAdvisorTimeoutError() }
-            latest = partial
-            guard state != .streaming(partial) else { continue }
-            state = .streaming(partial)
+            let groundedPartial = partial.withGroundedAlternatives(using: toolContext)
+            latest = groundedPartial
+            guard state != .streaming(groundedPartial) else { continue }
+            state = .streaming(groundedPartial)
         }
         guard let latest else {
             throw ObservationAdvisorAdviceValidationError.missingRequiredField
@@ -119,6 +139,19 @@ final class ObservationAdvisorViewModel: ObservableObject {
         case .unavailable(let reason):
             .unavailable(reason)
         }
+    }
+}
+
+private extension ObservationAdvisorAdvicePartial {
+    func withGroundedAlternatives(using toolContext: ObservationAdvisorToolContext) -> Self {
+        Self(
+            headline: headline,
+            verdict: verdict,
+            bestWindow: bestWindow,
+            reasons: reasons,
+            tips: tips,
+            alternatives: toolContext.groundedAlternatives(from: alternatives)
+        )
     }
 }
 
