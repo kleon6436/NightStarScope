@@ -31,6 +31,7 @@ struct iOSTodayView: View {
     @StateObject private var weatherViewModel = NightWeatherCardViewModel()
     @StateObject private var advisorViewModel: ObservationAdvisorViewModel
     @State private var presentedSheet: PresentedSheet?
+    @State private var conversationContext: AssistantConversationContext?
     @State private var calendarDraftDate = Date()
     @State private var advisorPayload: ObservationAdvisorPayload?
 
@@ -74,6 +75,9 @@ struct iOSTodayView: View {
             .sheet(item: $presentedSheet) { sheet in
                 sheetView(for: sheet)
             }
+            .sheet(item: $conversationContext) { context in
+                AssistantConversationView(context: context)
+            }
             .safeAreaInset(edge: .bottom) {
                 // エラー表示を常設するため、下端の安全領域にオーバーレイを差し込む。
                 DetailErrorOverlay(
@@ -84,7 +88,7 @@ struct iOSTodayView: View {
                 )
             }
             .task(id: advisorTriggerKey) {
-                updateObservationAdvice()
+                await updateObservationAdvice()
             }
         }
     }
@@ -128,7 +132,13 @@ struct iOSTodayView: View {
                 ObservationAdviceCard(
                     viewModel: advisorViewModel,
                     input: payload.input,
-                    toolContext: payload.toolContext
+                    toolContext: payload.toolContext,
+                    onAskMore: { advice in
+                        conversationContext = AssistantConversationContext(
+                            advice: advice,
+                            input: payload.input
+                        )
+                    }
                 )
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -330,15 +340,20 @@ private extension iOSTodayView {
         ].joined(separator: "|")
     }
 
-    func updateObservationAdvice() {
+    func updateObservationAdvice() async {
         let payload = makeAdvisorPayload()
         advisorPayload = payload
         guard let payload else {
             advisorViewModel.cancel()
             return
         }
-        advisorViewModel.prewarm(for: payload.toolContext)
-        advisorViewModel.generate(input: payload.input, toolContext: payload.toolContext)
+        let resolution = await advisorViewModel.resolveModel(language: payload.input.language)
+        await advisorViewModel.prewarm(for: payload.toolContext, resolution: resolution)
+        advisorViewModel.generate(
+            input: payload.input,
+            toolContext: payload.toolContext,
+            resolution: resolution
+        )
     }
 }
 

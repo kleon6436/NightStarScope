@@ -11,6 +11,7 @@ struct DetailView: View {
     @StateObject private var upcomingGridViewModel: UpcomingNightsGridViewModel
     @StateObject private var advisorViewModel: ObservationAdvisorViewModel
     @State private var advisorPayload: ObservationAdvisorPayload?
+    @State private var conversationContext: AssistantConversationContext?
     @ObservedObject var starMapViewModel: StarMapViewModel
 
     init(
@@ -48,6 +49,9 @@ struct DetailView: View {
         .sheet(isPresented: $starMapViewModel.isStarMapOpen) {
             MacStarMapSheet(viewModel: starMapViewModel)
         }
+        .sheet(item: $conversationContext) { context in
+            AssistantConversationView(context: context)
+        }
         .onChange(of: starMapViewModel.isStarMapOpen) { _, isOpen in
             if isOpen {
                 starMapViewModel.activatePresentationIfNeeded()
@@ -65,7 +69,7 @@ struct DetailView: View {
         .animation(reduceMotion ? .none : .standard, value: viewModel.hasWeatherError)
         .animation(reduceMotion ? .none : .standard, value: viewModel.hasLightPollutionError)
         .task(id: advisorTriggerKey) {
-            updateObservationAdvice()
+            await updateObservationAdvice()
         }
     }
 
@@ -83,7 +87,13 @@ struct DetailView: View {
                     ObservationAdviceCard(
                         viewModel: advisorViewModel,
                         input: payload.input,
-                        toolContext: payload.toolContext
+                        toolContext: payload.toolContext,
+                        onAskMore: { advice in
+                            conversationContext = AssistantConversationContext(
+                                advice: advice,
+                                input: payload.input
+                            )
+                        }
                     )
                 }
                 UpcomingNightsGrid(viewModel: upcomingGridViewModel)
@@ -262,15 +272,20 @@ struct DetailView: View {
         ].joined(separator: "|")
     }
 
-    private func updateObservationAdvice() {
+    private func updateObservationAdvice() async {
         let payload = makeAdvisorPayload()
         advisorPayload = payload
         guard let payload else {
             advisorViewModel.cancel()
             return
         }
-        advisorViewModel.prewarm(for: payload.toolContext)
-        advisorViewModel.generate(input: payload.input, toolContext: payload.toolContext)
+        let resolution = await advisorViewModel.resolveModel(language: payload.input.language)
+        await advisorViewModel.prewarm(for: payload.toolContext, resolution: resolution)
+        advisorViewModel.generate(
+            input: payload.input,
+            toolContext: payload.toolContext,
+            resolution: resolution
+        )
     }
 }
 

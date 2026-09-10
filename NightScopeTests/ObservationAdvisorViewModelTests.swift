@@ -76,14 +76,14 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(service.cancelledCount, 1)
     }
 
-    func test_unavailableService_setsUnavailableImmediately() {
+    func test_unavailableService_setsUnavailableImmediately() async {
         let viewModel = ObservationAdvisorViewModel(
             service: MockObservationAdvisorService(availability: .unavailable(.deviceNotEligible))
         )
 
         XCTAssertEqual(viewModel.state, .unavailable(.deviceNotEligible))
         viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
-        XCTAssertEqual(viewModel.state, .unavailable(.deviceNotEligible))
+        await waitForState(.unavailable(.deviceNotEligible), in: viewModel)
     }
 
     func test_unavailableService_preservesEachAvailabilityReason() {
@@ -325,12 +325,20 @@ private final class MockObservationAdvisorService: ObservationAdvising {
         self.streamFactory = streamFactory
     }
 
+    func resolveModel(language _: String) async -> AssistantModelResolution {
+        AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+    }
+
     func generateAdvice(
         for input: ObservationAdvisorInput,
-        toolContext _: ObservationAdvisorToolContext
+        toolContext _: ObservationAdvisorToolContext,
+        resolution _: AssistantModelResolution
     ) async throws -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> {
         generateCallCount += 1
         inputs.append(input)
+        guard case .available = availability else {
+            throw ObservationAdvisorServiceError.unavailable
+        }
         if generateCallCount == 1, let firstError {
             throw firstError
         }
@@ -340,7 +348,12 @@ private final class MockObservationAdvisorService: ObservationAdvising {
         return streamFactory(self)
     }
 
-    func prewarm(for _: ObservationAdvisorToolContext) {}
+    func prewarm(
+        for _: ObservationAdvisorToolContext,
+        resolution _: AssistantModelResolution
+    ) async {}
+
+    func consumeTransientNotice() -> String? { nil }
 }
 
 private enum MockObservationAdvisorError: LocalizedError, Sendable {

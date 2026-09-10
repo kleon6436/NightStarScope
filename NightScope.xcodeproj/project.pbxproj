@@ -19,6 +19,18 @@
 		B3000000000000000000000B /* ObservationAdvisorToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000016 /* ObservationAdvisorToolsTests.swift */; };
 		B3000000000000000000000C /* ObservationAdvisorService+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000017 /* ObservationAdvisorService+Session.swift */; };
 		B3000000000000000000000D /* ObservationAdvisorService+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000017 /* ObservationAdvisorService+Session.swift */; };
+		D40000000000000000000001 /* AssistantModelResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000001 /* AssistantModelResolver.swift */; };
+		D40000000000000000000002 /* AssistantModelResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000001 /* AssistantModelResolver.swift */; };
+		D40000000000000000000003 /* AssistantModelRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000002 /* AssistantModelRuntime.swift */; };
+		D40000000000000000000004 /* AssistantModelRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000002 /* AssistantModelRuntime.swift */; };
+		D40000000000000000000005 /* AssistantConversationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000003 /* AssistantConversationSession.swift */; };
+		D40000000000000000000006 /* AssistantConversationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000003 /* AssistantConversationSession.swift */; };
+		D40000000000000000000007 /* AssistantConversationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000004 /* AssistantConversationViewModel.swift */; };
+		D40000000000000000000008 /* AssistantConversationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000004 /* AssistantConversationViewModel.swift */; };
+		D40000000000000000000009 /* AssistantConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000005 /* AssistantConversationView.swift */; };
+		D4000000000000000000000A /* AssistantConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000005 /* AssistantConversationView.swift */; };
+		D4000000000000000000000B /* AssistantModelResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000006 /* AssistantModelResolverTests.swift */; };
+		D4000000000000000000000C /* AssistantConversationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000007 /* AssistantConversationViewModelTests.swift */; };
 		05B006658CE59CC2B7E60657 /* FavoriteLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5FD175A6FD4FA2071B5F37 /* FavoriteLocation.swift */; };
 		0C21A9833046DD44B1100A01 /* ComparisonMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */; };
 		0C21A9833046DD44B1100A02 /* ComparisonController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A12 /* ComparisonController.swift */; };
@@ -270,6 +282,13 @@
 		B30000000000000000000015 /* UpcomingNightsTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingNightsTool.swift; sourceTree = "<group>"; };
 		B30000000000000000000016 /* ObservationAdvisorToolsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationAdvisorToolsTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000017 /* ObservationAdvisorService+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ObservationAdvisorService+Session.swift"; sourceTree = "<group>"; };
+		D41000000000000000000001 /* AssistantModelResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModelResolver.swift; sourceTree = "<group>"; };
+		D41000000000000000000002 /* AssistantModelRuntime.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModelRuntime.swift; sourceTree = "<group>"; };
+		D41000000000000000000003 /* AssistantConversationSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationSession.swift; sourceTree = "<group>"; };
+		D41000000000000000000004 /* AssistantConversationViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationViewModel.swift; sourceTree = "<group>"; };
+		D41000000000000000000005 /* AssistantConversationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationView.swift; sourceTree = "<group>"; };
+		D41000000000000000000006 /* AssistantModelResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModelResolverTests.swift; sourceTree = "<group>"; };
+		D41000000000000000000007 /* AssistantConversationViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationViewModelTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoStateValidator.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F01 /* NightScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeApp.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F03 /* MilkyWayCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculator.swift; sourceTree = "<group>"; };
@@ -543,6 +562,9 @@
 		B30000000000000000000020 /* Assistant */ = {
 			isa = PBXGroup;
 			children = (
+				D41000000000000000000001 /* AssistantModelResolver.swift */,
+				D41000000000000000000002 /* AssistantModelRuntime.swift */,
+				D41000000000000000000003 /* AssistantConversationSession.swift */,
 				B30000000000000000000011 /* ObservationAdvisorToolContext.swift */,
 				B30000000000000000000015 /* UpcomingNightsTool.swift */,
 				B30000000000000000000017 /* ObservationAdvisorService+Session.swift */,
@@ -553,6 +575,7 @@
 		AA000000000000000000GR06 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D41000000000000000000005 /* AssistantConversationView.swift */,
 				6CD4ED0E2F83B99000ECC17B /* MapTileOverlay.swift */,
 				F1A2B3C4D5E6F708192A3B4C /* MapKitViewSharedLogic.swift */,
 				6C18B76F2F791309007949F3 /* SettingsView.swift */,
@@ -587,6 +610,8 @@
 		AA000000000000000000GR07 /* NightScopeTests */ = {
 			isa = PBXGroup;
 			children = (
+				D41000000000000000000006 /* AssistantModelResolverTests.swift */,
+				D41000000000000000000007 /* AssistantConversationViewModelTests.swift */,
 				AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */,
 				AA000000000000000000TF20 /* PlanetVisibilitySummaryTests.swift */,
 				AA000000000000000000TF02 /* StarGazingIndexTests.swift */,
@@ -618,6 +643,7 @@
 		AA000000000000000000GR08 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				D41000000000000000000004 /* AssistantConversationViewModel.swift */,
 				AA0000000000000000003F01 /* DetailViewModel.swift */,
 				AA0000000000000000003F02 /* SidebarViewModel.swift */,
 				AA0000000000000000003F03 /* UpcomingNightsGridViewModel.swift */,
@@ -882,6 +908,11 @@
 				B3000000000000000000000A /* UpcomingNightsTool.swift in Sources */,
 				B3000000000000000000000D /* ObservationAdvisorService+Session.swift in Sources */,
 				04C543AB48645C86951265DE /* ObservationAdvisorViewModel.swift in Sources */,
+				D40000000000000000000001 /* AssistantModelResolver.swift in Sources */,
+				D40000000000000000000003 /* AssistantModelRuntime.swift in Sources */,
+				D40000000000000000000005 /* AssistantConversationSession.swift in Sources */,
+				D40000000000000000000007 /* AssistantConversationViewModel.swift in Sources */,
+				D40000000000000000000009 /* AssistantConversationView.swift in Sources */,
 				FB0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */,
 				FB0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */,
 				FB0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */,
@@ -973,6 +1004,11 @@
 				B3000000000000000000000C /* ObservationAdvisorService+Session.swift in Sources */,
 				F7A7389617962715C8FD12CF /* ObservationAdvisorViewModel.swift in Sources */,
 				ADFC27704C1E29CC8B83162D /* ObservationAdviceCard.swift in Sources */,
+				D40000000000000000000002 /* AssistantModelResolver.swift in Sources */,
+				D40000000000000000000004 /* AssistantModelRuntime.swift in Sources */,
+				D40000000000000000000006 /* AssistantConversationSession.swift in Sources */,
+				D40000000000000000000008 /* AssistantConversationViewModel.swift in Sources */,
+				D4000000000000000000000A /* AssistantConversationView.swift in Sources */,
 				FD0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */,
 				FD0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */,
 				FD0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */,
@@ -1008,6 +1044,8 @@
 				8F7351C9A15449FAC35810E4 /* ObservationAdvisorViewModelTests.swift in Sources */,
 				B20000000000000000000005 /* StargazingAdviceTests.swift in Sources */,
 				B3000000000000000000000B /* ObservationAdvisorToolsTests.swift in Sources */,
+				D4000000000000000000000B /* AssistantModelResolverTests.swift in Sources */,
+				D4000000000000000000000C /* AssistantConversationViewModelTests.swift in Sources */,
 				FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

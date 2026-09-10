@@ -20,11 +20,17 @@ enum ObservationAdvisorAvailability: Equatable, Sendable {
 @MainActor
 protocol ObservationAdvising: Sendable {
     var availability: ObservationAdvisorAvailability { get }
+    func resolveModel(language: String) async -> AssistantModelResolution
     func generateAdvice(
         for input: ObservationAdvisorInput,
-        toolContext: ObservationAdvisorToolContext
+        toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution
     ) async throws -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>
-    func prewarm(for toolContext: ObservationAdvisorToolContext)
+    func prewarm(
+        for toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution
+    ) async
+    func consumeTransientNotice() -> String?
 }
 
 enum ObservationAdvisorServiceError: LocalizedError, Equatable, Sendable {
@@ -52,35 +58,29 @@ final class ObservationAdvisorService: ObservationAdvising {
     static let logger = Logger(subsystem: "com.nightscope", category: "ObservationAdvisor")
     // LanguageModelSession is availability-gated, so stored cross-deployment state uses Sendable type erasure.
     var pendingPrewarmedSessions: [String: PendingPrewarmedSession] = [:]
+    let modelRuntime: AssistantModelRuntime
+    private var pendingTransientNotice: String?
+    private var hasReportedPCCFallback = false
+
+    init(modelRuntime: AssistantModelRuntime? = nil) {
+        self.modelRuntime = modelRuntime ?? AssistantModelRuntime()
+    }
+
+    func resolveModel(language: String) async -> AssistantModelResolution {
+        await modelRuntime.resolve(language: language)
+    }
 
     var availability: ObservationAdvisorAvailability {
-        #if canImport(FoundationModels)
-        if #available(macOS 26.0, iOS 26.0, *) {
-            switch SystemLanguageModel.default.availability {
-            case .available:
-                return .available
-            case .unavailable(let other):
-                switch other {
-                case .deviceNotEligible:
-                    return .unavailable(.deviceNotEligible)
-                case .modelNotReady:
-                    return .unavailable(.modelNotReady)
-                case .appleIntelligenceNotEnabled:
-                    return .unavailable(.appleIntelligenceOff)
-                @unknown default:
-                    return .unavailable(.unknown)
-                }
-            }
-        }
-        #endif
-        return .unavailable(.unsupportedOS)
+        AssistantModelRuntime.onDeviceAvailability()
     }
 
     func generateAdvice(
         for input: ObservationAdvisorInput,
-        toolContext: ObservationAdvisorToolContext
+        toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution
     ) async throws -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> {
-        guard case .available = availability else {
+        reportFallbackIfNeeded(resolution)
+        guard resolution.kind == .privateCloud || isOnDeviceAvailable else {
             throw ObservationAdvisorServiceError.unavailable
         }
 
@@ -90,6 +90,7 @@ final class ObservationAdvisorService: ObservationAdvising {
                 for: input,
                 toolContext: toolContext,
                 prompt: makePrompt(for: input),
+                resolution: resolution,
                 mapError: { error in Self.mapModernError(error) }
             )
         }
@@ -98,6 +99,7 @@ final class ObservationAdvisorService: ObservationAdvising {
                 for: input,
                 toolContext: toolContext,
                 prompt: makePrompt(for: input),
+                resolution: resolution,
                 mapError: { error in Self.mapLegacyError(error) }
             )
         }
@@ -106,14 +108,18 @@ final class ObservationAdvisorService: ObservationAdvising {
         throw ObservationAdvisorServiceError.unavailable
     }
 
-    func prewarm(for toolContext: ObservationAdvisorToolContext) {
-        guard case .available = availability else { return }
+    func prewarm(
+        for toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution
+    ) async {
+        reportFallbackIfNeeded(resolution)
+        guard resolution.kind == .privateCloud || isOnDeviceAvailable else { return }
 
         #if canImport(FoundationModels)
         if #available(macOS 26.0, iOS 26.0, *) {
             let language = toolContext.language
             if let pending = pendingPrewarmedSessions[language] {
-                if pending.context == toolContext {
+                if pending.context == toolContext, pending.modelKind == resolution.kind {
                     return
                 }
                 pendingPrewarmedSessions.removeValue(forKey: language)
@@ -122,17 +128,41 @@ final class ObservationAdvisorService: ObservationAdvising {
             let session = makeSession(
                 language: language,
                 toolContext: toolContext,
+                resolution: resolution,
                 consumesPendingSession: false
             )
             // Match the snapshot so the first generation can reuse this tool-bearing session safely.
             session.prewarm()
             pendingPrewarmedSessions[language] = PendingPrewarmedSession(
                 context: toolContext,
+                modelKind: resolution.kind,
                 session: session
             )
             Self.logger.debug("Prewarmed observation advisor session")
         }
         #endif
+    }
+
+    func consumeTransientNotice() -> String? {
+        defer { pendingTransientNotice = nil }
+        return pendingTransientNotice
+    }
+
+    private var isOnDeviceAvailable: Bool {
+        if case .available = availability {
+            return true
+        }
+        return false
+    }
+
+    private func reportFallbackIfNeeded(_ resolution: AssistantModelResolution) {
+        guard let reason = resolution.fallbackReason,
+              reason == .quotaLimitReached,
+              !hasReportedPCCFallback else { return }
+
+        hasReportedPCCFallback = true
+        pendingTransientNotice = String(localized: "advice.notice.pcc_fallback")
+        Self.logger.warning("PCC quota reached; using the on-device model")
     }
 
     private func makePrompt(for input: ObservationAdvisorInput) -> String {

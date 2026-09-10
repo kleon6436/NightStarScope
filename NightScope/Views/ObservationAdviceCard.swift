@@ -4,15 +4,18 @@ struct ObservationAdviceCard: View {
     @ObservedObject var viewModel: ObservationAdvisorViewModel
     let input: ObservationAdvisorInput
     let toolContext: ObservationAdvisorToolContext
+    let onAskMore: (ObservationAdvisorAdvice) -> Void
 
     init(
         viewModel: ObservationAdvisorViewModel,
         input: ObservationAdvisorInput,
-        toolContext: ObservationAdvisorToolContext
+        toolContext: ObservationAdvisorToolContext,
+        onAskMore: @escaping (ObservationAdvisorAdvice) -> Void
     ) {
         self.viewModel = viewModel
         self.input = input
         self.toolContext = toolContext
+        self.onAskMore = onAskMore
     }
 
     var body: some View {
@@ -28,12 +31,32 @@ struct ObservationAdviceCard: View {
                     headerAction
                 }
 
+                if let transientNotice = viewModel.transientNotice {
+                    HStack(spacing: Spacing.xs) {
+                        Label(transientNotice, systemImage: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(transientNotice)
+                        Spacer(minLength: 0)
+                        Button {
+                            viewModel.dismissTransientNotice()
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityLabel(String(localized: "advice.notice.dismiss"))
+                    }
+                }
+
                 content
             }
             .glassCard()
         }
     }
+}
 
+private extension ObservationAdviceCard {
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
@@ -45,7 +68,18 @@ struct ObservationAdviceCard: View {
         case .streaming(let partial):
             adviceContent(partial: partial, isStreaming: true)
         case .complete(let advice):
-            adviceContent(partial: ObservationAdvisorAdvicePartial(advice), isStreaming: false)
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                adviceContent(partial: ObservationAdvisorAdvicePartial(advice), isStreaming: false)
+                Button {
+                    onAskMore(advice)
+                } label: {
+                    Label(
+                        String(localized: "advice.conversation.ask_more"),
+                        systemImage: "bubble.left.and.bubble.right"
+                    )
+                }
+                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+            }
         case .error(let message):
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(message)
@@ -167,8 +201,15 @@ struct ObservationAdviceCard: View {
 
     private var regenerateButton: some View {
         Button {
-            viewModel.prewarm(for: toolContext)
-            viewModel.generate(input: input, toolContext: toolContext)
+            Task { @MainActor in
+                let resolution = await viewModel.resolveModel(language: input.language)
+                await viewModel.prewarm(for: toolContext, resolution: resolution)
+                viewModel.generate(
+                    input: input,
+                    toolContext: toolContext,
+                    resolution: resolution
+                )
+            }
         } label: {
             Label(String(localized: "advice.card.regenerate"), systemImage: "arrow.clockwise")
                 #if !os(macOS)
@@ -260,7 +301,8 @@ struct ObservationAdviceCard: View {
                         state: .complete(previewAdvice.with(verdict: verdict))
                     ),
                     input: previewInput,
-                    toolContext: previewToolContext
+                    toolContext: previewToolContext,
+                    onAskMore: { _ in }
                 )
             }
         }
@@ -280,7 +322,8 @@ struct ObservationAdviceCard: View {
             )
         )),
         input: previewInput,
-        toolContext: previewToolContext
+        toolContext: previewToolContext,
+        onAskMore: { _ in }
     )
     .padding()
 }

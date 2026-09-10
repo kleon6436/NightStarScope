@@ -3,6 +3,7 @@ import Foundation
 // LanguageModelSession is availability-gated, so the cache uses Sendable type erasure across deployment targets.
 struct PendingPrewarmedSession: Sendable {
     let context: ObservationAdvisorToolContext
+    let modelKind: AssistantModelKind
     let session: any Sendable
 }
 
@@ -14,17 +15,19 @@ extension ObservationAdvisorService {
     func makeSession(
         language: String,
         toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution,
         consumesPendingSession: Bool = true
     ) -> LanguageModelSession {
         if consumesPendingSession,
            let pending = pendingPrewarmedSessions.removeValue(forKey: language),
            pending.context == toolContext,
+           pending.modelKind == resolution.kind,
            let prewarmedSession = pending.session as? LanguageModelSession {
             return prewarmedSession
         }
 
-        return LanguageModelSession(
-            model: .default,
+        return modelRuntime.makeSession(
+            resolution: resolution,
             tools: [UpcomingNightsTool(snapshots: toolContext.upcomingNights)],
             instructions: Self.systemPrompt(language: language)
         )
@@ -62,6 +65,7 @@ extension ObservationAdvisorService {
         for input: ObservationAdvisorInput,
         toolContext: ObservationAdvisorToolContext,
         prompt: String,
+        resolution: AssistantModelResolution,
         mapError: @escaping @MainActor @Sendable (any Error) -> ObservationAdvisorServiceError
     ) -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> {
         AsyncThrowingStream { continuation in
@@ -73,7 +77,8 @@ extension ObservationAdvisorService {
 
                     let session = self.makeSession(
                         language: input.language,
-                        toolContext: toolContext
+                        toolContext: toolContext,
+                        resolution: resolution
                     )
                     Task { @MainActor [weak self] in
                         await self?.logTokenUsage(prompt: prompt)
@@ -83,11 +88,11 @@ extension ObservationAdvisorService {
                     } else {
                         GenerationOptions()
                     }
-                    let stream = session.streamResponse(
-                        to: prompt,
-                        generating: StargazingAdvice.self,
-                        includeSchemaInPrompt: true,
-                        options: options
+                    let stream = makeResponseStream(
+                        session: session,
+                        prompt: prompt,
+                        options: options,
+                        resolution: resolution
                     )
                     for try await snapshot in stream {
                         try Task.checkCancellation()
@@ -105,6 +110,32 @@ extension ObservationAdvisorService {
                 task.cancel()
             }
         }
+    }
+
+    private func makeResponseStream(
+        session: LanguageModelSession,
+        prompt: String,
+        options: GenerationOptions,
+        resolution: AssistantModelResolution
+    ) -> LanguageModelSession.ResponseStream<StargazingAdvice> {
+        if #available(macOS 27.0, iOS 27.0, *) {
+            let contextOptions = resolution.kind == .privateCloud
+                ? ContextOptions(includeSchemaInPrompt: true, reasoningLevel: .moderate)
+                : ContextOptions(includeSchemaInPrompt: true)
+            return session.streamResponse(
+                to: prompt,
+                generating: StargazingAdvice.self,
+                options: options,
+                contextOptions: contextOptions
+            )
+        }
+
+        return session.streamResponse(
+            to: prompt,
+            generating: StargazingAdvice.self,
+            includeSchemaInPrompt: true,
+            options: options
+        )
     }
 }
 

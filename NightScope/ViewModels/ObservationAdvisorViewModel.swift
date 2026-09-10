@@ -13,6 +13,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State
+    @Published private(set) var transientNotice: String?
 
     private let service: any ObservationAdvising
     private var generationTask: Task<Void, Never>?
@@ -21,6 +22,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
         let resolved = service ?? ObservationAdvisorService()
         self.service = resolved
         self.state = Self.state(for: resolved.availability)
+        self.transientNotice = nil
     }
 
 #if DEBUG
@@ -31,21 +33,35 @@ final class ObservationAdvisorViewModel: ObservableObject {
     }
 #endif
 
-    func prewarm(for toolContext: ObservationAdvisorToolContext) {
-        service.prewarm(for: toolContext)
+    func resolveModel(language: String) async -> AssistantModelResolution {
+        await service.resolveModel(language: language)
+    }
+
+    func prewarm(
+        for toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution = AssistantModelResolution(
+            kind: .onDevice,
+            fallbackReason: nil
+        )
+    ) async {
+        await service.prewarm(for: toolContext, resolution: resolution)
+        if let notice = service.consumeTransientNotice() {
+            transientNotice = notice
+        }
+    }
+
+    func dismissTransientNotice() {
+        transientNotice = nil
     }
 
     func generate(
         input: ObservationAdvisorInput,
-        toolContext: ObservationAdvisorToolContext
+        toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution = AssistantModelResolution(
+            kind: .onDevice,
+            fallbackReason: nil
+        )
     ) {
-        guard case .available = service.availability else {
-            generationTask?.cancel()
-            generationTask = nil
-            state = Self.state(for: service.availability)
-            return
-        }
-
         generationTask?.cancel()
         state = .loading
 
@@ -53,12 +69,18 @@ final class ObservationAdvisorViewModel: ObservableObject {
             do {
                 let finalPartial = try await generateWithContextRetry(
                     input: input,
-                    toolContext: toolContext
+                    toolContext: toolContext,
+                    resolution: resolution
                 )
+                if let notice = service.consumeTransientNotice() {
+                    transientNotice = notice
+                }
                 guard !Task.isCancelled else { return }
                 state = try makeCompleteState(from: finalPartial, toolContext: toolContext)
             } catch is CancellationError {
                 state = .idle
+            } catch let error as ObservationAdvisorServiceError where error == .unavailable {
+                state = Self.state(for: service.availability)
             } catch {
                 state = .error(error.localizedDescription)
             }
@@ -81,10 +103,15 @@ final class ObservationAdvisorViewModel: ObservableObject {
 
     private func generateWithContextRetry(
         input: ObservationAdvisorInput,
-        toolContext: ObservationAdvisorToolContext
+        toolContext: ObservationAdvisorToolContext,
+        resolution: AssistantModelResolution
     ) async throws -> ObservationAdvisorAdvicePartial {
         do {
-            let stream = try await service.generateAdvice(for: input, toolContext: toolContext)
+            let stream = try await service.generateAdvice(
+                for: input,
+                toolContext: toolContext,
+                resolution: resolution
+            )
             return try await resolveWithTimeout(stream: stream, toolContext: toolContext)
         } catch let error as ObservationAdvisorServiceError {
             guard error == .contextExceeded else { throw error }
@@ -94,7 +121,8 @@ final class ObservationAdvisorViewModel: ObservableObject {
             let retryInput = input.shortenedForRetry()
             let retryStream = try await service.generateAdvice(
                 for: retryInput,
-                toolContext: toolContext
+                toolContext: toolContext,
+                resolution: resolution
             )
             return try await resolveWithTimeout(
                 stream: retryStream,
