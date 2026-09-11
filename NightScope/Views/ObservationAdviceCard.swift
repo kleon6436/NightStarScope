@@ -6,6 +6,10 @@ struct ObservationAdviceCard: View {
     let toolContext: ObservationAdvisorToolContext
     let onAskMore: (ObservationAdvisorAdvice) -> Void
 
+    #if !os(macOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+
     init(
         viewModel: ObservationAdvisorViewModel,
         input: ObservationAdvisorInput,
@@ -20,7 +24,7 @@ struct ObservationAdviceCard: View {
 
     var body: some View {
         if shouldShowCard {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 HStack(spacing: Spacing.sm) {
                     CardHeader(
                         icon: AppIcons.Astronomy.sparkles,
@@ -44,7 +48,6 @@ struct ObservationAdviceCard: View {
                             Image(systemName: "xmark")
                         }
                         .buttonStyle(.plain)
-                        .frame(minWidth: 44, minHeight: 44)
                         .accessibilityLabel(String(localized: "advice.notice.dismiss"))
                     }
                 }
@@ -68,7 +71,7 @@ private extension ObservationAdviceCard {
         case .streaming(let partial):
             adviceContent(partial: partial, isStreaming: true)
         case .complete(let advice):
-            VStack(alignment: .leading, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 adviceContent(partial: ObservationAdvisorAdvicePartial(advice), isStreaming: false)
                 Button {
                     onAskMore(advice)
@@ -78,7 +81,7 @@ private extension ObservationAdviceCard {
                         systemImage: "bubble.left.and.bubble.right"
                     )
                 }
-                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                .padding(.top, Spacing.xs)
             }
         case .error(let message):
             VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -99,14 +102,13 @@ private extension ObservationAdviceCard {
     ) -> some View {
         let headline = partial.headline
         let verdict = partial.verdict.map(AdviceVerdict.init(modelValue:))
-        let bestWindow = partial.bestWindow
         let reasons = partial.reasons ?? []
         let tips = partial.tips ?? []
         let alternatives = isStreaming
             ? []
             : toolContext.groundedAlternatives(from: partial.alternatives)
 
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
                 Text(headline ?? String(localized: "advice.card.headline_placeholder"))
                     .font(.headline)
@@ -117,21 +119,35 @@ private extension ObservationAdviceCard {
                 verdictBadge(verdict: verdict)
             }
 
-            if let bestWindow, !bestWindow.isEmpty {
-                Label(bestWindow, systemImage: "clock")
-                    .foregroundStyle(.secondary)
+            if usesTwoColumns {
+                if !reasons.isEmpty || !tips.isEmpty {
+                    Divider()
+                        .foregroundStyle(.secondary.opacity(0.3))
+                    HStack(alignment: .top, spacing: Spacing.md) {
+                        adviceColumn(
+                            reasons,
+                            title: String(localized: "advice.card.reasons"),
+                            systemImage: "checkmark.circle"
+                        )
+                        adviceColumn(
+                            tips,
+                            title: String(localized: "advice.card.tips"),
+                            systemImage: "lightbulb"
+                        )
+                    }
+                }
+            } else {
+                adviceList(
+                    reasons,
+                    title: String(localized: "advice.card.reasons"),
+                    systemImage: "checkmark.circle"
+                )
+                adviceList(
+                    tips,
+                    title: String(localized: "advice.card.tips"),
+                    systemImage: "lightbulb"
+                )
             }
-
-            adviceList(
-                reasons,
-                title: String(localized: "advice.card.reasons"),
-                systemImage: "checkmark.circle"
-            )
-            adviceList(
-                tips,
-                title: String(localized: "advice.card.tips"),
-                systemImage: "lightbulb"
-            )
             if verdict == .poor || verdict == .bad {
                 adviceList(
                     alternatives,
@@ -175,21 +191,36 @@ private extension ObservationAdviceCard {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Divider()
                     .foregroundStyle(.secondary.opacity(0.3))
-                Label(title, systemImage: systemImage)
-                    .font(.subheadline.weight(.semibold))
-                ForEach(Array(values.enumerated()), id: \.offset) { _, value in
-                    HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
-                        Circle()
-                            .fill(.secondary)
-                            .frame(width: 4, height: 4)
-                            .accessibilityHidden(true)
-                        Text(value)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .accessibilityElement(children: .combine)
-                        .accessibilityLabel(value)
-                }
+                adviceListBody(values, title: title, systemImage: systemImage)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func adviceColumn(_ values: [String], title: String, systemImage: String) -> some View {
+        if !values.isEmpty {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                adviceListBody(values, title: title, systemImage: systemImage)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func adviceListBody(_ values: [String], title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline.weight(.semibold))
+        ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+                Circle()
+                    .fill(.secondary)
+                    .frame(width: 4, height: 4)
+                    .accessibilityHidden(true)
+                Text(value)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .combine)
+                .accessibilityLabel(value)
         }
     }
 
@@ -235,7 +266,6 @@ private extension ObservationAdviceCard {
         #else
         .buttonStyle(.plain)
         #endif
-        .frame(minWidth: 44, minHeight: 44)
         .disabled(matchesLoadingState)
     }
 
@@ -258,6 +288,14 @@ private extension ObservationAdviceCard {
 
     private var shouldShowCard: Bool {
         ObservationAdvisorViewModel.shouldShowCard(for: viewModel.state)
+    }
+
+    private var usesTwoColumns: Bool {
+        #if os(macOS)
+        true
+        #else
+        horizontalSizeClass == .regular
+        #endif
     }
 
     @ViewBuilder

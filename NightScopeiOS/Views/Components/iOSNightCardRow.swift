@@ -37,7 +37,7 @@ struct iOSNightCardRow: View {
             minHeight: IOSDesignTokens.NightRow.cardMinHeight,
             alignment: .center
         )
-        .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+        .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
                 .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: IOSDesignTokens.NightRow.selectionBorderWidth)

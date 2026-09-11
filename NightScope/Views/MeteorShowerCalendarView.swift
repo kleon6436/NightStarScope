@@ -73,7 +73,7 @@ struct MeteorShowerCalendarView: View {
             legendRow
         }
         .padding(.vertical, Spacing.xs)
-        .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+        .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
     }
 
     private var headerRow: some View {
