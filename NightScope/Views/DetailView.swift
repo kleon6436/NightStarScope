@@ -77,24 +77,26 @@ struct DetailView: View {
         let weather = viewModel.currentWeather
         return ScrollView {
             VStack(alignment: .leading, spacing: Spacing.md) {
-                headerSection(
-                    summary: summary,
-                    weather: weather,
-                    isWeatherLoading: viewModel.isWeatherLoading,
-                    isSummaryRefreshing: viewModel.isCalculating
-                )
-                if let payload = advisorPayload {
-                    ObservationAdviceCard(
-                        viewModel: advisorViewModel,
-                        input: payload.input,
-                        toolContext: payload.toolContext,
-                        onAskMore: { advice in
-                            conversationContext = AssistantConversationContext(
-                                advice: advice,
-                                input: payload.input
-                            )
-                        }
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    headerSection(
+                        summary: summary,
+                        weather: weather,
+                        isWeatherLoading: viewModel.isWeatherLoading,
+                        isSummaryRefreshing: viewModel.isCalculating
                     )
+                    if let payload = advisorPayload {
+                        ObservationAdviceCard(
+                            viewModel: advisorViewModel,
+                            input: payload.input,
+                            toolContext: payload.toolContext,
+                            onAskMore: { advice in
+                                conversationContext = AssistantConversationContext(
+                                    advice: advice,
+                                    input: payload.input
+                                )
+                            }
+                        )
+                    }
                 }
                 UpcomingNightsGrid(viewModel: upcomingGridViewModel)
                 MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
