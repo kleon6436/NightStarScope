@@ -112,6 +112,80 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(service.cancelledCount, 1)
     }
 
+    func test_generate_ignoresFailureFromStaleGeneration() async {
+        let firstCallStarted = expectation(description: "first generation starts")
+        let staleFailureDelivered = expectation(description: "stale failure is delivered")
+        var resumeFirstCall: CheckedContinuation<Void, Never>?
+        let latestAdvice = ObservationAdvisorAdvice(
+            headline: "新しい生成結果",
+            verdict: .excellent,
+            bestWindow: "22:15〜03:30",
+            reasons: ["雲が少ない", "透明度が良い"],
+            tips: ["暗順応を待つ"]
+        )
+        let service = MockObservationAdvisorService(
+            responseFactory: { _, callCount in
+                if callCount == 1 {
+                    firstCallStarted.fulfill()
+                    await withCheckedContinuation { continuation in
+                        resumeFirstCall = continuation
+                    }
+                    staleFailureDelivered.fulfill()
+                    throw MockObservationAdvisorError.failed
+                }
+
+                return AsyncThrowingStream { continuation in
+                    continuation.yield(samplePartial(headline: "新しい生成結果"))
+                    continuation.finish()
+                }
+            }
+        )
+        let viewModel = ObservationAdvisorViewModel(service: service)
+
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
+        await fulfillment(of: [firstCallStarted], timeout: 1.0)
+
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
+        await waitForState(.complete(latestAdvice), in: viewModel)
+
+        resumeFirstCall?.resume()
+        resumeFirstCall = nil
+        await fulfillment(of: [staleFailureDelivered], timeout: 1.0)
+        try? await Task.sleep(for: .milliseconds(2_500))
+
+        XCTAssertEqual(viewModel.state, .complete(latestAdvice))
+    }
+
+    func test_cancel_ignoresFailureFromCancelledGeneration() async {
+        let generationStarted = expectation(description: "generation starts")
+        let cancelledFailureDelivered = expectation(description: "cancelled failure is delivered")
+        var resumeGeneration: CheckedContinuation<Void, Never>?
+        let service = MockObservationAdvisorService(
+            responseFactory: { _, _ in
+                generationStarted.fulfill()
+                await withCheckedContinuation { continuation in
+                    resumeGeneration = continuation
+                }
+                cancelledFailureDelivered.fulfill()
+                throw MockObservationAdvisorError.failed
+            }
+        )
+        let viewModel = ObservationAdvisorViewModel(service: service)
+
+        viewModel.generate(input: sampleInput, toolContext: sampleToolContext)
+        await fulfillment(of: [generationStarted], timeout: 1.0)
+
+        viewModel.cancel()
+        await waitForState(.idle, in: viewModel)
+
+        resumeGeneration?.resume()
+        resumeGeneration = nil
+        await fulfillment(of: [cancelledFailureDelivered], timeout: 1.0)
+        try? await Task.sleep(for: .milliseconds(2_500))
+
+        XCTAssertEqual(viewModel.state, .idle)
+    }
+
     func test_unavailableService_setsUnavailableImmediately() async {
         let viewModel = ObservationAdvisorViewModel(
             service: MockObservationAdvisorService(availability: .unavailable(.deviceNotEligible))
@@ -251,7 +325,38 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         XCTAssertEqual(service.resolutions.map(\.kind), [.onDevice, .onDevice])
     }
 
-    func test_onDeviceGenerationFailure_retriesOnceThenShowsGenerationError() async {
+    func test_onDeviceGenerationFailure_retriesTwiceAndCompletes() async {
+        let service = MockObservationAdvisorService(
+            errorsBeforeSuccess: [
+                ObservationAdvisorServiceError.generationFailed,
+                ObservationAdvisorServiceError.generationFailed
+            ],
+            streamFactory: { _ in
+                AsyncThrowingStream { continuation in
+                    continuation.yield(samplePartial())
+                    continuation.finish()
+                }
+            }
+        )
+        let viewModel = ObservationAdvisorViewModel(service: service)
+        let onDeviceResolution = AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+
+        viewModel.generate(
+            input: sampleInput,
+            toolContext: sampleToolContext,
+            resolution: onDeviceResolution
+        )
+        await waitForState(
+            .complete(sampleAdvice),
+            in: viewModel,
+            timeout: 4.0
+        )
+
+        XCTAssertEqual(service.generateCallCount, 3)
+        XCTAssertEqual(service.resolutions.map(\.kind), [.onDevice, .onDevice, .onDevice])
+    }
+
+    func test_onDeviceGenerationFailure_retriesTwiceThenShowsGenerationError() async {
         let service = MockObservationAdvisorService(
             error: ObservationAdvisorServiceError.generationFailed,
             firstError: ObservationAdvisorServiceError.generationFailed
@@ -267,10 +372,10 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         await waitForState(
             .error(String(localized: "advice.error.generation_failed")),
             in: viewModel,
-            timeout: 2.0
+            timeout: 4.0
         )
 
-        XCTAssertEqual(service.generateCallCount, 2)
+        XCTAssertEqual(service.generateCallCount, 3)
     }
 
     func test_missingRequiredFields_setsGenerationError() async {
@@ -420,10 +525,13 @@ private final class MockObservationAdvisorService: ObservationAdvising {
     var availability: ObservationAdvisorAvailability
     var error: (any Error & Sendable)?
     var firstError: (any Error & Sendable)?
+    var errorsBeforeSuccess: [any Error & Sendable]
     var cancelledCount = 0
     var generateCallCount = 0
     var inputs: [ObservationAdvisorInput] = []
     var resolutions: [AssistantModelResolution] = []
+    var responseFactory: (@MainActor (MockObservationAdvisorService, Int) async throws
+        -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>)?
     var streamFactory: @MainActor (MockObservationAdvisorService)
         -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> = { _ in
         AsyncThrowingStream { continuation in
@@ -435,6 +543,9 @@ private final class MockObservationAdvisorService: ObservationAdvising {
         availability: ObservationAdvisorAvailability = .available,
         error: (any Error & Sendable)? = nil,
         firstError: (any Error & Sendable)? = nil,
+        errorsBeforeSuccess: [any Error & Sendable] = [],
+        responseFactory: (@MainActor (MockObservationAdvisorService, Int) async throws
+            -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>)? = nil,
         streamFactory: @escaping @MainActor (MockObservationAdvisorService)
             -> AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error> = { _ in
             AsyncThrowingStream { continuation in
@@ -445,6 +556,8 @@ private final class MockObservationAdvisorService: ObservationAdvising {
         self.availability = availability
         self.error = error
         self.firstError = firstError
+        self.errorsBeforeSuccess = errorsBeforeSuccess
+        self.responseFactory = responseFactory
         self.streamFactory = streamFactory
     }
 
@@ -466,8 +579,14 @@ private final class MockObservationAdvisorService: ObservationAdvising {
         if generateCallCount == 1, let firstError {
             throw firstError
         }
+        if !errorsBeforeSuccess.isEmpty {
+            throw errorsBeforeSuccess.removeFirst()
+        }
         if let error {
             throw error
+        }
+        if let responseFactory {
+            return try await responseFactory(self, generateCallCount)
         }
         return streamFactory(self)
     }

@@ -17,8 +17,10 @@ final class ObservationAdvisorViewModel: ObservableObject {
 
     private let service: any ObservationAdvising
     private var generationTask: Task<Void, Never>?
+    private var currentGenerationID = UUID()
     private var hasReportedPCCFallback = false
-    private var hasRetriedGenerationFailure = false
+    private var generationFailureRetryCount = 0
+    private let maxGenerationFailureRetries = 2
 
     init(service: (any ObservationAdvising)? = nil) {
         let resolved = service ?? ObservationAdvisorService()
@@ -64,8 +66,10 @@ final class ObservationAdvisorViewModel: ObservableObject {
             fallbackReason: nil
         )
     ) {
+        let generationID = UUID()
+        currentGenerationID = generationID
         generationTask?.cancel()
-        hasRetriedGenerationFailure = false
+        generationFailureRetryCount = 0
         state = .loading
 
         generationTask = Task {
@@ -73,18 +77,23 @@ final class ObservationAdvisorViewModel: ObservableObject {
                 let finalPartial = try await generateWithContextRetry(
                     input: input,
                     toolContext: toolContext,
-                    resolution: resolution
+                    resolution: resolution,
+                    generationID: generationID
                 )
                 if let notice = service.consumeTransientNotice() {
                     transientNotice = notice
                 }
                 guard !Task.isCancelled else { return }
+                guard generationID == currentGenerationID else { return }
                 state = try makeCompleteState(from: finalPartial, toolContext: toolContext)
             } catch is CancellationError {
+                guard generationID == currentGenerationID else { return }
                 state = .idle
             } catch let error as ObservationAdvisorServiceError where error == .unavailable {
+                guard generationID == currentGenerationID else { return }
                 state = Self.state(for: service.availability)
             } catch {
+                guard generationID == currentGenerationID else { return }
                 state = .error(error.localizedDescription)
             }
         }
@@ -93,6 +102,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
     func cancel() {
         generationTask?.cancel()
         generationTask = nil
+        currentGenerationID = UUID()
         state = Self.state(for: service.availability)
     }
 
@@ -107,23 +117,27 @@ final class ObservationAdvisorViewModel: ObservableObject {
     private func generateWithContextRetry(
         input: ObservationAdvisorInput,
         toolContext: ObservationAdvisorToolContext,
-        resolution: AssistantModelResolution
+        resolution: AssistantModelResolution,
+        generationID: UUID
     ) async throws -> ObservationAdvisorAdvicePartial {
         do {
             return try await runGeneration(
                 input: input,
                 toolContext: toolContext,
-                resolution: resolution
+                resolution: resolution,
+                generationID: generationID
             )
         } catch let error as ObservationAdvisorServiceError {
             if error == .contextExceeded {
                 // Retry once with a compact context after the model reports a context overflow.
+                guard generationID == currentGenerationID else { throw CancellationError() }
                 state = .loading
                 let retryInput = input.shortenedForRetry()
                 return try await runGeneration(
                     input: retryInput,
                     toolContext: toolContext,
                     resolution: resolution,
+                    generationID: generationID,
                     timeout: .seconds(20)
                 )
             }
@@ -132,14 +146,16 @@ final class ObservationAdvisorViewModel: ObservableObject {
                   error == .generationFailed || error == .unavailable else {
                 if resolution.kind == .onDevice,
                    error == .generationFailed,
-                   !hasRetriedGenerationFailure {
-                    hasRetriedGenerationFailure = true
+                   generationFailureRetryCount < maxGenerationFailureRetries {
+                    guard generationID == currentGenerationID else { throw CancellationError() }
+                    generationFailureRetryCount += 1
                     state = .loading
-                    try await Task.sleep(for: .milliseconds(700))
-                    return try await runGeneration(
+                    try await Task.sleep(for: .milliseconds(700 * generationFailureRetryCount))
+                    return try await generateWithContextRetry(
                         input: input,
                         toolContext: toolContext,
-                        resolution: resolution
+                        resolution: resolution,
+                        generationID: generationID
                     )
                 }
                 throw error
@@ -153,7 +169,8 @@ final class ObservationAdvisorViewModel: ObservableObject {
             return try await runGeneration(
                 input: input,
                 toolContext: toolContext,
-                resolution: onDeviceResolution
+                resolution: onDeviceResolution,
+                generationID: generationID
             )
         }
     }
@@ -162,6 +179,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
         input: ObservationAdvisorInput,
         toolContext: ObservationAdvisorToolContext,
         resolution: AssistantModelResolution,
+        generationID: UUID,
         timeout: Duration = .seconds(30)
     ) async throws -> ObservationAdvisorAdvicePartial {
         let stream = try await service.generateAdvice(
@@ -169,13 +187,18 @@ final class ObservationAdvisorViewModel: ObservableObject {
             toolContext: toolContext,
             resolution: resolution
         )
-        return try await resolveWithTimeout(stream: stream, timeout: timeout)
+        return try await resolveWithTimeout(
+            stream: stream,
+            generationID: generationID,
+            timeout: timeout
+        )
     }
 
     // Consumes the stream on the main actor (Task inherits @MainActor from generate()).
     // The deadline is checked between snapshot emissions; cancellation covers a stalled stream.
     private func resolveWithTimeout(
         stream: AsyncThrowingStream<ObservationAdvisorAdvicePartial, Error>,
+        generationID: UUID,
         timeout: Duration = .seconds(30)
     ) async throws -> ObservationAdvisorAdvicePartial {
         let deadline = ContinuousClock.now + timeout
@@ -184,6 +207,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
             try Task.checkCancellation()
             guard ContinuousClock.now < deadline else { throw ObservationAdvisorTimeoutError() }
             latest = partial
+            guard generationID == currentGenerationID else { throw CancellationError() }
             guard state != .streaming(partial) else { continue }
             state = .streaming(partial)
         }

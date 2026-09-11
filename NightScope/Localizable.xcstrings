@@ -350,6 +350,23 @@
         }
       }
     },
+    "advice.card.generating" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generating advice…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アドバイスを生成中です…"
+          }
+        }
+      }
+    },
     "advice.card.title" : {
       "extractionState" : "manual",
       "localizations" : {

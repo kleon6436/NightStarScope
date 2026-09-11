@@ -283,22 +283,30 @@ private extension ObservationAdviceCard {
 
     private var placeholder: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
-                .fill(.quaternary)
-                .frame(height: 16)
-            RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
-                .fill(.quaternary)
-                .frame(height: 16)
-            RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
-                .fill(.quaternary)
-                #if os(macOS)
-                .frame(maxWidth: 320)
-                #else
-                .frame(maxWidth: 280)
-                #endif
-                .frame(height: 16)
+            Text(String(localized: "advice.card.generating"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
+                    .fill(.quaternary)
+                    .frame(height: 16)
+                RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
+                    .fill(.quaternary)
+                    .frame(height: 16)
+                RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
+                    .fill(.quaternary)
+                    #if os(macOS)
+                    .frame(maxWidth: 320)
+                    #else
+                    .frame(maxWidth: 280)
+                    #endif
+                    .frame(height: 16)
+            }
+            .redacted(reason: .placeholder)
         }
-        .redacted(reason: .placeholder)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(localized: "advice.card.generating"))
     }
 }
 
