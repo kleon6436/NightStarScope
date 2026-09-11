@@ -223,6 +223,56 @@ final class ObservationAdvisorViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transientNotice, String(localized: "advice.notice.pcc_generation_fallback"))
     }
 
+    func test_onDeviceGenerationFailure_retriesOnceAndCompletes() async {
+        let service = MockObservationAdvisorService(
+            firstError: ObservationAdvisorServiceError.generationFailed,
+            streamFactory: { _ in
+                AsyncThrowingStream { continuation in
+                    continuation.yield(samplePartial())
+                    continuation.finish()
+                }
+            }
+        )
+        let viewModel = ObservationAdvisorViewModel(service: service)
+        let onDeviceResolution = AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+
+        viewModel.generate(
+            input: sampleInput,
+            toolContext: sampleToolContext,
+            resolution: onDeviceResolution
+        )
+        await waitForState(
+            .complete(sampleAdvice),
+            in: viewModel,
+            timeout: 2.0
+        )
+
+        XCTAssertEqual(service.generateCallCount, 2)
+        XCTAssertEqual(service.resolutions.map(\.kind), [.onDevice, .onDevice])
+    }
+
+    func test_onDeviceGenerationFailure_retriesOnceThenShowsGenerationError() async {
+        let service = MockObservationAdvisorService(
+            error: ObservationAdvisorServiceError.generationFailed,
+            firstError: ObservationAdvisorServiceError.generationFailed
+        )
+        let viewModel = ObservationAdvisorViewModel(service: service)
+        let onDeviceResolution = AssistantModelResolution(kind: .onDevice, fallbackReason: nil)
+
+        viewModel.generate(
+            input: sampleInput,
+            toolContext: sampleToolContext,
+            resolution: onDeviceResolution
+        )
+        await waitForState(
+            .error(String(localized: "advice.error.generation_failed")),
+            in: viewModel,
+            timeout: 2.0
+        )
+
+        XCTAssertEqual(service.generateCallCount, 2)
+    }
+
     func test_missingRequiredFields_setsGenerationError() async {
         let service = MockObservationAdvisorService(
             streamFactory: { _ in

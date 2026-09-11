@@ -18,6 +18,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
     private let service: any ObservationAdvising
     private var generationTask: Task<Void, Never>?
     private var hasReportedPCCFallback = false
+    private var hasRetriedGenerationFailure = false
 
     init(service: (any ObservationAdvising)? = nil) {
         let resolved = service ?? ObservationAdvisorService()
@@ -64,6 +65,7 @@ final class ObservationAdvisorViewModel: ObservableObject {
         )
     ) {
         generationTask?.cancel()
+        hasRetriedGenerationFailure = false
         state = .loading
 
         generationTask = Task {
@@ -128,6 +130,18 @@ final class ObservationAdvisorViewModel: ObservableObject {
 
             guard resolution.kind == .privateCloud,
                   error == .generationFailed || error == .unavailable else {
+                if resolution.kind == .onDevice,
+                   error == .generationFailed,
+                   !hasRetriedGenerationFailure {
+                    hasRetriedGenerationFailure = true
+                    state = .loading
+                    try await Task.sleep(for: .milliseconds(700))
+                    return try await runGeneration(
+                        input: input,
+                        toolContext: toolContext,
+                        resolution: resolution
+                    )
+                }
                 throw error
             }
 

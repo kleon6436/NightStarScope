@@ -173,11 +173,20 @@ private extension ObservationAdviceCard {
     private func adviceList(_ values: [String], title: String, systemImage: String) -> some View {
         if !values.isEmpty {
             VStack(alignment: .leading, spacing: Spacing.xs) {
+                Divider()
+                    .foregroundStyle(.secondary.opacity(0.3))
                 Label(title, systemImage: systemImage)
                     .font(.subheadline.weight(.semibold))
                 ForEach(Array(values.enumerated()), id: \.offset) { _, value in
-                    Text(value)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+                        Circle()
+                            .fill(.secondary)
+                            .frame(width: 4, height: 4)
+                            .accessibilityHidden(true)
+                        Text(value)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .accessibilityElement(children: .combine)
                         .accessibilityLabel(value)
                 }
             }
