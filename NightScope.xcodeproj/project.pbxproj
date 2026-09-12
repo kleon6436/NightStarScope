@@ -968,7 +968,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_NAME = NightStarScope;
@@ -1007,7 +1007,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_NAME = NightStarScope;
 				SDKROOT = iphoneos;
@@ -1177,7 +1177,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_MODULE_NAME = NightScope;
 				PRODUCT_NAME = NightStarScope;
@@ -1213,7 +1213,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kleon.NightScope;
 				PRODUCT_MODULE_NAME = NightScope;
 				PRODUCT_NAME = NightStarScope;
