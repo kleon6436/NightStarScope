@@ -29,7 +29,7 @@ struct iOSStarMapHeaderOverlay: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             iOSTabHeaderView(
-                title: "星空",
+                title: L10n.tr("星空"),
                 titleColor: .white,
                 subtitleColor: .white.opacity(0.75),
                 horizontalPadding: Spacing.xs

@@ -35,9 +35,6 @@ POSITIONAL_SPECIFIER = re.compile(r"%\d+\$")
 
 # 走査から除外するファイル。理由を必ず添えること。
 EXCLUDED_FILES = {
-    # 星空アシスタントのプロンプト・入力文。language == "ja" 分岐で英語版を持つ。
-    "NightScope/Controllers/ObservationAdvisorService.swift",
-    "NightScope/Controllers/ObservationAdvisorInputBuilder.swift",
     # SwiftUI プレビュー専用のダミーデータ。製品ビルドに含まれない。
     "NightScopeiOS/Views/iOSPreviewSupport.swift",
 }

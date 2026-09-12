@@ -68,7 +68,7 @@ struct PlanetVisibilityView: View {
             }
         }
         .padding(.vertical, Spacing.xs)
-        .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+        .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
     }
 
     private var loadingCard: some View {
@@ -78,7 +78,7 @@ struct PlanetVisibilityView: View {
             Spacer()
         }
         .frame(height: PlanetStyle.rowHeight * 5 + Spacing.xs * 2)
-        .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+        .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
     }
 
     // MARK: - Helpers
