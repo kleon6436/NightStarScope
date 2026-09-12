@@ -170,6 +170,8 @@ struct StargazingAdvice: Equatable, Sendable {
     )
     var verdict: String
 
+    // .pattern制約はオンデバイスSystemLanguageModelで実機検証時に
+    // InferenceError::invalidClientData::Unsupported guide. を引き起こしたためロールバック済み。
     @Guide(description: "The best observing time window, such as '21:30-23:00'. Use an empty string when unavailable.")
     var bestWindow: String
 

@@ -38,6 +38,11 @@ enum AssistantGenerationOptions {
             return ContextOptions(includeSchemaInPrompt: true, reasoningLevel: .moderate)
         }
 
+        // ContextOptionsのreasoningLevelは型上SystemLanguageModelにも適用可能。capabilities.contains(.reasoning)で実サポート有無を実行時確認してから設定する。
+        if SystemLanguageModel.default.capabilities.contains(.reasoning) {
+            return ContextOptions(includeSchemaInPrompt: true, reasoningLevel: .light)
+        }
+
         return ContextOptions(includeSchemaInPrompt: true)
     }
 }

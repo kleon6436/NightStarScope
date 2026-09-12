@@ -1,8 +1,15 @@
 import Foundation
+#if DEBUG
+import OSLog
+#endif
 
 struct ObservationAdvisorToolContext: Equatable, Sendable {
     let language: String
     let upcomingNights: [UpcomingNightToolSnapshot]
+
+#if DEBUG
+    private static let logger = Logger(subsystem: "com.nightscope", category: "ObservationAdvisor")
+#endif
 }
 
 struct ObservationAdvisorPayload: Equatable, Sendable {
@@ -20,7 +27,7 @@ extension ObservationAdvisorToolContext {
     func groundedAlternatives(from values: [String]?) -> [String] {
         guard let values, !values.isEmpty else { return [] }
 
-        return upcomingNights.compactMap { candidate in
+        let groundedAlternatives: [String] = upcomingNights.compactMap { candidate in
             let matchesCandidate = values.contains {
                 $0.contains(candidate.dateString) && $0.contains(candidate.locationName)
             }
@@ -29,6 +36,21 @@ extension ObservationAdvisorToolContext {
         }
         .prefix(2)
         .map { $0 }
+
+#if DEBUG
+        let excludedCount = values.count - groundedAlternatives.count
+        if excludedCount > 0 {
+            Self.logger.warning(
+                "Grounded alternatives: input=\(values.count, privacy: .public), returned=\(groundedAlternatives.count, privacy: .public), excluded=\(excludedCount, privacy: .public)"
+            )
+        } else {
+            Self.logger.debug(
+                "Grounded alternatives: input=\(values.count, privacy: .public), returned=\(groundedAlternatives.count, privacy: .public), excluded=0"
+            )
+        }
+#endif
+
+        return groundedAlternatives
     }
 }
 

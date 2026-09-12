@@ -232,6 +232,25 @@ final class ObservationAdvisorService: ObservationAdvising {
     - Concrete tips may cover direction, a target, equipment, and dark adaptation.
     - Do not suggest unsupported actions such as indoor observing.
     - Stargazing assumes outdoor observation.
+
+    Examples:
+    1. Good conditions. Precomputed data shows clear skies, low cloud cover, and low moonlight.
+       Expected output:
+       - headline: Good sky tonight
+       - verdict: good
+       - bestWindow: 21:30-23:00
+       - reasons: Clear skies; low cloud cover
+       - tips: Use a red light
+       - alternatives: []
+    2. Poor conditions. Precomputed data shows heavy cloud and strong wind.
+       Assume upcoming_nights_lookup returned Sep 14 and Sep 16 as candidates.
+       Expected output:
+       - headline: Difficult tonight
+       - verdict: poor
+       - bestWindow: ""
+       - reasons: Heavy cloud; strong wind
+       - tips: Wear warm layers
+       - alternatives: Sep 14 · Trailhead; Sep 16 · Trailhead
     """
 
     private static let japanesePromptContract = """
@@ -255,6 +274,25 @@ final class ObservationAdvisorService: ObservationAdvising {
     - tipsでは方角、観測ターゲット、持ち物、暗順応など具体的な助言を述べてよい。
     - 入力にない室内観測や未掲載の場所・別日などは提案しないこと。
     - 星空観察は屋外での観察が前提であること。
+
+    例:
+    1. 良好な条件。事前計算データで晴天、雲量少なめ、月明かり弱めとする。
+       期待する出力:
+       - headline: 今夜は良好
+       - verdict: good
+       - bestWindow: 21:30〜23:00
+       - reasons: 晴天; 雲量少なめ
+       - tips: 赤色ライトを使う
+       - alternatives: []
+    2. 悪条件。事前計算データで厚い雲と強風がある。
+       upcoming_nights_lookupが9月14日と9月16日を候補として返したと仮定する。
+       期待する出力:
+       - headline: 今夜は観測困難
+       - verdict: poor
+       - bestWindow: ""
+       - reasons: 厚い雲; 強風
+       - tips: 防寒具を用意
+       - alternatives: 9月14日 · 展望台; 9月16日 · 展望台
     """
 
     static func systemPrompt(language: String) -> String {

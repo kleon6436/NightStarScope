@@ -110,6 +110,25 @@ final class StargazingAdviceTests: XCTestCase {
 
 #if canImport(FoundationModels)
     @available(macOS 26.0, iOS 26.0, *)
+    func test_bestWindowAcceptsSupportedWindowFormatsAndEmptyValue() throws {
+        for bestWindow in ["21:30-23:00", "21:30〜23:00", ""] {
+            let content = try GeneratedContent(json: """
+            {
+              "headline": "Clear skies",
+              "verdict": "excellent",
+              "bestWindow": "\(bestWindow)",
+              "reasons": ["Few clouds", "Good transparency"],
+              "tips": ["Wait for dark adaptation"],
+              "alternatives": []
+            }
+            """)
+            let advice = try ObservationAdvisorAdvice(partial: ObservationAdvisorAdvicePartial(StargazingAdvice(content)))
+
+            XCTAssertEqual(advice.bestWindow, bestWindow)
+        }
+    }
+
+    @available(macOS 26.0, iOS 26.0, *)
     func test_generatedContentDecodesStargazingAdvice() throws {
         let content = try GeneratedContent(json: """
         {
