@@ -29,11 +29,8 @@ struct iOSTodayView: View {
     private let viewModel = iOSTodayViewModel()
     @StateObject private var lightPollutionViewModel: StarGazingIndexCardViewModel
     @StateObject private var weatherViewModel = NightWeatherCardViewModel()
-    @StateObject private var advisorViewModel: ObservationAdvisorViewModel
     @State private var presentedSheet: PresentedSheet?
-    @State private var conversationContext: AssistantConversationContext?
     @State private var calendarDraftDate = Date()
-    @State private var advisorPayload: ObservationAdvisorPayload?
 
     /// 詳細画面の ViewModel と観測モード設定を受け取る。
     init(
@@ -47,7 +44,6 @@ struct iOSTodayView: View {
                 lightPollutionService: detailViewModel.lightPollutionService
             )
         )
-        _advisorViewModel = StateObject(wrappedValue: ObservationAdvisorViewModel())
     }
 
     private var nightSummary: NightSummary? { detailViewModel.nightSummary }
@@ -75,9 +71,6 @@ struct iOSTodayView: View {
             .sheet(item: $presentedSheet) { sheet in
                 sheetView(for: sheet)
             }
-            .sheet(item: $conversationContext) { context in
-                AssistantConversationView(context: context)
-            }
             .safeAreaInset(edge: .bottom) {
                 // エラー表示を常設するため、下端の安全領域にオーバーレイを差し込む。
                 DetailErrorOverlay(
@@ -86,9 +79,6 @@ struct iOSTodayView: View {
                     retryWeatherAction: detailViewModel.retryWeatherInBackground,
                     retryLightPollutionAction: detailViewModel.retryLightPollutionInBackground
                 )
-            }
-            .task(id: advisorTriggerKey) {
-                await updateObservationAdvice()
             }
         }
     }
@@ -126,21 +116,6 @@ struct iOSTodayView: View {
                     lightPollutionViewModel: lightPollutionViewModel
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if let payload = advisorPayload {
-                ObservationAdviceCard(
-                    viewModel: advisorViewModel,
-                    input: payload.input,
-                    toolContext: payload.toolContext,
-                    onAskMore: { advice in
-                        conversationContext = AssistantConversationContext(
-                            advice: advice,
-                            input: payload.input
-                        )
-                    }
-                )
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             DarkTimeCard(summary: summary, weather: weather)
@@ -278,83 +253,6 @@ struct iOSTodayView: View {
         case .settings:
             iOSSettingsSheetView()
         }
-    }
-}
-
-private extension iOSTodayView {
-    func makeAdvisorPayload() -> ObservationAdvisorPayload? {
-        guard let summary = nightSummary,
-              let index = starGazingIndex else {
-            return nil
-        }
-
-        let input = ObservationAdvisorInputBuilder.build(
-            nightSummary: summary,
-            index: index,
-            weather: weather,
-            bortleClass: detailViewModel.lightPollutionService.bortleClass,
-            locationName: detailViewModel.locationName,
-            timeZone: detailViewModel.selectedTimeZone
-        )
-        let toolContext = ObservationAdvisorToolContextBuilder.build(
-            source: ObservationAdvisorToolContextBuilder.Source(
-                upcomingNights: detailViewModel.upcomingNights,
-                upcomingIndexes: detailViewModel.upcomingIndexes,
-                locationName: detailViewModel.locationName,
-                timeZone: detailViewModel.selectedTimeZone,
-                localeIdentifier: input.language == "ja" ? "ja_JP" : "en_US"
-            )
-        )
-
-        return ObservationAdvisorPayload(input: input, toolContext: toolContext)
-    }
-
-    var advisorTriggerKey: String {
-        guard let summary = nightSummary,
-              let index = starGazingIndex else {
-            return "advisor-missing"
-        }
-
-        let weatherKey = weather.map {
-            "\($0.weatherLabel)-\(Int($0.avgCloudCover.rounded()))-\(Int($0.avgWindSpeed.rounded()))"
-        } ?? "weather:nil"
-        let bortleKey = detailViewModel.lightPollutionService.bortleClass.map {
-            String(format: "%.1f", $0)
-        } ?? "bortle:nil"
-        let dayKey = Int(summary.date.timeIntervalSince1970 / 86_400)
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: detailViewModel.selectedTimeZone)
-        let upcomingDates = detailViewModel.upcomingNights.map {
-            calendar.startOfDay(for: $0.date).timeIntervalSince1970
-        }
-        let upcomingKey = "\(upcomingDates.count)-\(upcomingDates.first ?? 0)-\(upcomingDates.last ?? 0)"
-
-        return [
-            String(dayKey),
-            String(index.score),
-            String(index.weatherScore),
-            weatherKey,
-            bortleKey,
-            upcomingKey,
-            detailViewModel.locationName,
-            detailViewModel.selectedTimeZone.identifier
-        ].joined(separator: "|")
-    }
-
-    func updateObservationAdvice() async {
-        guard await ObservationAdvisorDebounce.wait() else { return }
-        let payload = makeAdvisorPayload()
-        advisorPayload = payload
-        guard let payload else {
-            advisorViewModel.cancel()
-            return
-        }
-        let resolution = await advisorViewModel.resolveModel(language: payload.input.language)
-        await advisorViewModel.prewarm(for: payload.toolContext, resolution: resolution)
-        advisorViewModel.generate(
-            input: payload.input,
-            toolContext: payload.toolContext,
-            resolution: resolution
-        )
     }
 }
 

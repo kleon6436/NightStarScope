@@ -4,9 +4,6 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("windSpeedUnit") private var windSpeedUnit: String = WindSpeedUnit.kmh.rawValue
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
-    @AppStorage("assistantHighAccuracyMode") private var assistantHighAccuracyMode: Bool = false
-    @State private var assistantStatus: AssistantPCCSettingsStatus?
-    @State private var onDeviceAvailability: ObservationAdvisorAvailability?
     @ObservedObject private var observationModePreference: ObservationModePreference
 
     init(observationModePreference: ObservationModePreference = ObservationModePreference()) {
@@ -19,10 +16,6 @@ struct SettingsView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .task {
-                assistantStatus = AssistantModelRuntime.settingsStatus()
-                onDeviceAvailability = AssistantModelRuntime.onDeviceAvailability()
-            }
     }
 
     private var formContent: some View {
@@ -43,8 +36,6 @@ struct SettingsView: View {
                     }
                 }
             }
-
-            assistantSettingsSection
 
             #if os(macOS)
             Section("観測モード") {
@@ -91,91 +82,6 @@ struct SettingsView: View {
         #endif
     }
 
-    @ViewBuilder
-    private var assistantSettingsSection: some View {
-        if shouldShowAssistantSettings {
-            Section(String(localized: "advice.settings.title")) {
-                Toggle(
-                    String(localized: "advice.settings.high_accuracy"),
-                    isOn: $assistantHighAccuracyMode
-                )
-                .disabled(assistantStatus?.isAvailable != true)
-
-                Text(String(localized: "advice.settings.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let status = assistantStatus {
-                    if !status.isAvailable {
-                        Text(status.availability.localizedDescription)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Text(status.quota.localizedDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-        }
-    }
-
-    private var shouldShowAssistantSettings: Bool {
-        guard AssistantModelRuntime.isPrivateCloudComputeEnabled else { return false }
-        guard let onDeviceAvailability else { return true }
-        guard case .unavailable(let reason) = onDeviceAvailability else { return true }
-        return reason != .unsupportedOS && reason != .deviceNotEligible
-    }
-}
-
-private extension AssistantPCCAvailability {
-    var localizedDescription: String {
-        switch self {
-        case .available:
-            String(localized: "advice.settings.pcc.available")
-        case .notEntitled:
-            String(localized: "advice.settings.pcc.not_entitled")
-        case .unsupportedOS:
-            String(localized: "advice.settings.pcc.unsupported_os")
-        case .deviceNotEligible:
-            String(localized: "advice.settings.pcc.device_not_eligible")
-        case .systemNotReady:
-            String(localized: "advice.settings.pcc.system_not_ready")
-        case .unknown:
-            String(localized: "advice.settings.pcc.unknown")
-        }
-    }
-}
-
-private extension AssistantPCCQuotaState {
-    var localizedDescription: String {
-        let description: String
-        let resetDate: Date?
-        switch self {
-        case .unavailable:
-            description = String(localized: "advice.settings.quota.unavailable")
-            resetDate = nil
-        case .belowLimit(let isApproachingLimit, let date):
-            description = isApproachingLimit
-                ? String(localized: "advice.settings.quota.approaching")
-                : String(localized: "advice.settings.quota.available")
-            resetDate = date
-        case .limitReached(let date):
-            description = String(localized: "advice.settings.quota.reached")
-            resetDate = date
-        }
-
-        guard let resetDate else { return description }
-        let formattedDate = resetDate.formatted(date: .abbreviated, time: .omitted)
-        let resetFormat = String(localized: "advice.settings.quota.reset_format")
-        return "\(description) · \(String(format: resetFormat, formattedDate))"
-    }
 }
 
 private struct SettingsAboutView: View {

@@ -9,9 +9,6 @@ struct DetailView: View {
     @StateObject private var starGazingIndexCardViewModel: StarGazingIndexCardViewModel
     @StateObject private var nightWeatherCardViewModel: NightWeatherCardViewModel
     @StateObject private var upcomingGridViewModel: UpcomingNightsGridViewModel
-    @StateObject private var advisorViewModel: ObservationAdvisorViewModel
-    @State private var advisorPayload: ObservationAdvisorPayload?
-    @State private var conversationContext: AssistantConversationContext?
     @ObservedObject var starMapViewModel: StarMapViewModel
 
     init(
@@ -29,7 +26,6 @@ struct DetailView: View {
         )
         _nightWeatherCardViewModel = StateObject(wrappedValue: NightWeatherCardViewModel())
         _upcomingGridViewModel = StateObject(wrappedValue: UpcomingNightsGridViewModel(detailViewModel: viewModel))
-        _advisorViewModel = StateObject(wrappedValue: ObservationAdvisorViewModel())
     }
 
     var body: some View {
@@ -49,9 +45,6 @@ struct DetailView: View {
         .sheet(isPresented: $starMapViewModel.isStarMapOpen) {
             MacStarMapSheet(viewModel: starMapViewModel)
         }
-        .sheet(item: $conversationContext) { context in
-            AssistantConversationView(context: context)
-        }
         .onChange(of: starMapViewModel.isStarMapOpen) { _, isOpen in
             if isOpen {
                 starMapViewModel.activatePresentationIfNeeded()
@@ -68,9 +61,6 @@ struct DetailView: View {
         }
         .animation(reduceMotion ? .none : .standard, value: viewModel.hasWeatherError)
         .animation(reduceMotion ? .none : .standard, value: viewModel.hasLightPollutionError)
-        .task(id: advisorTriggerKey) {
-            await updateObservationAdvice()
-        }
     }
 
     private func detailContent(summary: NightSummary) -> some View {
@@ -84,19 +74,6 @@ struct DetailView: View {
                         isWeatherLoading: viewModel.isWeatherLoading,
                         isSummaryRefreshing: viewModel.isCalculating
                     )
-                    if let payload = advisorPayload {
-                        ObservationAdviceCard(
-                            viewModel: advisorViewModel,
-                            input: payload.input,
-                            toolContext: payload.toolContext,
-                            onAskMore: { advice in
-                                conversationContext = AssistantConversationContext(
-                                    advice: advice,
-                                    input: payload.input
-                                )
-                            }
-                        )
-                    }
                 }
                 UpcomingNightsGrid(viewModel: upcomingGridViewModel)
                 MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
@@ -215,81 +192,6 @@ struct DetailView: View {
         }
     }
 
-    private func makeAdvisorPayload() -> ObservationAdvisorPayload? {
-        guard let summary = viewModel.nightSummary,
-              let index = viewModel.displayedStarGazingIndex else {
-            return nil
-        }
-
-        let input = ObservationAdvisorInputBuilder.build(
-            nightSummary: summary,
-            index: index,
-            weather: viewModel.currentWeather,
-            bortleClass: viewModel.lightPollutionService.bortleClass,
-            locationName: viewModel.locationName,
-            timeZone: viewModel.selectedTimeZone
-        )
-        let toolContext = ObservationAdvisorToolContextBuilder.build(
-            source: ObservationAdvisorToolContextBuilder.Source(
-                upcomingNights: viewModel.upcomingNights,
-                upcomingIndexes: viewModel.upcomingIndexes,
-                locationName: viewModel.locationName,
-                timeZone: viewModel.selectedTimeZone,
-                localeIdentifier: input.language == "ja" ? "ja_JP" : "en_US"
-            )
-        )
-
-        return ObservationAdvisorPayload(input: input, toolContext: toolContext)
-    }
-
-    private var advisorTriggerKey: String {
-        guard let summary = viewModel.nightSummary,
-              let index = viewModel.displayedStarGazingIndex else {
-            return "advisor-missing"
-        }
-
-        let weather = viewModel.currentWeather
-        let weatherKey = weather.map {
-            "\($0.weatherLabel)-\(Int($0.avgCloudCover.rounded()))-\(Int($0.avgWindSpeed.rounded()))"
-        } ?? "weather:nil"
-        let bortleKey = viewModel.lightPollutionService.bortleClass.map {
-            String(format: "%.1f", $0)
-        } ?? "bortle:nil"
-        let dayKey = Int(summary.date.timeIntervalSince1970 / 86_400)
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: viewModel.selectedTimeZone)
-        let upcomingDates = viewModel.upcomingNights.map {
-            calendar.startOfDay(for: $0.date).timeIntervalSince1970
-        }
-        let upcomingKey = "\(upcomingDates.count)-\(upcomingDates.first ?? 0)-\(upcomingDates.last ?? 0)"
-
-        return [
-            String(dayKey),
-            String(index.score),
-            String(index.weatherScore),
-            weatherKey,
-            bortleKey,
-            upcomingKey,
-            viewModel.locationName,
-            viewModel.selectedTimeZone.identifier
-        ].joined(separator: "|")
-    }
-
-    private func updateObservationAdvice() async {
-        guard await ObservationAdvisorDebounce.wait() else { return }
-        let payload = makeAdvisorPayload()
-        advisorPayload = payload
-        guard let payload else {
-            advisorViewModel.cancel()
-            return
-        }
-        let resolution = await advisorViewModel.resolveModel(language: payload.input.language)
-        await advisorViewModel.prewarm(for: payload.toolContext, resolution: resolution)
-        advisorViewModel.generate(
-            input: payload.input,
-            toolContext: payload.toolContext,
-            resolution: resolution
-        )
-    }
 }
 
 private enum MacSummaryCardLayout {
