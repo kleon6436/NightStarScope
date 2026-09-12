@@ -3,17 +3,20 @@ import Foundation
 struct AssistantConversationContext: Identifiable, Equatable, Sendable {
     let id: UUID
     let language: String
+    let headline: String
     let summary: String
 
-    init(id: UUID = UUID(), language: String, summary: String) {
+    init(id: UUID = UUID(), language: String, headline: String = "", summary: String) {
         self.id = id
         self.language = language
+        self.headline = headline
         self.summary = summary
     }
 
     init(advice: ObservationAdvisorAdvice, input: ObservationAdvisorInput) {
         self.init(
             language: input.language,
+            headline: advice.headline,
             summary: Self.makeSummary(advice: advice, input: input)
         )
     }

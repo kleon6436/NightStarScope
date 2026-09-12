@@ -2,16 +2,19 @@ import SwiftUI
 
 struct AssistantConversationView: View {
     @StateObject private var viewModel: AssistantConversationViewModel
+    let context: AssistantConversationContext
     @State private var draft = ""
     @Environment(\.dismiss) private var dismiss
 
     init(context: AssistantConversationContext) {
+        self.context = context
         _viewModel = StateObject(wrappedValue: AssistantConversationViewModel(context: context))
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                conversationContextHeader
                 conversationList
                 composer
             }
@@ -53,21 +56,20 @@ struct AssistantConversationView: View {
                         messageBubble(message)
                             .id(message.id)
                     }
-                    if case .streaming(let text) = viewModel.state, !text.isEmpty {
-                        bubble(text: text, role: .assistant)
+                    if case .streaming(let text) = viewModel.state {
+                        bubble(text: text, role: .assistant, showsTypingIndicator: true)
                             .id("streaming-response")
                     }
                     if case .error(let message) = viewModel.state {
                         VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Label(message, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel(message)
+                            errorBubble(message)
                             Button(String(localized: "advice.conversation.new")) {
                                 viewModel.startNewConversation()
                             }
                             .frame(minHeight: 44)
+                            .glassButtonStyle()
+                            .padding(.leading, Spacing.sm)
                         }
-                        .padding(.horizontal, Spacing.sm)
                     }
                 }
                 .padding(Spacing.md)
@@ -95,14 +97,20 @@ struct AssistantConversationView: View {
                 .padding(.horizontal, Spacing.sm)
             }
 
-            HStack(alignment: .bottom, spacing: Spacing.xs) {
+            HStack(alignment: .center, spacing: Spacing.xs) {
                 TextField(
                     String(localized: "advice.conversation.placeholder"),
                     text: $draft,
                     axis: .vertical
                 )
                 .lineLimit(1...4)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .glassEffectCompat(
+                    in: RoundedRectangle(cornerRadius: Layout.composerCornerRadius)
+                )
+                .frame(minHeight: 44)
                 .onSubmit(sendDraft)
 
                 Button(action: sendDraft) {
@@ -110,7 +118,8 @@ struct AssistantConversationView: View {
                         .font(.title2)
                 }
                 .frame(minWidth: 44, minHeight: 44)
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .foregroundStyle(canSendDraft ? Color.accentColor : Color.secondary)
+                .disabled(!canSendDraft)
                 .accessibilityLabel(String(localized: "advice.conversation.send"))
             }
             .padding(.horizontal, Spacing.sm)
@@ -118,13 +127,17 @@ struct AssistantConversationView: View {
         }
         .disabled(isStreaming)
         .background(.bar)
+        .overlay(alignment: .top) {
+            Divider()
+        }
     }
 
     private func chip(_ text: String) -> some View {
         Button(text) {
             viewModel.send(text)
         }
-        .buttonStyle(.bordered)
+        .glassButtonStyle()
+        .buttonBorderShape(.capsule)
         .frame(minHeight: 44)
     }
 
@@ -134,17 +147,37 @@ struct AssistantConversationView: View {
 
     private func bubble(
         text: String,
-        role: AssistantConversationMessageRole
+        role: AssistantConversationMessageRole,
+        showsTypingIndicator: Bool = false
     ) -> some View {
         HStack {
-            if role == .user { Spacer(minLength: 40) }
-            Text(text)
-                .textSelection(.enabled)
-                .padding(Spacing.sm)
-                .background(role == .user ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
-                .accessibilityLabel(text)
-            if role == .assistant { Spacer(minLength: 40) }
+            if role == .user { Spacer(minLength: Layout.bubbleMinimumSpacer) }
+            HStack(alignment: .top, spacing: Spacing.xs) {
+                if role == .assistant {
+                    Image(systemName: AppIcons.Astronomy.sparkles)
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
+                }
+                Text(text)
+                    .textSelection(.enabled)
+                if showsTypingIndicator {
+                    TypingIndicatorView()
+                        .padding(.top, Spacing.xs)
+                }
+            }
+            .padding(Spacing.sm)
+            .background(
+                role == .user
+                    ? Color.accentColor.opacity(0.16)
+                    : Color.secondary.opacity(0.12),
+                in: bubbleShape(for: role)
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                "\(role.accessibilityLabel): \(text)"
+            )
+            if role == .assistant { Spacer(minLength: Layout.bubbleMinimumSpacer) }
         }
     }
 
@@ -160,11 +193,26 @@ struct AssistantConversationView: View {
         return false
     }
 
+    private var canSendDraft: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private func scrollToLatest(using proxy: ScrollViewProxy) {
         if case .streaming(let text) = viewModel.state, !text.isEmpty {
             proxy.scrollTo("streaming-response", anchor: .bottom)
         } else if let lastMessage = viewModel.messages.last {
             proxy.scrollTo(lastMessage.id, anchor: .bottom)
+        }
+    }
+}
+
+extension AssistantConversationMessageRole {
+    var accessibilityLabel: String {
+        switch self {
+        case .user:
+            String(localized: "advice.conversation.role.you")
+        case .assistant:
+            String(localized: "advice.conversation.role.assistant")
         }
     }
 }

@@ -107,6 +107,17 @@
         }
       }
     },
+    "%@ ・ %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
     "%@ まで%d日" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -147,6 +158,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ min"
+          }
+        }
+      }
+    },
+    "%@、出 %@、南中 %@、没 %@、最大高度 %@度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, rises %2$@, transits %3$@, sets %4$@, max altitude %5$@ degrees"
+          }
+        }
+      }
+    },
+    "%@、活動期間 %@から%@、極大 %@、最大 1時間あたり約%d個" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, active from %2$@ to %3$@, peak %4$@, up to about %5$d meteors per hour"
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
           }
         }
       }
@@ -316,36 +359,53 @@
     "180°" : {
 
     },
-    "advice.card.regenerate" : {
+    "advice.availability.apple_intelligence_off" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Regenerate"
+            "value" : "Turn on Apple Intelligence to use AI observation advice."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "再生成"
+            "value" : "AI観測アドバイスを使うには、Apple Intelligenceをオンにしてください。"
           }
         }
       }
     },
-    "advice.card.subtitle" : {
+    "advice.availability.model_not_ready" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Generate beginner-friendly observing advice based on tonight's conditions."
+            "value" : "The AI model is still preparing. Try again later."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "今夜の条件をもとに、初心者向けの観測アドバイスを生成します。"
+            "value" : "AIモデルを準備中です。しばらくしてから再試行してください。"
+          }
+        }
+      }
+    },
+    "advice.card.alternatives" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alternatives"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代替案"
           }
         }
       }
@@ -363,23 +423,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アドバイスを生成中です…"
-          }
-        }
-      }
-    },
-    "advice.card.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI Observation Advice"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI観測アドバイス"
           }
         }
       }
@@ -418,19 +461,36 @@
         }
       }
     },
-    "advice.card.alternatives" : {
+    "advice.card.regenerate" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alternatives"
+            "value" : "Regenerate"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "代替案"
+            "value" : "再生成"
+          }
+        }
+      }
+    },
+    "advice.card.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generate beginner-friendly observing advice based on tonight's conditions."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今夜の条件をもとに、初心者向けの観測アドバイスを生成します。"
           }
         }
       }
@@ -448,6 +508,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アドバイス"
+          }
+        }
+      }
+    },
+    "advice.card.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Observation Advice"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI観測アドバイス"
           }
         }
       }
@@ -571,6 +648,23 @@
         }
       }
     },
+    "advice.conversation.context" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "観測"
+          }
+        }
+      }
+    },
     "advice.conversation.error" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -656,6 +750,40 @@
         }
       }
     },
+    "advice.conversation.role.assistant" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assistant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アシスタント"
+          }
+        }
+      }
+    },
+    "advice.conversation.role.you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなた"
+          }
+        }
+      }
+    },
     "advice.conversation.send" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -690,125 +818,6 @@
         }
       }
     },
-    "advice.verdict.bad" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not recommended"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "観測困難"
-          }
-        }
-      }
-    },
-    "advice.verdict.excellent" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Excellent"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "絶好"
-          }
-        }
-      }
-    },
-    "advice.verdict.fair" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fair"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "まずまず"
-          }
-        }
-      }
-    },
-    "advice.verdict.good" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Good"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "良好"
-          }
-        }
-      }
-    },
-    "advice.verdict.poor" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Poor"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不向き"
-          }
-        }
-      }
-    },
-    "advice.availability.apple_intelligence_off" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turn on Apple Intelligence to use AI observation advice."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI観測アドバイスを使うには、Apple Intelligenceをオンにしてください。"
-          }
-        }
-      }
-    },
-    "advice.availability.model_not_ready" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The AI model is still preparing. Try again later."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AIモデルを準備中です。しばらくしてから再試行してください。"
-          }
-        }
-      }
-    },
     "advice.error.context_exceeded" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -826,23 +835,6 @@
         }
       }
     },
-    "advice.error.guardrail" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This content can't be used to generate observation advice."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この内容からは観測アドバイスを生成できません。"
-          }
-        }
-      }
-    },
     "advice.error.generation_failed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -856,6 +848,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AIアドバイスを生成できませんでした。"
+          }
+        }
+      }
+    },
+    "advice.error.guardrail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This content can't be used to generate observation advice."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この内容からは観測アドバイスを生成できません。"
           }
         }
       }
@@ -1179,6 +1188,91 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI観測アドバイス"
+          }
+        }
+      }
+    },
+    "advice.verdict.bad" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not recommended"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "観測困難"
+          }
+        }
+      }
+    },
+    "advice.verdict.excellent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excellent"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絶好"
+          }
+        }
+      }
+    },
+    "advice.verdict.fair" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fair"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まずまず"
+          }
+        }
+      }
+    },
+    "advice.verdict.good" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "良好"
+          }
+        }
+      }
+    },
+    "advice.verdict.poor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poor"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不向き"
           }
         }
       }
@@ -2736,6 +2830,17 @@
         }
       }
     },
+    "カスタム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom"
+          }
+        }
+      }
+    },
     "カストル" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2996,6 +3101,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gienah"
+          }
+        }
+      }
+    },
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
           }
         }
       }
@@ -4662,6 +4778,17 @@
         }
       }
     },
+    "中程度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medium"
+          }
+        }
+      }
+    },
     "予報" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4724,6 +4851,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tonight"
+          }
+        }
+      }
+    },
+    "今夜の惑星" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planets Tonight"
           }
         }
       }
@@ -5058,6 +5196,17 @@
         }
       }
     },
+    "最大高度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max altitude"
+          }
+        }
+      }
+    },
     "最大高度 %.0f°" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5065,6 +5214,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Up to %.0f°"
+          }
+        }
+      }
+    },
+    "最大高度 %.1f°" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max altitude %.1f°"
           }
         }
       }
@@ -5104,6 +5264,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最良日順"
+          }
+        }
+      }
+    },
+    "出" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rise"
+          }
+        }
+      }
+    },
+    "出 方位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rise azimuth"
           }
         }
       }
@@ -5251,6 +5433,28 @@
         }
       }
     },
+    "南中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transit"
+          }
+        }
+      }
+    },
+    "南中 方位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transit azimuth"
+          }
+        }
+      }
+    },
     "南南東" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5302,6 +5506,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Thick clouds"
+          }
+        }
+      }
+    },
+    "双眼鏡" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Binoculars"
           }
         }
       }
@@ -5434,6 +5649,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Map display mode"
+          }
+        }
+      }
+    },
+    "地平線" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizon"
           }
         }
       }
@@ -6148,6 +6374,17 @@
         }
       }
     },
+    "散発的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low"
+          }
+        }
+      }
+    },
     "新月" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6731,6 +6968,17 @@
         }
       }
     },
+    "望遠鏡" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telescope"
+          }
+        }
+      }
+    },
     "木星" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6918,6 +7166,28 @@
         }
       }
     },
+    "没" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        }
+      }
+    },
+    "没 方位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set azimuth"
+          }
+        }
+      }
+    },
     "法的情報・著作権" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6941,21 +7211,32 @@
       }
     },
     "活動期間: %@ 〜 %@" : {
+      "extractionState" : "manual",
       "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "活動期間: %1$@ 〜 %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Active: %1$@ – %2$@"
           }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活動期間: %1$@ 〜 %2$@"
+          }
         }
-      },
-      "extractionState" : "manual"
+      }
+    },
+    "活発" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High"
+          }
+        }
+      }
     },
     "流星群カレンダー" : {
       "extractionState" : "manual",
@@ -7188,6 +7469,17 @@
         }
       }
     },
+    "等級 %.1f" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magnitude %.1f"
+          }
+        }
+      }
+    },
     "細雪" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7239,6 +7531,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next Day"
+          }
+        }
+      }
+    },
+    "肉眼" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naked eye"
           }
         }
       }
@@ -7606,6 +7909,28 @@
         }
       }
     },
+    "観測閾値" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observing threshold"
+          }
+        }
+      }
+    },
+    "観測難易度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Difficulty"
+          }
+        }
+      }
+    },
     "計算中…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7892,237 +8217,6 @@
         }
       }
     },
-    "今夜の惑星" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Planets Tonight"
-          }
-        }
-      }
-    },
-    "等級 %.1f" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Magnitude %.1f"
-          }
-        }
-      }
-    },
-    "最大高度 %.1f°" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Max altitude %.1f°"
-          }
-        }
-      }
-    },
-    "%@、出 %@、南中 %@、没 %@、最大高度 %@度" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, rises %2$@, transits %3$@, sets %4$@, max altitude %5$@ degrees"
-          }
-        }
-      }
-    },
-    "キャンセル" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancel"
-          }
-        }
-      }
-    },
-    "肉眼" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Naked eye"
-          }
-        }
-      }
-    },
-    "双眼鏡" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Binoculars"
-          }
-        }
-      }
-    },
-    "望遠鏡" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Telescope"
-          }
-        }
-      }
-    },
-    "カスタム" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom"
-          }
-        }
-      }
-    },
-    "活発" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "High"
-          }
-        }
-      }
-    },
-    "中程度" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Medium"
-          }
-        }
-      }
-    },
-    "散発的" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Low"
-          }
-        }
-      }
-    },
-    "%@、活動期間 %@から%@、極大 %@、最大 1時間あたり約%d個" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, active from %2$@ to %3$@, peak %4$@, up to about %5$d meteors per hour"
-          }
-        }
-      }
-    },
-    "出" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rise"
-          }
-        }
-      }
-    },
-    "出 方位" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rise azimuth"
-          }
-        }
-      }
-    },
-    "南中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transit"
-          }
-        }
-      }
-    },
-    "南中 方位" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transit azimuth"
-          }
-        }
-      }
-    },
-    "没" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set"
-          }
-        }
-      }
-    },
-    "没 方位" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set azimuth"
-          }
-        }
-      }
-    },
-    "最大高度" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Max altitude"
-          }
-        }
-      }
-    },
-    "観測難易度" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Difficulty"
-          }
-        }
-      }
-    },
     "高度" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8130,39 +8224,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Altitude"
-          }
-        }
-      }
-    },
-    "地平線" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Horizon"
-          }
-        }
-      }
-    },
-    "観測閾値" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Observing threshold"
-          }
-        }
-      }
-    },
-    "%@ ・ %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@"
           }
         }
       }

@@ -33,6 +33,8 @@
 		D4000000000000000000000C /* AssistantConversationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000007 /* AssistantConversationViewModelTests.swift */; };
 		D4000000000000000000000D /* AssistantModelRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000008 /* AssistantModelRuntimeTests.swift */; };
 		D4000000000000000000000E /* AssistantGenerationOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41000000000000000000009 /* AssistantGenerationOptions.swift */; };
+		D40000000000000000000012 /* AssistantConversationBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4100000000000000000000D /* AssistantConversationBubble.swift */; };
+		D40000000000000000000013 /* AssistantConversationBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4100000000000000000000D /* AssistantConversationBubble.swift */; };
 		D4000000000000000000000F /* FoundationModelsFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4100000000000000000000A /* FoundationModelsFailure.swift */; };
 		D40000000000000000000010 /* ObservationAdvisorDebounce.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4100000000000000000000B /* ObservationAdvisorDebounce.swift */; };
 		D40000000000000000000011 /* ObservationAdvisorDebounceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4100000000000000000000C /* ObservationAdvisorDebounceTests.swift */; };
@@ -296,6 +298,7 @@
 		D41000000000000000000007 /* AssistantConversationViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationViewModelTests.swift; sourceTree = "<group>"; };
 		D41000000000000000000008 /* AssistantModelRuntimeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantModelRuntimeTests.swift; sourceTree = "<group>"; };
 		D41000000000000000000009 /* AssistantGenerationOptions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantGenerationOptions.swift; sourceTree = "<group>"; };
+		D4100000000000000000000D /* AssistantConversationBubble.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AssistantConversationBubble.swift; sourceTree = "<group>"; };
 		D4100000000000000000000A /* FoundationModelsFailure.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoundationModelsFailure.swift; sourceTree = "<group>"; };
 		D4100000000000000000000B /* ObservationAdvisorDebounce.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationAdvisorDebounce.swift; sourceTree = "<group>"; };
 		D4100000000000000000000C /* ObservationAdvisorDebounceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ObservationAdvisorDebounceTests.swift; sourceTree = "<group>"; };
@@ -589,6 +592,7 @@
 			isa = PBXGroup;
 			children = (
 				D41000000000000000000005 /* AssistantConversationView.swift */,
+				D4100000000000000000000D /* AssistantConversationBubble.swift */,
 				6CD4ED0E2F83B99000ECC17B /* MapTileOverlay.swift */,
 				F1A2B3C4D5E6F708192A3B4C /* MapKitViewSharedLogic.swift */,
 				6C18B76F2F791309007949F3 /* SettingsView.swift */,
@@ -931,6 +935,7 @@
 				D40000000000000000000010 /* ObservationAdvisorDebounce.swift in Sources */,
 				D40000000000000000000007 /* AssistantConversationViewModel.swift in Sources */,
 				D40000000000000000000009 /* AssistantConversationView.swift in Sources */,
+				D40000000000000000000012 /* AssistantConversationBubble.swift in Sources */,
 				FB0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */,
 				FB0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */,
 				FB0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */,
@@ -1030,6 +1035,7 @@
 				D40000000000000000000010 /* ObservationAdvisorDebounce.swift in Sources */,
 				D40000000000000000000008 /* AssistantConversationViewModel.swift in Sources */,
 				D4000000000000000000000A /* AssistantConversationView.swift in Sources */,
+				D40000000000000000000013 /* AssistantConversationBubble.swift in Sources */,
 				FD0000000000000000001001 /* GnomonicProjectionMath.swift in Sources */,
 				FD0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */,
 				FD0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */,

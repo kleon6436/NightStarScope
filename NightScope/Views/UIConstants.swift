@@ -24,6 +24,22 @@ enum Spacing {
 enum Layout {
     /// カードの角丸半径
     static let cardCornerRadius: CGFloat = 12
+    /// 会話吹き出しの角丸半径
+    static let bubbleCornerRadius: CGFloat = 16
+    /// 会話吹き出しの話者側角丸半径
+    static let bubbleTailCornerRadius: CGFloat = 5
+    /// 会話吹き出しの反対側最小スペース
+    static let bubbleMinimumSpacer: CGFloat = 40
+    /// タイピングインジケーターのドットサイズ
+    static let typingIndicatorDotSize: CGFloat = 6
+    /// タイピングインジケーターのドット数
+    static let typingIndicatorDotCount = 3
+    /// タイピングインジケーターのアニメーション時間
+    static let typingIndicatorAnimationDuration: Double = 0.7
+    /// タイピングインジケーターのドット間アニメーション遅延
+    static let typingIndicatorAnimationDelay: Double = 0.15
+    /// composer の入力欄角丸半径
+    static let composerCornerRadius: CGFloat = 18
     /// カードの内側パディング
     static let cardPadding: CGFloat = 16
     /// 検索結果・小コンポーネントの角丸半径
