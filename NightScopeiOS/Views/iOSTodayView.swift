@@ -6,7 +6,7 @@ struct iOSTodayViewModel {
     private let stateResolver = DetailContentStateResolver()
 
     func locationText(_ rawLocationName: String) -> String {
-        rawLocationName.isEmpty ? "場所を選択" : rawLocationName
+        rawLocationName.isEmpty ? L10n.tr("場所を選択") : rawLocationName
     }
 
     func headerTitle(for selectedDate: Date, timeZone: TimeZone) -> String {
