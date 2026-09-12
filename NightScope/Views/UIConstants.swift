@@ -1,5 +1,10 @@
 import SwiftUI
 import MapKit
+#if os(macOS)
+import AppKit
+#elseif os(iOS)
+import UIKit
+#endif
 
 // MARK: - Spacing
 
@@ -445,11 +450,19 @@ struct GlassCardModifier: ViewModifier {
         content
             .padding(Layout.cardPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+            .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
     }
 }
 
 extension View {
+    func opaqueCardBackground<S: Shape>(in shape: S) -> some View {
+        #if os(macOS)
+        background(Color(nsColor: .controlBackgroundColor), in: shape)
+        #else
+        background(Color(uiColor: .secondarySystemBackground), in: shape)
+        #endif
+    }
+
     func glassCard() -> some View {
         modifier(GlassCardModifier())
     }

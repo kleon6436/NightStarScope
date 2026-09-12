@@ -60,7 +60,7 @@ struct iOSLocationView: View {
 
     private var headerSection: some View {
         iOSTabHeaderView(
-            title: "場所",
+            title: L10n.tr("場所"),
             horizontalPadding: Spacing.xs
         ) {
             Text("場所を検索")

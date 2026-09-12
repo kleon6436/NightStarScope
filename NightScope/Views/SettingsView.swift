@@ -81,6 +81,7 @@ struct SettingsView: View {
         .padding(.vertical, Spacing.sm)
         #endif
     }
+
 }
 
 private struct SettingsAboutView: View {

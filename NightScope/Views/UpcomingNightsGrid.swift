@@ -35,12 +35,10 @@ struct UpcomingNightsGrid: View {
                     description: Text("今後9日間の夜間予報を表示できませんでした")
                 )
             } else {
-                GlassEffectContainerCompat {
-                    let nightItems = Array(displayNights.enumerated())
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: Spacing.xs)], spacing: Spacing.xs) {
-                        ForEach(nightItems, id: \.offset) { _, night in
-                            upcomingNightCard(night: night)
-                        }
+                let nightItems = Array(displayNights.enumerated())
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: Spacing.xs)], spacing: Spacing.xs) {
+                    ForEach(nightItems, id: \.offset) { _, night in
+                        upcomingNightCard(night: night)
                     }
                 }
             }
@@ -77,7 +75,7 @@ struct UpcomingNightsGrid: View {
         .padding(Layout.cardPadding)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(height: Layout.upcomingCardHeight)
-        .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+        .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
                 .stroke(Color.accentColor, lineWidth: isSelected ? 1.5 : 0)
@@ -94,12 +92,10 @@ struct UpcomingNightsGrid: View {
     }
 
     private var placeholderGrid: some View {
-        GlassEffectContainerCompat {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: Spacing.xs)], spacing: Spacing.xs) {
-                ForEach(0..<placeholderCardCount, id: \.self) { offset in
-                    upcomingNightCard(night: viewModel.placeholderNight(at: offset))
-                        .allowsHitTesting(false)
-                }
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: Spacing.xs)], spacing: Spacing.xs) {
+            ForEach(0..<placeholderCardCount, id: \.self) { offset in
+                upcomingNightCard(night: viewModel.placeholderNight(at: offset))
+                    .allowsHitTesting(false)
             }
         }
     }
