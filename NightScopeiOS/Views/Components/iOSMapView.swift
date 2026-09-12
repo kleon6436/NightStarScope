@@ -73,8 +73,11 @@ struct iOSMapView: UIViewRepresentable {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                guard let self, let mapView = self.observedMapView else { return }
-                MapKitViewSharedLogic.reloadLightPollutionOverlay(on: mapView)
+                // queue: .main 指定によりメインスレッド実行保証済み。
+                MainActor.assumeIsolated {
+                    guard let self, let mapView = self.observedMapView else { return }
+                    MapKitViewSharedLogic.reloadLightPollutionOverlay(on: mapView)
+                }
             }
         }
 

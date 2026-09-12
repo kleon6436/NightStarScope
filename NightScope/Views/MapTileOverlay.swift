@@ -89,11 +89,12 @@ final class LightPollutionTileOverlay: MKTileOverlay {
             result(Self.transparentTileData(), nil)
             return
         }
+        nonisolated(unsafe) let completion = result
         Self.renderQueue.addOperation { [tileService] in
             let data = Self.renderTile(path: path, grid: grid, size: OverlayConfig.tilePixelSize)
             let tileData = data ?? Self.transparentTileData()
             tileService.storeTileData(tileData, for: path)
-            result(tileData, nil)
+            completion(tileData, nil)
         }
     }
 
