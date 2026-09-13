@@ -54,8 +54,6 @@ struct ObservationModeWeights: Sendable {
 
 /// UserDefaults と同期する観測モードの保存用ラッパー。
 final class ObservationModePreference: ObservableObject {
-    static let storageKey = "observation.mode"
-
     @Published var mode: ObservationMode {
         didSet {
             userDefaults.set(mode.rawValue, forKey: key)

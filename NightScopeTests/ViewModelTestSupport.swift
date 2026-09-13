@@ -130,14 +130,6 @@ final class MockLocationController: LocationProviding {
         $searchState.eraseToAnyPublisher()
     }
 
-    var searchResultsPublisher: AnyPublisher<[MKMapItem], Never> {
-        $searchState.map(\.results).eraseToAnyPublisher()
-    }
-
-    var isSearchingPublisher: AnyPublisher<Bool, Never> {
-        $searchState.map(\.isSearching).eraseToAnyPublisher()
-    }
-
     var isLocatingPublisher: AnyPublisher<Bool, Never> {
         $isLocating.eraseToAnyPublisher()
     }

@@ -15,13 +15,8 @@ struct AstroEvent: Identifiable {
     let moonPhase: Double               // 0=新月, 0.5=満月
 
     var isDark: Bool { sunAltitude < -18.0 }           // 天文薄明終了
-    var isNauticalDark: Bool { sunAltitude < -12.0 }   // 航海薄明終了
-    var isCivilDark: Bool { sunAltitude < -6.0 }       // 市民薄明終了
     /// 根拠: 高度 < 10° では大気差・地物遮蔽により実用的な観測が困難
     var galacticCenterVisible: Bool { galacticCenterAltitude > 10.0 && isDark }
-    var isGoodForPhotography: Bool {
-        galacticCenterAltitude > 15.0 && isDark && (moonPhase < 0.25 || moonPhase > 0.75)
-    }
 }
 
 /// 星空マップの視野方向（サイドバーマップのオーバーレイに使用）

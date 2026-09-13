@@ -131,11 +131,6 @@ struct DayWeatherSummary {
         return aggregates.minTemperature
     }
 
-    var avgHumidity: Double {
-        guard !nighttimeHours.isEmpty else { return 0 }
-        return aggregates.humiditySum / Double(nighttimeHours.count)
-    }
-
     /// 気温と露点の平均差（大気の透明度の代理指標・結露リスク評価）
     var avgDewpointSpread: Double {
         guard !nighttimeHours.isEmpty else { return 0 }
@@ -166,16 +161,6 @@ struct DayWeatherSummary {
     var avgWindSpeed500hpa: Double? {
         guard aggregates.wind500Count > 0 else { return nil }
         return aggregates.wind500Sum / Double(aggregates.wind500Count)
-    }
-
-    var cloudLabel: String {
-        switch avgCloudCover {
-        case 0..<15:  return L10n.tr("快晴")
-        case 15..<35: return L10n.tr("晴れ")
-        case 35..<55: return L10n.tr("薄雲")
-        case 55..<75: return L10n.tr("曇り")
-        default:      return L10n.tr("厚い雲")
-        }
     }
 
     /// 夜間で最も深刻な天気コード（WMO）
