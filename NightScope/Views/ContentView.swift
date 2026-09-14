@@ -33,7 +33,6 @@ struct ContentView: View {
                 max: LayoutMacOS.sidebarMaxWidth
             )
             .navigationTitle("NightScope")
-            .toolbar(removing: .sidebarToggle)
         } detail: {
             DetailView(
                 viewModel: rootStore.detailViewModel,
@@ -42,12 +41,6 @@ struct ContentView: View {
             )
         }
         .frame(minWidth: LayoutMacOS.windowMinWidth, minHeight: LayoutMacOS.windowMinHeight)
-        .toolbar(removing: .sidebarToggle)
-        .onChange(of: columnVisibility) {
-            if columnVisibility != .all {
-                columnVisibility = .all
-            }
-        }
         .onAppear {
             rootStore.appController.onStart()
         }

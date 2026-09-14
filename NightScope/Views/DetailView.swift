@@ -42,6 +42,11 @@ struct DetailView: View {
         // NightScope は没入型体験を重視するため、HIG 例外として
         // ウィンドウツールバー背景を一時的に非表示にしている。
         .toolbarBackground(.hidden, for: .windowToolbar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                locationTitleBar
+            }
+        }
         .sheet(isPresented: $starMapViewModel.isStarMapOpen) {
             MacStarMapSheet(viewModel: starMapViewModel)
         }
@@ -85,7 +90,6 @@ struct DetailView: View {
             }
             .padding(Spacing.md)
         }
-        .ignoresSafeArea(edges: .top)
     }
 
     private var loadingContent: some View {
@@ -102,7 +106,6 @@ struct DetailView: View {
             .padding(Spacing.md)
             .redacted(reason: .placeholder)
         }
-        .ignoresSafeArea(edges: .top)
         .accessibilityLabel(L10n.tr("星空データを計算中"))
     }
 
@@ -114,6 +117,33 @@ struct DetailView: View {
         )
     }
 
+    // MARK: - Location Title Bar
+
+    private var locationTitleBar: some View {
+        HStack(alignment: .lastTextBaseline, spacing: Spacing.sm) {
+            Text(viewModel.locationName)
+                .font(.headline)
+                .lineLimit(1)
+            Text(
+                DateFormatters.yearMonthDayWeekdayString(
+                    from: viewModel.displayedDate,
+                    timeZone: viewModel.selectedTimeZone
+                )
+            )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            if viewModel.isCalculating {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(L10n.tr("右側の情報を更新中"))
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+    }
+
     // MARK: - Header
 
     private func headerSection(
@@ -123,25 +153,6 @@ struct DetailView: View {
         isSummaryRefreshing: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(alignment: .lastTextBaseline, spacing: Spacing.sm) {
-                Text(viewModel.locationName)
-                    .font(.largeTitle.bold())
-                Text(
-                    DateFormatters.yearMonthDayWeekdayString(
-                        from: viewModel.displayedDate,
-                        timeZone: viewModel.selectedTimeZone
-                    )
-                )
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                if isSummaryRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel(L10n.tr("右側の情報を更新中"))
-                }
-                Spacer()
-            }
-
             if let index = viewModel.displayedStarGazingIndex {
                 Divider()
                 HStack(alignment: .center, spacing: Spacing.sm) {
