@@ -154,7 +154,6 @@ struct DetailView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             if let index = viewModel.displayedStarGazingIndex {
-                Divider()
                 HStack(alignment: .center, spacing: Spacing.sm) {
                     Text("星空観測情報")
                         .font(.title3.bold())
