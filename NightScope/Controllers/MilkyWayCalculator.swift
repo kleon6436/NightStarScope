@@ -179,45 +179,6 @@ enum MilkyWayCalculator {
         darknessInterval(date: date, location: location, timeZone: timeZone, threshold: 0.0)
     }
 
-    /// 正常な夜、または極夜の観測区間を返す。
-    static func findCivilTwilight(
-        date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) -> (evening: Date, morning: Date)? {
-        guard let interval = civilDarknessInterval(
-            date: date,
-            location: location,
-            timeZone: timeZone
-        ) else {
-            return nil
-        }
-        return (evening: interval.start, morning: interval.end)
-    }
-
-    static func findCivilTwilightMinutes(
-        date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) -> (eveningMinutes: Double, morningMinutes: Double)? {
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let startOfDay = calendar.startOfDay(for: date)
-        guard let twilight = findCivilTwilight(
-            date: date,
-            location: location,
-            timeZone: timeZone
-        ) else {
-            return nil
-        }
-
-        let eveningMinutes = twilight.evening.timeIntervalSince(startOfDay) / 60
-        let morningMinutes = twilight.morning.timeIntervalSince(startOfDay) / 60
-        return (
-            eveningMinutes: eveningMinutes.truncatingRemainder(dividingBy: 1_440),
-            morningMinutes: morningMinutes.truncatingRemainder(dividingBy: 1_440)
-        )
-    }
-
     /// 日没〜日の出の開始/終了 Date を返す。
     static func findSunsetSunrise(
         date: Date,

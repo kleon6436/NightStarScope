@@ -583,10 +583,6 @@ final class StarMapViewModel: ObservableObject {
         case standard
         case preserveNightRangeAndSlider
 
-        var skipsNightRange: Bool {
-            self == .preserveNightRangeAndSlider
-        }
-
         var skipsTimeSliderSync: Bool {
             self == .preserveNightRangeAndSlider
         }
@@ -835,9 +831,6 @@ final class StarMapViewModel: ObservableObject {
     /// 太陽が地平線下 (夜間) か
     var isNight: Bool { sunAltitude < 0 }
 
-    /// 天文薄明 (太陽高度 < -18°) 以上の暗さか
-    private var isAstronomicalDark: Bool { sunAltitude < -18 }
-
     /// 現在の観測日と時刻にリセット
     func resetToNow(referenceDate: Date = Date()) {
         appController.selectObservationDate(referenceDate, timeZone: selectedTimeZone)
@@ -894,11 +887,6 @@ final class StarMapViewModel: ObservableObject {
         viewAzimuth = 0
         viewAltitude = StarMapLayout.resetAltitude
         viewRoll = 0
-    }
-
-    /// 初期ポーズフラグをクリアする（心射図法デフォルトでは適用しない）。
-    private func clearInitialPoseFlag() {
-        shouldApplyInitialPose = false
     }
 
     /// 選択日へ現在の時刻を反映し、表示日時を変更した場合は true を返す。

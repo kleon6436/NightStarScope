@@ -16,11 +16,6 @@ enum StarMapDateLogic {
         return Double((components.hour ?? 0) * 60 + (components.minute ?? 0))
     }
 
-    /// 2 つの日時が同じ暦日かをタイムゾーン込みで判定する。
-    static func isSameCalendarDay(_ lhs: Date, _ rhs: Date, timeZone: TimeZone) -> Bool {
-        ObservationTimeZone.gregorianCalendar(timeZone: timeZone).isDate(lhs, inSameDayAs: rhs)
-    }
-
     /// 夜間開始時刻からのオフセットを、実際の時刻へ戻す。
     static func nightOffsetToRealMinutes(_ offset: Double, nightStartMinutes: Double) -> Double {
         let real = nightStartMinutes + offset
