@@ -331,9 +331,9 @@ private extension SidebarView {
 
                 Spacer()
 
-                if locationInputMode == .lightPollutionMap {
-                    SidebarBortleLabel(isLoading: isLoadingLightPollution, bortleClass: bortleClass)
-                }
+                SidebarBortleLabel(isLoading: isLoadingLightPollution, bortleClass: bortleClass)
+                    .opacity(locationInputMode == .lightPollutionMap ? 1 : 0)
+                    .accessibilityHidden(locationInputMode != .lightPollutionMap)
             }
         }
     }
