@@ -1,40 +1,5 @@
 import SwiftUI
 
-/// 天の川の見頃と観測可能時間帯を並べて示すセクション。
-struct ViewingWindowsSection: View {
-    let summary: NightSummary
-
-    private let viewModel = ViewingWindowsSectionViewModel()
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            if summary.viewingWindows.isEmpty {
-                ViewingWindowsEmptyStateCardContent()
-                    .glassCard()
-                    .accessibilityElement(children: .contain)
-            } else {
-                ForEach(Array(summary.viewingWindows.enumerated()), id: \.offset) { _, window in
-                    ViewingWindowCard(window: window, timeZone: summary.timeZone, viewModel: viewModel)
-                }
-            }
-        }
-    }
-}
-
-/// 1 つの観測ウィンドウをカードとして包む。
-private struct ViewingWindowCard: View {
-    let window: ViewingWindow
-    let timeZone: TimeZone
-    let viewModel: ViewingWindowsSectionViewModel
-
-    var body: some View {
-        ViewingWindowCardContent(window: window, timeZone: timeZone, viewModel: viewModel)
-            .glassCard()
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(viewModel.accessibilityDescription(for: window, timeZone: timeZone))
-    }
-}
-
 /// 天の川のベストウィンドウだけを抜き出す要約カード。
 struct MilkyWaySummaryCard: View {
     let summary: NightSummary

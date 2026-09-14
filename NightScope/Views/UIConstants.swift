@@ -40,8 +40,6 @@ enum Layout {
     static let mapMinHeight: CGFloat = 160
     /// 地図コンテナの最大高
     static let mapMaxHeight: CGFloat = 200
-    /// 地図上ボタン（現在地）の角丸半径
-    static let mapButtonCornerRadius: CGFloat = 6
     /// 地図上ボタン（現在地）のサイズ
     static let mapButtonSize: CGFloat = 28
     /// 地図上のアイコンサイズ
@@ -229,7 +227,6 @@ enum StarMapLayout {
     static let resetAltitude: Double = 30
     static let directionStep: Double = 5
     static let zoomStep: Double = 10
-    static let sliderIconWidth: CGFloat = 18
     static let timeLabelWidth: CGFloat = 52
     static let sheetMinWidth: CGFloat = 900
     static let sheetMinHeight: CGFloat = 820
@@ -359,15 +356,6 @@ enum LayoutMacOS {
 }
 #endif
 
-#if os(iOS)
-enum LayoutiOS {
-    /// 2カラムグリッドのカード最小高さ
-    static let gridCardMinHeight: CGFloat = 140
-    /// グリッドの列間隔
-    static let gridSpacing: CGFloat = Spacing.sm
-}
-#endif
-
 // MARK: - Card Visual
 
 enum CardVisual {
@@ -379,8 +367,6 @@ enum CardVisual {
     static let arcHeight: CGFloat = 28
     /// 月相アイコンのフォントサイズ
     static let moonIconSize: CGFloat = 40
-    /// 方角インジケーターのサイズ（正方形）
-    static let compassSize: CGFloat = 44
     /// ゲージ共通のストローク幅
     static let strokeWidth: Double = 5
     /// ゲージ共通のトラック透過度
@@ -702,7 +688,6 @@ enum AppIcons {
         static let starFill     = "star.fill"
         static let moonStars    = "moon.stars"
         static let moonZzz      = "moon.zzz"
-        static let moonFill     = "moon.fill"
         static let sparkles     = "sparkles"
         // 月相（8段階）
         static let moonPhaseNew             = "moonphase.new.moon"
@@ -729,7 +714,6 @@ enum AppIcons {
     }
     enum Status {
         static let warning       = "exclamationmark.triangle"
-        static let checkmarkFill = "checkmark.circle.fill"
     }
     enum Controls {
         static let chevronLeft  = "chevron.left"
@@ -738,7 +722,6 @@ enum AppIcons {
     }
     enum Observation {
         static let clock         = "clock"
-        static let altitudeArrow = "arrow.up"
         static let azimuthArrow  = "location.north.fill"
     }
 }

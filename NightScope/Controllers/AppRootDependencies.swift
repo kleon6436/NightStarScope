@@ -104,8 +104,6 @@ protocol LocationProviding: AnyObject, ObservableObject {
     var selectedLocationPublisher: AnyPublisher<CLLocationCoordinate2D, Never> { get }
     var locationNamePublisher: AnyPublisher<String, Never> { get }
     var searchStatePublisher: AnyPublisher<LocationSearchState, Never> { get }
-    var searchResultsPublisher: AnyPublisher<[MKMapItem], Never> { get }
-    var isSearchingPublisher: AnyPublisher<Bool, Never> { get }
     var isLocatingPublisher: AnyPublisher<Bool, Never> { get }
     var locationErrorPublisher: AnyPublisher<LocationController.LocationError?, Never> { get }
     var searchFocusTriggerPublisher: AnyPublisher<Int, Never> { get }

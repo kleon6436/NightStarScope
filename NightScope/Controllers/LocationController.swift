@@ -48,16 +48,6 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
     var searchStatePublisher: AnyPublisher<LocationSearchState, Never> {
         $searchState.eraseToAnyPublisher()
     }
-    var searchResultsPublisher: AnyPublisher<[MKMapItem], Never> {
-        $searchState
-            .map(\.results)
-            .eraseToAnyPublisher()
-    }
-    var isSearchingPublisher: AnyPublisher<Bool, Never> {
-        $searchState
-            .map(\.isSearching)
-            .eraseToAnyPublisher()
-    }
     var isLocatingPublisher: AnyPublisher<Bool, Never> {
         $isLocating.eraseToAnyPublisher()
     }

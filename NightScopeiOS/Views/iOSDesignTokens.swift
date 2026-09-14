@@ -32,8 +32,6 @@ enum IOSDesignTokens {
         static let estimatedSearchResultRowHeight: CGFloat = 52
         static let searchResultsVisibleRowCapacity = searchResultsMaxHeight / estimatedSearchResultRowHeight
         static let searchResultLineSpacing: CGFloat = 2
-        static let viewportCoordinateEpsilon = 0.00005
-        static let viewportSpanEpsilon = 0.00005
         static let defaultMapHeight: CGFloat = 220
         static let compactMapHeight: CGFloat = 160
         static let favoritesVisibleCount = 2

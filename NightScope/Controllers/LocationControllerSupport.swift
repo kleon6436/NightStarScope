@@ -106,18 +106,6 @@ enum MapItemLocationDetailsExtractor {
 
 /// 緯度経度から近似タイムゾーンを推定する。
 enum ApproximateTimeZoneResolver {
-    static func bestIdentifier(
-        for coordinate: CLLocationCoordinate2D,
-        preferredIdentifier: String?,
-        regionIdentifier: String? = nil
-    ) -> String {
-        exactIdentifier(
-            for: coordinate,
-            preferredIdentifier: preferredIdentifier,
-            regionIdentifier: regionIdentifier
-        ) ?? provisionalIdentifier(for: coordinate)
-    }
-
     static func exactIdentifier(
         for coordinate: CLLocationCoordinate2D,
         preferredIdentifier: String? = nil,
