@@ -349,8 +349,8 @@ enum LayoutMacOS {
     static let sidebarMinWidth: CGFloat = 260
     /// サイドバー理想幅
     static let sidebarIdealWidth: CGFloat = 280
-    /// サイドバー最大幅
-    static let sidebarMaxWidth: CGFloat = 300
+    /// サイドバー最大幅（コンテンツ300pt + 左右余白16pt）
+    static let sidebarMaxWidth: CGFloat = 332
     /// 要約カード4枚の共通最小幅
     static let summaryCardMinWidth: CGFloat = 280
 }
