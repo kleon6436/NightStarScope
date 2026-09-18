@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// 観測条件を 0〜100 点で統合した星空指数。
 struct StarGazingIndex {
@@ -777,5 +778,18 @@ struct StarGazingIndex {
         let range = Constants.bortleWorstClass - Constants.bortleBestClass
         return max(0, min(Constants.lightPollutionMaxScore,
                           Int(round(Double(Constants.lightPollutionMaxScore) * (Constants.bortleWorstClass - bortle) / range))))
+    }
+}
+
+// MARK: - StarGazingIndex.Tier Color
+
+extension StarGazingIndex.Tier {
+    var color: Color {
+        switch self {
+        case .excellent, .good: return .green
+        case .fair:             return .yellow
+        case .poor:             return .orange
+        case .bad:              return .red
+        }
     }
 }
