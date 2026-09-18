@@ -214,3 +214,31 @@ struct DayWeatherSummary {
         }
     }
 }
+
+// MARK: - WindSpeedUnit
+
+/// 風速表示の単位を切り替えるための列挙型。
+enum WindSpeedUnit: String, CaseIterable, Identifiable {
+    case kmh  = "km/h"
+    case ms   = "m/s"
+    case knot = "kn"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .kmh:  return "km/h"
+        case .ms:   return "m/s"
+        case .knot: return L10n.tr("ノット (kn)")
+        }
+    }
+
+    /// WeatherService が km/h に変換済みの風速値をこの単位に変換してフォーマットする
+    func format(_ kmh: Double) -> String {
+        switch self {
+        case .kmh:  return L10n.format("風速 %.0f km/h", kmh)
+        case .ms:   return L10n.format("風速 %.1f m/s", kmh / 3.6)
+        case .knot: return L10n.format("風速 %.0f kn", kmh / 1.852)
+        }
+    }
+}

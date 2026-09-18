@@ -20,17 +20,6 @@ struct StarMapSettingsDependency {
     )
 }
 
-/// 地形プロファイル取得の差し替え可能な依存関係。
-struct StarMapTerrainDependency: Sendable {
-    let fetchProfile: @Sendable (_ latitude: Double, _ longitude: Double) async -> TerrainProfile?
-
-    static let live = StarMapTerrainDependency(
-        fetchProfile: { latitude, longitude in
-            await TerrainService.shared.fetchProfile(latitude: latitude, longitude: longitude)
-        }
-    )
-}
-
 /// 星空描画に必要なスナップショット計算の依存関係。
 struct StarMapComputationDependency: Sendable {
     let computeSnapshot: @Sendable (
@@ -57,38 +46,6 @@ struct StarMapComputationDependency: Sendable {
             }.value
         }
     )
-}
-
-/// 地形取得の進捗状態。
-enum StarMapTerrainFetchState: Equatable {
-    case idle
-    case loading
-    case available
-    case unavailable
-
-    var statusText: String {
-        switch self {
-        case .idle:
-            L10n.tr("地形: 待機中")
-        case .loading:
-            L10n.tr("地形: 読込中")
-        case .available:
-            L10n.tr("地形: 有効")
-        case .unavailable:
-            L10n.tr("地形: 未取得")
-        }
-    }
-
-    var systemImageName: String {
-        switch self {
-        case .idle, .loading:
-            "hourglass"
-        case .available:
-            "mountain.2"
-        case .unavailable:
-            "exclamationmark.triangle"
-        }
-    }
 }
 
 /// 画面向きに応じたスクリーン座標系を表す。
@@ -496,17 +453,20 @@ final class StarMapViewModel: ObservableObject {
 
     private let appController: AppController
     private let settingsDependency: StarMapSettingsDependency
-    private let terrainDependency: StarMapTerrainDependency
+    private let terrainCoordinator: StarMapTerrainCoordinator
+    /// スライダー編集中の日時コミット間隔: 20fps
+    private let timeSliderScheduler = StarMapTimeSliderScheduler(commitInterval: 1.0 / 20)
     private let computationDependency: StarMapComputationDependency
     private var cancellables: Set<AnyCancellable> = []
     private var shouldApplyInitialPose = true
     private var hasPreparedInitialPresentation = false
-    private var lastTimeSliderCommitTime: TimeInterval = 0
-    private var pendingTimeSliderDate: Date?
-    private var timeSliderCommitTask: Task<Void, Never>?
     private var displayDateUpdateMode: DisplayDateUpdateMode = .standard
     private var starMapDisplaySettings: StarMapDisplaySettings
     private var starDisplayDensity: StarDisplayDensity
+    /// 星座ラベル配置の最終計算結果キャッシュ（視点が変化していなければ再計算をスキップする）
+    private var cachedLabelPlacements: (key: LabelPlacementCacheKey, value: [ConstellationLabelPlacement])?
+    /// 夜間タイムラインの最終計算結果キャッシュ（入力が変化していなければ再計算をスキップする）
+    private var cachedObservationTimeline: (key: TimelineCacheKey, value: [StarMapObservationConditionSample])?
 
     // MARK: - Init
 
@@ -520,7 +480,7 @@ final class StarMapViewModel: ObservableObject {
         let initialDisplaySettings = resolvedSettingsDependency.currentSettings()
         self.appController = appController
         self.settingsDependency = resolvedSettingsDependency
-        self.terrainDependency = terrainDependency ?? .live
+        self.terrainCoordinator = StarMapTerrainCoordinator(dependency: terrainDependency ?? .live)
         self.computationDependency = computationDependency ?? .live
         self.starMapDisplaySettings = initialDisplaySettings
         self.starDisplayDensity = initialDisplaySettings.density
@@ -537,8 +497,6 @@ final class StarMapViewModel: ObservableObject {
     deinit {
         updateTask?.cancel()
         trailingTask?.cancel()
-        timeSliderCommitTask?.cancel()
-        terrainFetchTask?.cancel()
     }
 
     // MARK: - Calculation
@@ -558,9 +516,6 @@ final class StarMapViewModel: ObservableObject {
     private static let minUpdateInterval: TimeInterval = 1.0 / 30
     /// スライダー編集中の計算更新インターバル: 20fps
     private static let minScrubbingUpdateInterval: TimeInterval = 1.0 / 20
-    /// スライダー編集中の日時コミット間隔: 20fps
-    private static let timeSliderCommitInterval: TimeInterval = 1.0 / 20
-
     private struct UpdateContext {
         let latitude: Double
         let longitude: Double
@@ -577,6 +532,21 @@ final class StarMapViewModel: ObservableObject {
         let selectedDate: Date
         let location: CLLocationCoordinate2D
         let timeZone: TimeZone
+    }
+
+    private struct LabelPlacementCacheKey: Equatable {
+        let candidates: [ConstellationLabelCandidate]
+        let canvasSize: CGSize
+        let reservedBottomInset: Double
+    }
+
+    private struct TimelineCacheKey: Equatable {
+        let latitude: Double
+        let longitude: Double
+        let observationDate: Date
+        let timeZoneIdentifier: String
+        let nightStartMinutes: Double
+        let nightDurationMinutes: Double
     }
 
     private enum DisplayDateUpdateMode {
@@ -759,15 +729,14 @@ final class StarMapViewModel: ObservableObject {
     }
 
     private func scheduleTerrainFetchIfNeeded(for context: UpdateContext) {
-        guard context.terrainCacheKey != lastTerrainKey else { return }
-        lastTerrainKey = context.terrainCacheKey
-        terrainProfile = nil
-        terrainFetchState = .loading
-        fetchTerrain(
+        terrainCoordinator.scheduleFetchIfNeeded(
             latitude: context.latitude,
             longitude: context.longitude,
-            terrainKey: context.terrainCacheKey
-        )
+            cacheKey: context.terrainCacheKey
+        ) { [weak self] profile, state in
+            self?.terrainProfile = profile
+            self?.terrainFetchState = state
+        }
     }
 
     private func apply(_ snapshot: StarMapComputation.Snapshot) {
@@ -785,21 +754,6 @@ final class StarMapViewModel: ObservableObject {
         planetPositions = snapshot.planetPositions
         meteorShowerRadiants = snapshot.meteorShowerRadiants
         milkyWayBandPoints = snapshot.milkyWayBandPoints
-    }
-
-    private var lastTerrainKey: String = ""
-    private var terrainFetchTask: Task<Void, Never>? = nil
-
-    private func fetchTerrain(latitude: Double, longitude: Double, terrainKey: String) {
-        terrainFetchTask?.cancel()
-        terrainFetchTask = Task { [weak self] in
-            guard let self else { return }
-            let profile = await terrainDependency.fetchProfile(latitude, longitude)
-            guard !Task.isCancelled else { return }
-            guard terrainKey == lastTerrainKey else { return }
-            terrainProfile = profile
-            terrainFetchState = profile == nil ? .unavailable : .available
-        }
     }
 
     // MARK: - Meteor Showers
@@ -920,8 +874,13 @@ final class StarMapViewModel: ObservableObject {
         }
 
         if isTimeSliderScrubbing {
-            pendingTimeSliderDate = updatedDate
-            schedulePendingTimeSliderDateCommit()
+            timeSliderScheduler.schedulePendingCommit(date: updatedDate) { [weak self] date in
+                self?.setDisplayDate(
+                    date,
+                    skipNightRange: true,
+                    skipTimeSliderSync: true
+                )
+            }
         } else {
             setDisplayDate(
                 updatedDate,
@@ -975,45 +934,27 @@ final class StarMapViewModel: ObservableObject {
     func endTimeSliderInteraction() {
         guard isTimeSliderScrubbing else { return }
         isTimeSliderScrubbing = false
-        cancelTimeSliderCommitTask()
-        commitPendingTimeSliderDate()
+        timeSliderScheduler.flushPendingCommit { [weak self] date in
+            self?.setDisplayDate(
+                date,
+                skipNightRange: true,
+                skipTimeSliderSync: true
+            )
+        }
     }
 
     func finalizeTransientInteractionState() {
         if isTimeSliderScrubbing {
             endTimeSliderInteraction()
         } else {
-            commitPendingTimeSliderDate()
+            timeSliderScheduler.flushPendingCommit { [weak self] date in
+                self?.setDisplayDate(
+                    date,
+                    skipNightRange: true,
+                    skipTimeSliderSync: true
+                )
+            }
         }
-    }
-
-    private func schedulePendingTimeSliderDateCommit() {
-        let now = Date.timeIntervalSinceReferenceDate
-        let elapsed = now - lastTimeSliderCommitTime
-        if elapsed >= Self.timeSliderCommitInterval {
-            commitPendingTimeSliderDate()
-            return
-        }
-
-        cancelTimeSliderCommitTask()
-        let remaining = Self.timeSliderCommitInterval - elapsed
-        timeSliderCommitTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            self?.commitPendingTimeSliderDate()
-        }
-    }
-
-    private func commitPendingTimeSliderDate() {
-        guard let date = pendingTimeSliderDate else { return }
-        pendingTimeSliderDate = nil
-        cancelTimeSliderCommitTask()
-        lastTimeSliderCommitTime = Date.timeIntervalSinceReferenceDate
-        setDisplayDate(
-            date,
-            skipNightRange: true,
-            skipTimeSliderSync: true
-        )
     }
 
     private var currentMinUpdateInterval: TimeInterval {
@@ -1047,13 +988,7 @@ final class StarMapViewModel: ObservableObject {
     }
 
     private func discardPendingTimeSliderDate() {
-        pendingTimeSliderDate = nil
-        cancelTimeSliderCommitTask()
-    }
-
-    private func cancelTimeSliderCommitTask() {
-        timeSliderCommitTask?.cancel()
-        timeSliderCommitTask = nil
+        timeSliderScheduler.discardPending()
     }
 
     private func resyncAfterSelectionChange() {
@@ -1100,13 +1035,28 @@ final class StarMapViewModel: ObservableObject {
         )
         nightStartMinutes = range.startMinutes
         nightDurationMinutes = range.durationMinutes
-        observationConditionTimeline = StarMapObservationTimeline.build(
-            location: context.location,
+
+        let timelineKey = TimelineCacheKey(
+            latitude: context.location.latitude,
+            longitude: context.location.longitude,
             observationDate: context.selectedDate,
-            timeZone: context.timeZone,
+            timeZoneIdentifier: context.timeZone.identifier,
             nightStartMinutes: range.startMinutes,
             nightDurationMinutes: range.durationMinutes
         )
+        if let cached = cachedObservationTimeline, cached.key == timelineKey {
+            observationConditionTimeline = cached.value
+        } else {
+            let timeline = StarMapObservationTimeline.build(
+                location: context.location,
+                observationDate: context.selectedDate,
+                timeZone: context.timeZone,
+                nightStartMinutes: range.startMinutes,
+                nightDurationMinutes: range.durationMinutes
+            )
+            cachedObservationTimeline = (key: timelineKey, value: timeline)
+            observationConditionTimeline = timeline
+        }
     }
 
     /// 夜間スライダーのオフセットを、現在の観測日に属する実際の表示日時へ変換します。
@@ -1140,6 +1090,29 @@ final class StarMapViewModel: ObservableObject {
 
     nonisolated static func terrainCacheKey(latitude: Double, longitude: Double) -> String {
         TerrainService.cacheKey(latitude: latitude, longitude: longitude)
+    }
+
+    /// 星座ラベルの配置を計算する。視点（候補・キャンバスサイズ・下部余白）が前回と同一ならキャッシュを返す。
+    func labelPlacements(
+        candidates: [ConstellationLabelCandidate],
+        canvasSize: CGSize,
+        reservedBottomInset: Double
+    ) -> [ConstellationLabelPlacement] {
+        let key = LabelPlacementCacheKey(
+            candidates: candidates,
+            canvasSize: canvasSize,
+            reservedBottomInset: reservedBottomInset
+        )
+        if let cached = cachedLabelPlacements, cached.key == key {
+            return cached.value
+        }
+        let placements = ConstellationLabelLayoutEngine.optimizedPlacements(
+            candidates: candidates,
+            canvasSize: canvasSize,
+            reservedBottomInset: reservedBottomInset
+        )
+        cachedLabelPlacements = (key: key, value: placements)
+        return placements
     }
 
 }
