@@ -409,12 +409,7 @@ private struct DashboardBortleLabel: View {
     }
 
     private func color(for bortleClass: Double) -> Color {
-        switch bortleClass {
-        case ..<4: return .green
-        case ..<6: return .yellow
-        case ..<8: return .orange
-        default: return .red
-        }
+        BortleScale.color(for: bortleClass)
     }
 }
 

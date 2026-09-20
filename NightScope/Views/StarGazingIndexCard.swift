@@ -43,7 +43,7 @@ struct StarGazingIndexCard: View {
             }
 
             if isExpanded {
-                expandedContent(color: color)
+                expandedContent
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -59,72 +59,19 @@ struct StarGazingIndexCard: View {
     }
 
     @ViewBuilder
-    private func expandedContent(color: Color) -> some View {
-        subScoreRow(label: L10n.tr("星空"), score: index.constellationScore, maxScore: StarGazingIndex.maxConstellationScore, color: Color.indigo)
+    private var expandedContent: some View {
+        IndexBreakdownView(
+            index: index,
+            lightPollutionViewModel: lightPollutionViewModel,
+            layout: .column
+        )
 
-        if index.hasWeatherData {
-            subScoreRow(label: L10n.tr("気象"), score: index.weatherScore, maxScore: StarGazingIndex.maxWeatherScore, color: .cyan)
-        } else {
-            HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
-                subScoreLabel(L10n.tr("気象"))
-                Text("データなし")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-        }
-
-        if index.hasLightPollutionData {
-            subScoreRow(label: L10n.tr("光害"), score: index.lightPollutionScore, maxScore: StarGazingIndex.maxLightPollutionScore, color: .orange)
-        } else {
-            HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
-                subScoreLabel(L10n.tr("光害"))
-                if lightPollutionViewModel.isLoading {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .accessibilityLabel(L10n.tr("光害データを取得中"))
-                } else if lightPollutionViewModel.fetchFailed {
-                    Text(L10n.tr("取得失敗"))
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(L10n.tr("取得中..."))
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-        }
         if index.isAdjusted {
             Text(L10n.tr("observation.mode.breakdown.note"))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-    }
-
-    private func subScoreRow(label: String, score: Int, maxScore: Int, color: Color) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
-            subScoreLabel(label)
-            ProgressView(value: Double(score), total: Double(maxScore))
-                .progressViewStyle(.linear)
-                .tint(color)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel("\(label)")
-                .accessibilityValue("\(score)/\(maxScore)")
-            Text("\(score)/\(maxScore)")
-                .font(.body.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-        }
-    }
-
-    private func subScoreLabel(_ label: String) -> some View {
-        Text(label)
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: true, vertical: false)
-            .panelTooltip(label)
     }
 
     private func toggleExpanded() {
@@ -135,7 +82,82 @@ struct StarGazingIndexCard: View {
 }
 
 #if os(macOS)
+/// 観測モードを選ぶメニュー。カード内とツールバーの両方から使うため、
+/// 見た目だけ `Appearance` で切り替えて選択ロジックは 1 か所に保つ。
+struct ObservationModeMenu: View {
+    /// ラベルの装飾。
+    enum Appearance {
+        /// カード面に載せる際のカプセル付き。
+        case capsule
+        /// ツールバー項目として、システム標準の装飾に任せる。
+        case toolbar
+    }
+
+    @ObservedObject var observationModePreference: ObservationModePreference
+    var appearance: Appearance = .capsule
+
+    var body: some View {
+        Menu {
+            ForEach(ObservationMode.allCases) { mode in
+                Button {
+                    observationModePreference.mode = mode
+                } label: {
+                    HStack {
+                        Label(L10n.tr(mode.titleKey), systemImage: mode.iconSystemName)
+                        if observationModePreference.mode == mode {
+                            Spacer()
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                .help(L10n.tr(mode.descriptionKey))
+            }
+        } label: {
+            label
+        }
+        .menuStyle(.borderlessButton)
+        .help(tooltip)
+        .accessibilityLabel(L10n.tr("observation.mode.change"))
+    }
+
+    @ViewBuilder
+    private var label: some View {
+        let content = Label(
+            L10n.tr(observationModePreference.mode.shortTitleKey),
+            systemImage: observationModePreference.mode.iconSystemName
+        )
+        .lineLimit(1)
+
+        switch appearance {
+        case .capsule:
+            content
+                .font(.caption.weight(.semibold))
+                .minimumScaleFactor(0.85)
+                .padding(.horizontal, Spacing.xs)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(Metrics.capsuleFillOpacity), in: Capsule())
+        case .toolbar:
+            // どの観測モードが効いているかはアイコンだけでは伝わらないため、名称も出す。
+            content.labelStyle(.titleAndIcon)
+        }
+    }
+
+    private var tooltip: String {
+        L10n.format(
+            "%@\n%@",
+            L10n.tr("observation.mode.change"),
+            L10n.tr(observationModePreference.mode.descriptionKey)
+        )
+    }
+
+    private enum Metrics {
+        static let capsuleFillOpacity: Double = 0.08
+    }
+}
+
 /// macOS では観測モードの切り替えを同じカード内で提供する。
+/// - Note: メイン画面のヒーロー帯に置き換わったため現在は参照されていないが、
+///         ダッシュボード／旧レイアウトから再利用できるよう残している。
 struct MacStarGazingIndexCard: View {
     let index: StarGazingIndex
     @ObservedObject var lightPollutionViewModel: StarGazingIndexCardViewModel
@@ -147,7 +169,7 @@ struct MacStarGazingIndexCard: View {
             HStack(spacing: Spacing.sm) {
                 CardHeader(icon: AppIcons.Astronomy.starFill, iconColor: color, title: "星空指数")
                 Spacer()
-                observationModeMenu
+                ObservationModeMenu(observationModePreference: observationModePreference)
             }
 
             HStack(alignment: .center, spacing: Spacing.md) {
@@ -176,44 +198,6 @@ struct MacStarGazingIndexCard: View {
         .glassCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
-    }
-
-    private var observationModeMenu: some View {
-        Menu {
-            ForEach(ObservationMode.allCases) { mode in
-                Button {
-                    observationModePreference.mode = mode
-                } label: {
-                    HStack {
-                        Label(L10n.tr(mode.titleKey), systemImage: mode.iconSystemName)
-                        if observationModePreference.mode == mode {
-                            Spacer()
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-                .help(L10n.tr(mode.descriptionKey))
-            }
-        } label: {
-            Label(L10n.tr(observationModePreference.mode.shortTitleKey), systemImage: observationModePreference.mode.iconSystemName)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .padding(.horizontal, Spacing.xs)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.08), in: Capsule())
-        }
-        .menuStyle(.borderlessButton)
-        .help(observationModeMenuTooltip)
-        .accessibilityLabel(L10n.tr("observation.mode.change"))
-    }
-
-    private var observationModeMenuTooltip: String {
-        L10n.format(
-            "%@\n%@",
-            L10n.tr("observation.mode.change"),
-            L10n.tr(observationModePreference.mode.descriptionKey)
-        )
     }
 
     private var inlineBreakdown: some View {

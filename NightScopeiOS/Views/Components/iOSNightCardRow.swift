@@ -1,16 +1,22 @@
 import SwiftUI
 
 /// 9日予報の 1 行分を表示するカード。
+/// 日付・雲量・星空指数・薄明開始を固定幅の列に並べ、行をまたいで数値が縦に揃うようにする。
 struct iOSNightCardRow: View {
     let night: NightSummary
     let index: StarGazingIndex?
     let weather: DayWeatherSummary?
+    /// 観測可能時間帯の文言。行本体では使わないが、呼び出し側の行モデルと対応を保つため受け取る。
     let rangeText: String
     let isReliableWeather: Bool
     let hasPartialWeather: Bool
     let isForecastOutOfRange: Bool
     let hasWeatherLoadError: Bool
     let isSelected: Bool
+    /// true のとき時間別の雲量ストリップを行の下に開く。
+    var showsHourlyStrip: Bool = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var presentation: ForecastCardPresentation {
         ForecastCardPresentation(
@@ -24,10 +30,21 @@ struct iOSNightCardRow: View {
         )
     }
 
+    private var stripHours: [HourlyWeather]? {
+        guard showsHourlyStrip, let hours = weather?.nighttimeHours, !hours.isEmpty else { return nil }
+        return hours
+    }
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Layout.cardCornerRadius, style: .continuous)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: IOSDesignTokens.NightRow.contentSpacing) {
-            headerRow
-            metadataSection
+            mainRow
+            if let hours = stripHours {
+                hourlyStrip(hours)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, IOSDesignTokens.NightRow.cardHorizontalPadding)
@@ -37,105 +54,159 @@ struct iOSNightCardRow: View {
             minHeight: IOSDesignTokens.NightRow.cardMinHeight,
             alignment: .center
         )
-        .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: IOSDesignTokens.NightRow.selectionBorderWidth)
+        // 選択色はカード面より上・本文より下に重なるよう、cardSurface より内側で敷く。
+        .background(
+            cardShape.fill(
+                Color.accentColor.opacity(isSelected ? IOSDesignTokens.NightRow.selectionTintOpacity : 0)
+            )
         )
+        .cardSurface()
+        .overlay(
+            cardShape.stroke(
+                isSelected ? Color.accentColor : Color.clear,
+                lineWidth: IOSDesignTokens.NightRow.selectionBorderWidth
+            )
+        )
+        .animation(reduceMotion ? nil : .standard, value: showsHourlyStrip)
     }
 
-    private var headerRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+    // MARK: - Main Row
+
+    private var mainRow: some View {
+        HStack(alignment: .center, spacing: Spacing.xs) {
+            dateColumn
+            cloudColumn
+            indexColumn
+            trailingColumn
+        }
+    }
+
+    private var dateColumn: some View {
+        VStack(alignment: .leading, spacing: IOSDesignTokens.NightRow.tightLineSpacing) {
             Text(presentation.shortDateLabel)
-                .font(.headline.monospacedDigit())
-                .fontWeight(.semibold)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
             if let label = presentation.relativeNightLabel {
                 Text(label)
-                    .font(.footnote)
-                    .fontWeight(.medium)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, IOSDesignTokens.NightRow.relativeLabelHorizontalPadding)
-                    .padding(.vertical, IOSDesignTokens.NightRow.relativeLabelVerticalPadding)
-                    .background(.tertiary, in: Capsule())
-            }
-            Spacer(minLength: Spacing.xs)
-            if let index {
-                HStack(spacing: IOSDesignTokens.NightRow.starSpacing) {
-                    ForEach(0..<5) { i in
-                        Image(systemName: i < index.starCount ? AppIcons.Astronomy.starFill : AppIcons.Astronomy.star)
-                            .foregroundStyle(
-                                i < index.starCount
-                                ? index.tier.color
-                                : Color.secondary.opacity(IOSDesignTokens.NightRow.inactiveStarOpacity)
-                            )
-                            .font(.footnote)
-                    }
-                }
-                Text(index.label)
-                    .font(.footnote)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(index.tier.color)
+                    .lineLimit(1)
             }
         }
+        .frame(width: IOSDesignTokens.NightRow.dateColumnWidth, alignment: .leading)
     }
 
-    private var metadataSection: some View {
-        // 夜カードの情報は moon / weather / range を同じ行にまとめる。
-        HStack(alignment: .firstTextBaseline, spacing: IOSDesignTokens.NightRow.metadataGroupSpacing) {
-            moonMetadataItem
-            weatherMetadataItem
-            rangeMetadataItem
-            Spacer(minLength: 0)
+    private var cloudColumn: some View {
+        HStack(spacing: IOSDesignTokens.NightRow.metadataIconSpacing) {
+            Image(systemName: AppIcons.Weather.cloud)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(presentation.cloudCoverText)
+                .font(.subheadline.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
         }
-    }
-
-    private var moonMetadataItem: some View {
-        metadataItem(
-            text: night.moonPhaseName,
-            systemImage: night.moonPhaseIcon
-        )
+        .frame(width: IOSDesignTokens.NightRow.cloudColumnWidth, alignment: .leading)
     }
 
     @ViewBuilder
-    private var weatherMetadataItem: some View {
-        if isReliableWeather, let weather, let detailText = presentation.weatherDetailText {
-            metadataItem(
-                text: detailText,
-                systemImage: weather.weatherIconName,
-                iconTint: WeatherPresentation.color(forWeatherCode: weather.representativeWeatherCode)
-            )
-        } else if let detailText = presentation.weatherDetailText {
-            metadataItem(
-                text: detailText,
-                systemImage: "questionmark.circle"
-            )
+    private var indexColumn: some View {
+        HStack(spacing: IOSDesignTokens.NightRow.contentSpacing) {
+            if let index {
+                tierSquares(for: index)
+                Text(index.label)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(index.tier.color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
+            } else {
+                Text(Self.placeholderText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var rangeMetadataItem: some View {
-        metadataItem(
-            text: rangeText,
-            systemImage: AppIcons.Observation.clock
-        )
+    private func tierSquares(for index: StarGazingIndex) -> some View {
+        HStack(spacing: IOSDesignTokens.NightRow.tierSquareSpacing) {
+            ForEach(0..<IOSDesignTokens.NightRow.tierSquareCount, id: \.self) { position in
+                RoundedRectangle(
+                    cornerRadius: IOSDesignTokens.NightRow.tierSquareCornerRadius,
+                    style: .continuous
+                )
+                .fill(
+                    position < index.starCount
+                    ? AnyShapeStyle(index.tier.color)
+                    : AnyShapeStyle(HierarchicalShapeStyle.quaternary)
+                )
+                .frame(
+                    width: IOSDesignTokens.NightRow.tierSquareSize,
+                    height: IOSDesignTokens.NightRow.tierSquareSize
+                )
+            }
+        }
+        .accessibilityHidden(true)
     }
 
-    private func metadataItem(
-        text: String,
-        systemImage: String,
-        iconTint: Color = .secondary
-    ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: IOSDesignTokens.NightRow.metadataIconSpacing) {
-            Image(systemName: systemImage)
-                .font(.footnote)
-                .foregroundStyle(iconTint)
-                .frame(width: IOSDesignTokens.NightRow.metadataIconWidth, alignment: .center)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(.footnote)
+    private var trailingColumn: some View {
+        VStack(alignment: .trailing, spacing: IOSDesignTokens.NightRow.tightLineSpacing) {
+            Text(presentation.darkStartText ?? Self.placeholderText)
+                .font(.footnote.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
-                .allowsTightening(true)
+            if let detailText = presentation.weatherDetailText {
+                Text(detailText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
+            }
         }
+        .frame(width: IOSDesignTokens.NightRow.trailingColumnWidth, alignment: .trailing)
     }
+
+    // MARK: - Hourly Strip
+
+    /// 選択中の夜だけ、1 時間ごとの雲量を帯で示す。
+    /// 濃さ＝雲量、青み＝降水ありとし、両端に時刻を添えて帯の範囲を読めるようにする。
+    private func hourlyStrip(_ hours: [HourlyWeather]) -> some View {
+        VStack(alignment: .leading, spacing: IOSDesignTokens.NightRow.tightLineSpacing) {
+            HStack(spacing: 0) {
+                ForEach(hours.indices, id: \.self) { position in
+                    Rectangle()
+                        .fill(hourColor(hours[position]))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: IOSDesignTokens.NightRow.hourlyStripHeight)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: IOSDesignTokens.NightRow.hourlyStripCornerRadius,
+                    style: .continuous
+                )
+            )
+
+            if let first = hours.first, let last = hours.last {
+                HStack(spacing: 0) {
+                    Text(first.date.nightTimeString(timeZone: night.timeZone))
+                    Spacer(minLength: 0)
+                    Text(last.date.nightTimeString(timeZone: night.timeZone))
+                }
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func hourColor(_ hour: HourlyWeather) -> Color {
+        let base: Color = hour.precipitationMM > 0 ? .blue : .secondary
+        return base.opacity(min(max(hour.cloudCoverPercent / 100, 0), 1))
+    }
+
+    /// 値が無い欄の表記。
+    private static let placeholderText = "—"
 }

@@ -11,6 +11,7 @@ struct SidebarView: View {
     @State private var highlightedIndex = SidebarSearchInteraction.noSelectionIndex
     @FocusState private var isSearchFocused: Bool
     @State private var locationInputMode: LocationInputMode = .map
+    @Environment(\.scenePhase) private var scenePhase
 
     init(
         viewModel: SidebarViewModel,
@@ -198,9 +199,18 @@ struct SidebarView: View {
         if !viewModel.favorites.isEmpty {
             SidebarFavoritesListView(
                 favorites: viewModel.favorites,
+                scores: viewModel.favoriteTonightScores,
+                isRefreshing: viewModel.isRefreshingFavoriteScores,
                 onSelect: viewModel.selectFavorite,
                 onDelete: viewModel.removeFavorite
             )
+            .task(id: viewModel.favorites) {
+                await viewModel.refreshFavoriteScoresIfNeeded()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                Task { await viewModel.refreshFavoriteScoresIfNeeded() }
+            }
         }
     }
 
@@ -366,12 +376,7 @@ private struct SidebarBortleLabel: View {
     }
 
     private func color(for bortleClass: Double) -> Color {
-        switch bortleClass {
-        case ..<4:  return .green
-        case ..<6:  return .yellow
-        case ..<8:  return .orange
-        default:    return .red
-        }
+        BortleScale.color(for: bortleClass)
     }
 }
 
@@ -452,7 +457,7 @@ private struct SearchResultRowButton: View {
                 .background(
                     isHighlighted ? Color.accentColor.opacity(0.2) :
                     isHovered ? Color.primary.opacity(0.08) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 4)
+                    in: RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
                 )
         }
         .buttonStyle(.plain)
@@ -465,11 +470,13 @@ private struct SearchResultRowButton: View {
 
 private struct SidebarFavoritesListView: View {
     let favorites: [FavoriteLocation]
+    let scores: [UUID: FavoriteTonightScore]
+    let isRefreshing: Bool
     let onSelect: (FavoriteLocation) -> Void
     let onDelete: (FavoriteLocation) -> Void
 
     private static let rowHeight: CGFloat = 44
-    private static let maxVisibleRows: CGFloat = 2
+    private static let maxVisibleRows: CGFloat = 3
 
     /// 件数に応じた表示高さ。上限を超えるとスクロールになる。
     private var effectiveMaxHeight: CGFloat {
@@ -497,6 +504,8 @@ private struct SidebarFavoritesListView: View {
             ForEach(favorites) { favorite in
                 FavoriteRowButton(
                     favorite: favorite,
+                    score: scores[favorite.id],
+                    isRefreshing: isRefreshing,
                     onSelect: onSelect,
                     onDelete: onDelete
                 )
@@ -511,13 +520,20 @@ private struct SidebarFavoritesListView: View {
 
 private struct FavoriteRowButton: View {
     let favorite: FavoriteLocation
+    let score: FavoriteTonightScore?
+    let isRefreshing: Bool
     let onSelect: (FavoriteLocation) -> Void
     let onDelete: (FavoriteLocation) -> Void
     @State private var isHovered = false
 
+    /// Bortle ドットの直径。
+    private static let bortleDotSize: CGFloat = 8
+
     var body: some View {
         Button { onSelect(favorite) } label: {
-            HStack {
+            HStack(spacing: Spacing.xs) {
+                bortleDot
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(favorite.name)
                         .font(.callout)
@@ -533,13 +549,15 @@ private struct FavoriteRowButton: View {
                     .foregroundStyle(.secondary)
                 }
                 Spacer()
+
+                scoreIndicator
             }
             .padding(.horizontal, Spacing.xs)
             .padding(.vertical, Spacing.xs / 2)
             .contentShape(Rectangle())
             .background(
                 isHovered ? Color.primary.opacity(0.08) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 4)
+                in: RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
             )
         }
         .buttonStyle(.plain)
@@ -551,8 +569,45 @@ private struct FavoriteRowButton: View {
                 Label("削除", systemImage: "trash")
             }
         }
-        .accessibilityLabel(
-            L10n.format("お気に入りの場所: %@", favorite.name)
-        )
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    /// 光害レベルを示す先頭のドット。未取得なら中空の円で場所だけ確保する。
+    @ViewBuilder
+    private var bortleDot: some View {
+        if let bortleClass = score?.bortleClass {
+            Circle()
+                .fill(BortleScale.color(for: bortleClass))
+                .frame(width: Self.bortleDotSize, height: Self.bortleDotSize)
+        } else {
+            Circle()
+                .strokeBorder(.quaternary, lineWidth: 1)
+                .frame(width: Self.bortleDotSize, height: Self.bortleDotSize)
+        }
+    }
+
+    /// 今夜の星空指数。未取得かつ計算中ならスピナー、未取得なら「—」を出す。
+    @ViewBuilder
+    private var scoreIndicator: some View {
+        if let score {
+            Text("\(score.score)")
+                .font(.callout.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(score.tier.color)
+        } else if isRefreshing {
+            ProgressView()
+                .controlSize(.mini)
+        } else {
+            Text(verbatim: "—")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var accessibilityLabel: String {
+        guard let score else {
+            return L10n.format("%@、指数未取得", favorite.name)
+        }
+        return L10n.format("%@、今夜の星空指数 %d点", favorite.name, score.score)
     }
 }

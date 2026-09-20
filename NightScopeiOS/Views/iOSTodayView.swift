@@ -54,20 +54,37 @@ struct iOSTodayView: View {
         viewModel.contentState(isCalculating: detailViewModel.isCalculating, summary: nightSummary)
     }
 
+    private var verdict: NightVerdictPresentation? {
+        guard let summary = nightSummary else { return nil }
+        return NightVerdictPresentation(
+            index: starGazingIndex,
+            summary: summary,
+            weather: weather,
+            hasReliableWeather: weather != nil && !detailViewModel.isCurrentWeatherCoverageIncomplete
+        )
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    headerSection
-                    contentSection
+            ZStack(alignment: .top) {
+                SkyGradientBackground(height: IOSDesignTokens.Today.heroBackgroundHeight)
+                    .ignoresSafeArea(edges: .top)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        headerSection
+                        contentSection
+                    }
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.bottom, Spacing.sm)
                 }
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.sm)
             }
             .refreshable {
                 await viewModel.refreshAll(using: detailViewModel)
             }
             .adaptiveToolbarBackground()
+            // 上端は常に暗い空なので、ナビゲーション領域も明色前提で描く。
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .sheet(item: $presentedSheet) { sheet in
                 sheetView(for: sheet)
             }
@@ -110,32 +127,33 @@ struct iOSTodayView: View {
     @ViewBuilder
     private func mainContent(summary: NightSummary) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            if let index = starGazingIndex {
-                StarGazingIndexCard(
-                    index: index,
-                    lightPollutionViewModel: lightPollutionViewModel
+            if let verdict {
+                TonightHeroView(
+                    index: starGazingIndex,
+                    verdict: verdict,
+                    isCalculating: detailViewModel.isCalculating
                 )
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            DarkTimeCard(summary: summary, weather: weather)
-                .frame(minHeight: IOSDesignTokens.Today.summaryCardMinHeight)
-
-            NightWeatherCard(
-                weather: weather,
-                isLoading: detailViewModel.isWeatherLoading,
-                isForecastOutOfRange: detailViewModel.isCurrentWeatherForecastOutOfRange,
-                isCoverageIncomplete: detailViewModel.isCurrentWeatherCoverageIncomplete,
-                errorMessage: weather == nil ? detailViewModel.weatherErrorMessage : nil,
-                viewModel: weatherViewModel
+            NightTimelineView(
+                model: NightTimelineModel(
+                    summary: summary,
+                    nighttimeHours: weather?.nighttimeHours ?? []
+                ),
+                style: .onSky
             )
-                .frame(minHeight: IOSDesignTokens.Today.summaryCardMinHeight)
 
-            MoonPhaseCard(summary: summary)
-                .frame(minHeight: IOSDesignTokens.Today.summaryCardMinHeight)
+            summaryGrid(summary: summary)
 
-            MilkyWaySummaryCard(summary: summary)
-                .frame(minHeight: IOSDesignTokens.Today.summaryCardMinHeight, alignment: .top)
+            if let index = starGazingIndex {
+                IndexBreakdownView(
+                    index: index,
+                    lightPollutionViewModel: lightPollutionViewModel,
+                    layout: .row
+                )
+                .padding(IOSDesignTokens.Today.breakdownPadding)
+                .cardSurface()
+            }
 
             if weather != nil {
                 WeatherAttributionBadge()
@@ -145,58 +163,104 @@ struct iOSTodayView: View {
         }
     }
 
-    private var headerSection: some View {
-        iOSTabHeaderView(
-            title: viewModel.headerTitle(
-                for: detailViewModel.displayedDate,
-                timeZone: detailViewModel.selectedTimeZone
-            ),
-            titleLineLimit: 1,
-            titleMinimumScaleFactor: 0.9,
-            horizontalPadding: Spacing.xs
+    private func summaryGrid(summary: NightSummary) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible())],
+            spacing: IOSDesignTokens.Today.gridSpacing
         ) {
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: AppIcons.Navigation.locationPin)
-                        .font(.subheadline)
-                    Text(viewModel.locationText(detailViewModel.locationName))
-                        .font(.subheadline)
-                        .lineLimit(1)
-                }
+            DarkTimeCard(summary: summary, weather: weather, style: .compact)
 
-                Button {
-                    presentedSheet = .observationMode
-                } label: {
-                    Label(
-                        L10n.tr(observationModePreference.mode.shortTitleKey),
-                        systemImage: observationModePreference.mode.iconSystemName
-                    )
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-                        .padding(.horizontal, Spacing.xs)
-                        .padding(.vertical, 6)
-                        .background(.thinMaterial, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.tr("observation.mode.change"))
-                .accessibilityHint(L10n.tr(observationModePreference.mode.descriptionKey))
-            }
-        } trailing: {
-            HStack(spacing: Spacing.xs / 2) {
-                Button {
-                    calendarDraftDate = detailViewModel.selectedDate
-                    presentedSheet = .calendar
-                } label: {
-                    Image(systemName: "calendar")
-                        .font(.headline)
-                        .frame(width: 44, height: 44)
-                }
-                .glassButtonStyle()
-                .accessibilityLabel(L10n.tr("日付を選択"))
+            MoonPhaseCard(summary: summary, style: .compact)
 
-                settingsButton
-            }
+            NightWeatherCard(
+                weather: weather,
+                isLoading: detailViewModel.isWeatherLoading,
+                isForecastOutOfRange: detailViewModel.isCurrentWeatherForecastOutOfRange,
+                isCoverageIncomplete: detailViewModel.isCurrentWeatherCoverageIncomplete,
+                errorMessage: weather == nil ? detailViewModel.weatherErrorMessage : nil,
+                viewModel: weatherViewModel,
+                style: .compact
+            )
+
+            MilkyWaySummaryCard(summary: summary, style: .compact)
         }
+    }
+
+    // MARK: - ヘッダー
+
+    /// 空のグラデーションの上に載るため、ヘッダーの文字と装飾は白系で固定する。
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(alignment: .top, spacing: Spacing.sm) {
+                VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                    HStack(spacing: Spacing.xs / 2) {
+                        Image(systemName: AppIcons.Navigation.locationPin)
+                            .font(.footnote)
+                            .accessibilityHidden(true)
+                        Text(viewModel.locationText(detailViewModel.locationName))
+                            .font(.footnote)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(HeaderStyle.secondaryTextColor)
+
+                    Text(
+                        viewModel.headerTitle(
+                            for: detailViewModel.displayedDate,
+                            timeZone: detailViewModel.selectedTimeZone
+                        )
+                    )
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(HeaderStyle.primaryTextColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: Spacing.xs / 2) {
+                    calendarButton
+                    settingsButton
+                }
+            }
+
+            observationModeButton
+        }
+        .padding(.top, Spacing.xs)
+    }
+
+    private var observationModeButton: some View {
+        Button {
+            presentedSheet = .observationMode
+        } label: {
+            Label(
+                L10n.tr(observationModePreference.mode.shortTitleKey),
+                systemImage: observationModePreference.mode.iconSystemName
+            )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(HeaderStyle.primaryTextColor)
+                .lineLimit(1)
+                .padding(.horizontal, Spacing.xs)
+                .padding(.vertical, 6)
+                .background(HeaderStyle.capsuleFill, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.tr("observation.mode.change"))
+        .accessibilityHint(L10n.tr(observationModePreference.mode.descriptionKey))
+    }
+
+    private var calendarButton: some View {
+        Button {
+            calendarDraftDate = detailViewModel.selectedDate
+            presentedSheet = .calendar
+        } label: {
+            Image(systemName: "calendar")
+                .font(.headline)
+                .frame(width: HeaderStyle.buttonGlyphSize, height: HeaderStyle.buttonGlyphSize)
+        }
+        .glassButtonStyle()
+        .buttonBorderShape(.circle)
+        .accessibilityLabel(L10n.tr("日付を選択"))
     }
 
     private var settingsButton: some View {
@@ -205,23 +269,47 @@ struct iOSTodayView: View {
         } label: {
             Image(systemName: "gearshape.fill")
                 .font(.headline)
-                .frame(width: 44, height: 44)
+                .frame(width: HeaderStyle.buttonGlyphSize, height: HeaderStyle.buttonGlyphSize)
         }
         .glassButtonStyle()
+        .buttonBorderShape(.circle)
         .accessibilityLabel(L10n.tr("設定を開く"))
         .accessibilityHint(L10n.tr("アプリ全体の表示設定を変更します"))
     }
 
+    private enum HeaderStyle {
+        static let primaryTextColor = Color.white
+        static let secondaryTextColor = Color.white.opacity(0.72)
+        static let capsuleFill = Color.white.opacity(0.14)
+        /// HIG の最小タップ領域。
+        static let buttonSize: CGFloat = 44
+        /// ガラスボタンはスタイル側で余白が付くため、グリフ枠は小さめにして全体を約 44pt の円に収める。
+        static let buttonGlyphSize: CGFloat = 28
+    }
+
+    // MARK: - 読み込み中
+
     private var loadingPlaceholder: some View {
-        VStack(spacing: Spacing.sm) {
-            ForEach(Array(IOSDesignTokens.Today.loadingCardHeights.enumerated()), id: \.offset) { _, height in
-                RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
-                    .fill(.quaternary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: height)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            placeholderBlock(height: IOSDesignTokens.Today.loadingHeroHeight)
+            placeholderBlock(height: IOSDesignTokens.Today.loadingTimelineHeight)
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: IOSDesignTokens.Today.gridSpacing
+            ) {
+                ForEach(0..<4, id: \.self) { _ in
+                    placeholderBlock(height: IOSDesignTokens.Today.loadingGridCardHeight)
+                }
             }
         }
         .redacted(reason: .placeholder)
+    }
+
+    private func placeholderBlock(height: CGFloat) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .cardSurface(cornerRadius: Layout.cardCornerRadius)
     }
 
     @ViewBuilder

@@ -43,9 +43,7 @@ struct DetailView: View {
         // ウィンドウツールバー背景を一時的に非表示にしている。
         .toolbarBackground(.hidden, for: .windowToolbar)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                locationTitleBar
-            }
+            toolbarContent
         }
         .sheet(isPresented: $starMapViewModel.isStarMapOpen) {
             MacStarMapSheet(viewModel: starMapViewModel)
@@ -70,41 +68,43 @@ struct DetailView: View {
 
     private func detailContent(summary: NightSummary) -> some View {
         let weather = viewModel.currentWeather
-        return ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.md) {
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    headerSection(
+        return skyBackdrop {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    heroBand(summary: summary, weather: weather)
+                    summarySection(
                         summary: summary,
                         weather: weather,
-                        isWeatherLoading: viewModel.isWeatherLoading,
-                        isSummaryRefreshing: viewModel.isCalculating
+                        isWeatherLoading: viewModel.isWeatherLoading
+                    )
+                    UpcomingNightsGrid(viewModel: upcomingGridViewModel)
+                    MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
+                    PlanetVisibilityView(
+                        selectedDate: viewModel.selectedDate,
+                        location: summary.location,
+                        timeZone: viewModel.selectedTimeZone
                     )
                 }
-                UpcomingNightsGrid(viewModel: upcomingGridViewModel)
-                MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
-                PlanetVisibilityView(
-                    selectedDate: viewModel.selectedDate,
-                    location: summary.location,
-                    timeZone: viewModel.selectedTimeZone
-                )
+                .padding(Spacing.md)
             }
-            .padding(Spacing.md)
         }
     }
 
     private var loadingContent: some View {
         let weather = viewModel.currentWeather
-        return ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.lg) {
-                headerSection(
-                    summary: .placeholder,
-                    weather: weather,
-                    isWeatherLoading: viewModel.isWeatherLoading,
-                    isSummaryRefreshing: true
-                )
+        return skyBackdrop {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    heroBand(summary: .placeholder, weather: weather)
+                    summarySection(
+                        summary: .placeholder,
+                        weather: weather,
+                        isWeatherLoading: viewModel.isWeatherLoading
+                    )
+                }
+                .padding(Spacing.md)
+                .redacted(reason: .placeholder)
             }
-            .padding(Spacing.md)
-            .redacted(reason: .placeholder)
         }
         .accessibilityLabel(L10n.tr("星空データを計算中"))
     }
@@ -115,6 +115,48 @@ struct DetailView: View {
             systemImage: AppIcons.Astronomy.moonStars,
             description: Text("場所と日付を選択してください")
         )
+    }
+
+    /// スクロール内容の背後に夜空のグラデーションを敷く。
+    /// ツールバー背景を隠しているため、上端の安全領域まで伸ばして地続きに見せる。
+    private func skyBackdrop<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ZStack(alignment: .top) {
+            SkyGradientBackground(height: HeroLayout.backgroundHeight)
+                .backgroundExtensionEffectCompat()
+                .ignoresSafeArea(.container, edges: .top)
+            content()
+        }
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            locationTitleBar
+        }
+        if #available(macOS 26, *) {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            starMapButton
+            ObservationModeMenu(
+                observationModePreference: observationModePreference,
+                appearance: .toolbar
+            )
+        }
+    }
+
+    private var starMapButton: some View {
+        Button {
+            starMapViewModel.isStarMapOpen = true
+        } label: {
+            Label("星空マップ", systemImage: AppIcons.Astronomy.sparkles)
+        }
+        .glassButtonStyle()
+        .disabled(viewModel.isCalculating)
+        .help(L10n.tr("星空マップを表示"))
+        .accessibilityHint(L10n.tr("選択した日付の星空マップを開きます"))
     }
 
     // MARK: - Location Title Bar
@@ -144,40 +186,59 @@ struct DetailView: View {
         .padding(.vertical, Spacing.xs)
     }
 
-    // MARK: - Header
+    // MARK: - Hero Band
 
-    private func headerSection(
-        summary: NightSummary,
-        weather: DayWeatherSummary?,
-        isWeatherLoading: Bool,
-        isSummaryRefreshing: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            if let index = viewModel.displayedStarGazingIndex {
-                HStack(alignment: .center, spacing: Spacing.sm) {
-                    Text("星空観測情報")
-                        .font(.title3.bold())
-                    Spacer()
-                    Button {
-                        starMapViewModel.isStarMapOpen = true
-                    } label: {
-                        Label("星空マップ", systemImage: AppIcons.Astronomy.sparkles)
-                    }
-                    .glassButtonStyle()
-                    .disabled(isSummaryRefreshing)
-                    .help(L10n.tr("星空マップを表示"))
-                    .accessibilityHint(L10n.tr("選択した日付の星空マップを開きます"))
-                    if weather != nil {
-                        WeatherAttributionBadge()
-                    }
-                }
-                MacStarGazingIndexCard(
-                    index: index,
-                    lightPollutionViewModel: starGazingIndexCardViewModel,
-                    observationModePreference: observationModePreference
-                )
+    /// 星空指数の結論（左）と夜のタイムライン（右）を空の上に並べる。
+    /// 900pt 未満では 2 列に収まらないため、縦積みへ切り替える。
+    private func heroBand(summary: NightSummary, weather: DayWeatherSummary?) -> some View {
+        let index = viewModel.displayedStarGazingIndex
+        let verdict = NightVerdictPresentation(
+            index: index,
+            summary: summary,
+            weather: weather,
+            hasReliableWeather: weather != nil && !viewModel.isCurrentWeatherCoverageIncomplete
+        )
+        let timeline = NightTimelineModel(
+            summary: summary,
+            nighttimeHours: weather?.nighttimeHours ?? []
+        )
+        let hero = TonightHeroView(
+            index: index,
+            verdict: verdict,
+            isCalculating: viewModel.isCalculating
+        )
+        let timelineView = NightTimelineView(model: timeline, style: .onSky)
+
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .bottom, spacing: Spacing.lg) {
+                hero
+                    .frame(
+                        minWidth: HeroLayout.heroMinWidth,
+                        maxWidth: HeroLayout.heroMaxWidth,
+                        alignment: .leading
+                    )
+                timelineView
+                    .frame(minWidth: HeroLayout.timelineMinWidth)
             }
 
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                hero
+                    .frame(maxWidth: HeroLayout.heroMaxWidth, alignment: .leading)
+                timelineView
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Summary
+
+    /// 要約カード 4 枚と星空指数の内訳を、空の下のコンテンツ層へまとめる。
+    private func summarySection(
+        summary: NightSummary,
+        weather: DayWeatherSummary?,
+        isWeatherLoading: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             GlassEffectContainerCompat {
                 ViewThatFits(in: .horizontal) {
                     MacSummaryCardsWide(
@@ -199,9 +260,33 @@ struct DetailView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            if let index = viewModel.displayedStarGazingIndex {
+                IndexBreakdownView(
+                    index: index,
+                    lightPollutionViewModel: starGazingIndexCardViewModel,
+                    layout: .row
+                )
+                .padding(Layout.cardPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cardSurface()
+            }
+
+            // 帰属表示は直下の 9 日予報見出し行に集約する（同一画面で 2 つ並ぶのを避ける）。
         }
     }
 
+}
+
+private enum HeroLayout {
+    /// 空のグラデーションの高さ。ツールバー領域とヒーロー帯をちょうど覆う。
+    static let backgroundHeight: CGFloat = 300
+    /// 2 列レイアウトを維持するために必要な左カラムの最小幅。
+    static let heroMinWidth: CGFloat = 400
+    /// 左カラムの最大幅。これ以上広げると数値と見出しが離れすぎる。
+    static let heroMaxWidth: CGFloat = 440
+    /// 2 列レイアウトを維持するために必要な右カラムの最小幅。
+    static let timelineMinWidth: CGFloat = 468
 }
 
 private enum MacSummaryCardLayout {
@@ -227,17 +312,18 @@ private struct MacSummaryCardsWide: View {
             alignment: .leading,
             spacing: Spacing.xs
         ) {
-            DarkTimeCard(summary: summary, weather: weather)
+            DarkTimeCard(summary: summary, weather: weather, style: .compact)
             NightWeatherCard(
                 weather: weather,
                 isLoading: isWeatherLoading,
                 isForecastOutOfRange: isForecastOutOfRange,
                 isCoverageIncomplete: isCoverageIncomplete,
                 errorMessage: nil,
-                viewModel: weatherViewModel
+                viewModel: weatherViewModel,
+                style: .compact
             )
-            MoonPhaseCard(summary: summary)
-            MilkyWaySummaryCard(summary: summary)
+            MoonPhaseCard(summary: summary, style: .compact)
+            MilkyWaySummaryCard(summary: summary, style: .compact)
         }
     }
 }
@@ -258,17 +344,18 @@ private struct MacSummaryCardsWrapped: View {
             alignment: .leading,
             spacing: Spacing.xs
         ) {
-            DarkTimeCard(summary: summary, weather: weather)
+            DarkTimeCard(summary: summary, weather: weather, style: .compact)
             NightWeatherCard(
                 weather: weather,
                 isLoading: isWeatherLoading,
                 isForecastOutOfRange: isForecastOutOfRange,
                 isCoverageIncomplete: isCoverageIncomplete,
                 errorMessage: nil,
-                viewModel: weatherViewModel
+                viewModel: weatherViewModel,
+                style: .compact
             )
-            MoonPhaseCard(summary: summary)
-            MilkyWaySummaryCard(summary: summary)
+            MoonPhaseCard(summary: summary, style: .compact)
+            MilkyWaySummaryCard(summary: summary, style: .compact)
         }
     }
 }
@@ -291,8 +378,7 @@ private struct MacStarMapSheet: View {
             }
 
             Divider()
-            statusSection
-            controlsSection
+            bottomBar
         }
         .frame(minWidth: StarMapLayout.sheetMinWidth, minHeight: StarMapLayout.sheetMinHeight)
         .onDisappear {
@@ -308,12 +394,6 @@ private struct MacStarMapSheet: View {
 
             Spacer()
 
-            Button(action: viewModel.resetToNorth) {
-                Label("北を向く", systemImage: "arrow.up.circle")
-            }
-            .buttonStyle(.bordered)
-            .help(L10n.tr("北を向き、地平線を下端付近に合わせてリセット  [N]"))
-
             Button(action: closeSheet) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title3)
@@ -327,59 +407,130 @@ private struct MacStarMapSheet: View {
         .padding(.bottom, Spacing.sm)
     }
 
-    private var statusSection: some View {
-        HStack(spacing: Spacing.md) {
-            Label(
-                StarMapPresentation.azimuthName(for: viewModel.viewAzimuth)
-                    + String(format: " %.0f°", viewModel.viewAzimuth),
-                systemImage: "location.north.circle"
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-
-            Label(
-                L10n.format("仰角 %.0f°", viewModel.viewAltitude),
-                systemImage: "arrow.up.circle"
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-
-            Label(
-                L10n.format("視野 %.0f°", viewModel.fov),
-                systemImage: "viewfinder"
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-
-            Label(viewModel.terrainFetchState.statusText, systemImage: viewModel.terrainFetchState.systemImageName)
-                .font(.body)
-                .foregroundStyle(terrainStatusColor)
-                .accessibilityLabel(L10n.format("地形データ状態: %@", viewModel.terrainFetchState.statusText))
-
-            Spacer()
-
-            if viewModel.moonAltitude > 0 {
-                Label(L10n.format("月 %.0f°", viewModel.moonAltitude), systemImage: "moon.fill")
-                    .font(.body)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-
-            if !viewModel.meteorShowerRadiants.isEmpty {
-                let shower = viewModel.meteorShowerRadiants[0].shower
-                Label(L10n.format("%@活動中", shower.localizedName), systemImage: AppIcons.Astronomy.sparkles)
-                    .font(.body)
-                    .foregroundStyle(StarMapPalette.meteorAccent.opacity(0.9))
-            } else if let next = viewModel.nextMeteorShower {
-                Label(
-                    L10n.format("%@ まで%d日", next.shower.localizedName, next.daysUntilPeak),
-                    systemImage: AppIcons.Astronomy.sparkles
-                )
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            }
+    /// ステータスと操作を 1 本にまとめたシート下部のバー。
+    private var bottomBar: some View {
+        VStack(spacing: Spacing.xs) {
+            controlRow
+            timelineRow
         }
         .padding(.horizontal, Spacing.sm)
         .padding(.vertical, Spacing.xs)
+    }
+
+    /// 時刻・日付・ステータス・操作ボタンを 1 行に並べる。
+    private var controlRow: some View {
+        HStack(spacing: Spacing.xs) {
+            Text(viewModel.displayTimeString)
+                .font(.title2.weight(.semibold))
+                .monospacedDigit()
+
+            DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .fixedSize()
+
+            Spacer()
+
+            statusChips
+
+            Button {
+                viewModel.resetToNow()
+            } label: {
+                Text("現在")
+                    .font(.caption.weight(.semibold))
+            }
+            .glassButtonStyle()
+            .controlSize(.small)
+            .buttonBorderShape(.capsule)
+            .frame(height: StarMapLayout.macControlRowHeight)
+
+            Button(action: viewModel.resetToNorth) {
+                Text("北を向く")
+                    .font(.caption.weight(.semibold))
+            }
+            .glassButtonStyle()
+            .controlSize(.small)
+            .buttonBorderShape(.capsule)
+            .frame(height: StarMapLayout.macControlRowHeight)
+            .help(L10n.tr("北を向き、地平線を下端付近に合わせてリセット  [N]"))
+        }
+        .frame(minHeight: StarMapLayout.macControlRowHeight)
+    }
+
+    /// 方位・仰角・視野・地形・月・流星群を 1 行のチップ列にまとめる。
+    private var statusChips: some View {
+        HStack(spacing: StarMapLayout.macStatusChipSpacing) {
+            statusChip(
+                systemImage: "location.north.circle",
+                text: StarMapPresentation.azimuthName(for: viewModel.viewAzimuth)
+                    + String(format: " %.0f°", viewModel.viewAzimuth),
+                tint: .secondary
+            )
+
+            statusChip(
+                systemImage: "arrow.up.circle",
+                text: L10n.format("仰角 %.0f°", viewModel.viewAltitude),
+                tint: .secondary
+            )
+
+            statusChip(
+                systemImage: "viewfinder",
+                text: L10n.format("視野 %.0f°", viewModel.fov),
+                tint: .secondary
+            )
+
+            statusChip(
+                systemImage: viewModel.terrainFetchState.systemImageName,
+                text: viewModel.terrainFetchState.statusText,
+                tint: terrainStatusColor
+            )
+            .accessibilityLabel(L10n.format("地形データ状態: %@", viewModel.terrainFetchState.statusText))
+
+            if viewModel.moonAltitude > 0 {
+                statusChip(
+                    systemImage: "moon.fill",
+                    text: L10n.format("月 %.0f°", viewModel.moonAltitude),
+                    tint: .white.opacity(0.8)
+                )
+            }
+
+            if let meteorStatus {
+                statusChip(
+                    systemImage: AppIcons.Astronomy.sparkles,
+                    text: meteorStatus.text,
+                    tint: meteorStatus.tint
+                )
+            }
+        }
+        .lineLimit(1)
+        .layoutPriority(-1)
+    }
+
+    private func statusChip(systemImage: String, text: String, tint: Color) -> some View {
+        HStack(spacing: Spacing.xs / 2) {
+            Image(systemName: systemImage)
+            Text(text)
+        }
+        .font(.caption)
+        .foregroundStyle(tint)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 活動中の流星群を優先し、無ければ次の流星群を返す。
+    private var meteorStatus: (text: String, tint: Color)? {
+        if let radiant = viewModel.meteorShowerRadiants.first {
+            return (
+                L10n.format("%@活動中", radiant.shower.localizedName),
+                StarMapPalette.meteorAccent
+            )
+        }
+        if let next = viewModel.nextMeteorShower {
+            return (
+                L10n.format("%@ %d日後", next.shower.localizedName, next.daysUntilPeak),
+                .secondary
+            )
+        }
+        return nil
     }
 
     private var terrainStatusColor: Color {
@@ -393,46 +544,10 @@ private struct MacStarMapSheet: View {
         }
     }
 
-    private var controlsSection: some View {
-        VStack(spacing: Spacing.xs) {
-            HStack(spacing: Spacing.sm) {
-                Label("観測日", systemImage: AppIcons.Navigation.calendar)
-                    .foregroundStyle(.secondary)
-                    .font(.body)
-
-                DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .fixedSize()
-
-                Spacer()
-
-                Button("現在") {
-                    viewModel.resetToNow()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-            }
-
-            HStack(spacing: Spacing.sm) {
-                Label("時刻", systemImage: AppIcons.Astronomy.moonStars)
-                    .foregroundStyle(.secondary)
-                    .font(.body)
-
-                Slider(
-                    value: timeSliderBinding,
-                    in: 0...viewModel.timeSliderMaximumMinutes,
-                    step: 1,
-                    onEditingChanged: timeSliderEditingChanged
-                )
-                    .labelsHidden()
-
-                Text(viewModel.displayTimeString)
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .frame(width: StarMapLayout.timeLabelWidth, alignment: .trailing)
-            }
-
+    /// ヒートバーと時刻スライダーを重ねた時間軸行。
+    private var timelineRow: some View {
+        // macOS の Slider つまみは iOS より大きいため、iOS より広めの間隔を取る。
+        VStack(alignment: .leading, spacing: Spacing.xs) {
             ObservationHeatBarView(
                 observationConditionTimeline: viewModel.observationConditionTimeline,
                 sliderFraction: viewModel.timeSliderFraction,
@@ -441,8 +556,19 @@ private struct MacStarMapSheet: View {
                 currentSunAltitude: viewModel.sunAltitude,
                 currentTimeText: viewModel.displayTimeString
             )
+            // Slider のつまみ半径ぶん内側に寄せ、スライダーのトラック端と揃える。
+            .padding(.horizontal, StarMapLayout.macHeatBarTrackInset)
+
+            Slider(
+                value: timeSliderBinding,
+                in: 0...viewModel.timeSliderMaximumMinutes,
+                step: 1,
+                onEditingChanged: timeSliderEditingChanged
+            )
+            .labelsHidden()
+            .accessibilityLabel(L10n.tr("時刻"))
+            .accessibilityValue(viewModel.displayTimeString)
         }
-        .padding(Spacing.sm)
     }
 
     private func closeSheet() {

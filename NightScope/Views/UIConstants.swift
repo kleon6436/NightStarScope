@@ -16,18 +16,22 @@ enum Spacing {
 // MARK: - Layout
 
 enum Layout {
+    /// ウインドウ・シート・タブバー・浮遊パネルの角丸半径
+    static let containerCornerRadius: CGFloat = 20
     /// カードの角丸半径
-    static let cardCornerRadius: CGFloat = 12
+    static let cardCornerRadius: CGFloat = 16
+    /// カード内の行・地図・入力欄の角丸半径
+    static let innerCornerRadius: CGFloat = 12
     /// カードの内側パディング
     static let cardPadding: CGFloat = 16
-    /// 検索結果・小コンポーネントの角丸半径
+    /// チップ・ツールチップ・セルの角丸半径
     static let smallCornerRadius: CGFloat = 8
     /// サイドバー水平パディング
     static let sidebarHorizontalPadding: CGFloat = 16
     /// サイドバー垂直パディング
     static let sidebarVerticalPadding: CGFloat = 16
     /// 地図コンテナの角丸半径
-    static let mapCornerRadius: CGFloat = 8
+    static let mapCornerRadius: CGFloat = innerCornerRadius
     /// 地図コンテナ内の補助ラベル間隔
     static let mapInstructionSpacing: CGFloat = 8
     /// 地図コンテナの最小高
@@ -42,10 +46,6 @@ enum Layout {
     static let mapSeparatorLineWidth: CGFloat = 0.5
     /// サイドバー補助ラベルの固定幅
     static let sidebarStatusWidth: CGFloat = 64
-    /// 今後9日間グリッドカードの高さ
-    static let upcomingCardHeight: CGFloat = 170
-    /// グリッドのアイコン列幅
-    static let gridIconWidth: CGFloat = 14
 }
 
 enum SearchResultsLayout {
@@ -67,7 +67,25 @@ enum LayoutMacOS {
     /// サイドバー最大幅（コンテンツ300pt + 左右余白16pt）
     static let sidebarMaxWidth: CGFloat = 332
     /// 要約カード4枚の共通最小幅
-    static let summaryCardMinWidth: CGFloat = 280
+    static let summaryCardMinWidth: CGFloat = 220
+    /// 予報テーブル「夜」列の幅（日付 + 今夜/明夜のラベルが英語でも収まる幅）
+    static let forecastDateColumn: CGFloat = 150
+    /// 予報テーブル「雲量」列の幅
+    static let forecastCloudColumn: CGFloat = 64
+    /// 予報テーブル「天気」列の幅
+    static let forecastWeatherColumn: CGFloat = 140
+    /// 予報テーブル「月」列の幅（月相名 + 月明かり注記が英語でも収まる幅）
+    static let forecastMoonColumn: CGFloat = 210
+    /// 予報テーブル「暗夜開始」列の幅
+    static let forecastDarkColumn: CGFloat = 120
+    /// 予報テーブル「天の川ピーク」列の幅
+    static let forecastMilkyWayColumn: CGFloat = 130
+    /// 予報テーブル「星空指数」列の最小幅（可変列）
+    static let forecastIndexColumnMinWidth: CGFloat = 150
+    /// 予報テーブル「星空指数」列の最大幅。広いウィンドウで列が離れすぎないよう上限を置く。
+    static let forecastIndexColumnMaxWidth: CGFloat = 240
+    /// 予報テーブルの行の高さ
+    static let forecastRowHeight: CGFloat = 40
 }
 #endif
 

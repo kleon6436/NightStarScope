@@ -47,6 +47,11 @@ struct ForecastCardPresentation {
         return nil
     }
 
+    /// 天文薄明が終わる時刻 (HH:mm)。暗い時間が始まらない夜は nil。
+    var darkStartText: String? {
+        night.eveningDarkStart.map { $0.nightTimeString(timeZone: timeZone) }
+    }
+
     var cloudCoverText: String {
         guard isReliableWeather, let weather else { return "—" }
         return L10n.percent(weather.avgCloudCover)

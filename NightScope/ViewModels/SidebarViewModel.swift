@@ -53,9 +53,14 @@ final class SidebarViewModel: ObservableObject {
     @Published private(set) var hasLightPollutionFetchFailed: Bool
     @Published private(set) var selectedTimeZone: TimeZone
     @Published private(set) var favorites: [FavoriteLocation] = []
+    /// お気に入り地点ごとの今夜の星空指数。未取得の地点はキーを持たない。
+    @Published private(set) var favoriteTonightScores: [UUID: FavoriteTonightScore] = [:]
+    @Published private(set) var isRefreshingFavoriteScores = false
 
     let locationController: any LocationProviding
     let lightPollutionService: any LightPollutionProviding
+    /// 未注入（テスト等）の場合は指数表示を行わない。
+    let tonightScoreProvider: FavoriteTonightScoreProvider?
     private let favoriteStore: any FavoriteLocationStoring
     private var cancellables = Set<AnyCancellable>()
     private var pendingLocationUpdateBehavior: PendingLocationUpdateBehavior?
@@ -93,11 +98,13 @@ final class SidebarViewModel: ObservableObject {
     init(
         locationController: some LocationProviding,
         lightPollutionService: some LightPollutionProviding,
-        favoriteStore: some FavoriteLocationStoring = FavoriteLocationStore()
+        favoriteStore: some FavoriteLocationStoring = FavoriteLocationStore(),
+        tonightScoreProvider: FavoriteTonightScoreProvider? = nil
     ) {
         self.locationController = locationController
         self.lightPollutionService = lightPollutionService
         self.favoriteStore = favoriteStore
+        self.tonightScoreProvider = tonightScoreProvider
         self.searchState = locationController.searchState
         self.isLocating = locationController.isLocating
         self.locationError = locationController.locationError
@@ -169,6 +176,15 @@ final class SidebarViewModel: ObservableObject {
 
         lightPollutionService.fetchFailedPublisher
             .sink { [weak self] in self?.hasLightPollutionFetchFailed = $0 }
+            .store(in: &cancellables)
+
+        // FavoriteTonightScoreProvider も @MainActor なので receive(on:) は不要。
+        tonightScoreProvider?.$scoresByFavoriteID
+            .sink { [weak self] in self?.favoriteTonightScores = $0 }
+            .store(in: &cancellables)
+
+        tonightScoreProvider?.$isRefreshing
+            .sink { [weak self] in self?.isRefreshingFavoriteScores = $0 }
             .store(in: &cancellables)
     }
 
@@ -357,6 +373,12 @@ final class SidebarViewModel: ObservableObject {
     func removeFavorites(at offsets: IndexSet) {
         favorites.remove(atOffsets: offsets)
         favoriteStore.save(favorites)
+    }
+
+    /// 表示中のお気に入りについて、キャッシュが古いものだけ今夜の指数を再計算する。
+    func refreshFavoriteScoresIfNeeded(force: Bool = false) async {
+        guard let tonightScoreProvider else { return }
+        await tonightScoreProvider.refreshIfNeeded(favorites: favorites, force: force)
     }
 
     func selectFavorite(_ favorite: FavoriteLocation) {

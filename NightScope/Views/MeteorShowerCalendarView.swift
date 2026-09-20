@@ -224,7 +224,7 @@ private struct ShowerTimelineRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .cardSurface(cornerRadius: Layout.smallCornerRadius)
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
         .offset(y: CalendarStyle.rowHeight - 4)
         .padding(.trailing, Spacing.xs)
