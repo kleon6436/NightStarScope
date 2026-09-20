@@ -188,13 +188,22 @@ private struct WeatherSymbolVisual: View {
 /// - full: 設定「データソースとクレジット」用（マーク + リンク文言）
 struct WeatherAttributionBadge: View {
     enum Style { case compact, onSky, full }
+    /// マークの高さ。画像はロゴ込みで文字より背が高いため、隣接する文字の cap height に合わせて小さめに取る。
+    enum Size { case caption, headline }
     /// `WeatherAttribution.legalPageURL` が取得できない場合の予備リンク。
     private static let legalURL = URL(string: "https://developer.apple.com/weatherkit/data-source-attribution/")!
 
     var style: Style = .compact
+    var size: Size = .caption
 
     @EnvironmentObject private var attributionService: WeatherAttributionService
     @Environment(\.colorScheme) private var colorScheme
+    @ScaledMetric(relativeTo: .caption) private var captionMarkHeight = AttributionMetrics.captionMarkHeight
+    @ScaledMetric(relativeTo: .title3) private var headlineMarkHeight = AttributionMetrics.headlineMarkHeight
+
+    private var markHeight: CGFloat {
+        size == .headline ? headlineMarkHeight : captionMarkHeight
+    }
 
     var body: some View {
         Group {
@@ -203,7 +212,7 @@ struct WeatherAttributionBadge: View {
                 case .compact, .onSky:
                     Link(destination: data.legalPageURL) {
                         HStack(spacing: AttributionMetrics.chevronSpacing) {
-                            combinedMark(url: markURL(for: data), height: AttributionMetrics.markHeight)
+                            combinedMark(url: markURL(for: data), height: markHeight)
                             Image(systemName: "chevron.right")
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(secondaryColor)
@@ -288,8 +297,10 @@ struct WeatherAttributionBadge: View {
     }
 
     private enum AttributionMetrics {
-        /// Apple 提供のマーク画像はそのまま使い、読める最小高さに揃える。
-        static let markHeight: CGFloat = 14
+        /// Apple 提供のマーク画像はそのまま使う。caption（13pt）と並ぶときは cap height 相当の 10pt、
+        /// title3 Bold（15pt）の見出し行に並ぶときは 12pt で、隣の文字と同じ高さに見せる。
+        static let captionMarkHeight: CGFloat = 10
+        static let headlineMarkHeight: CGFloat = 12
         static let fullMarkHeight: CGFloat = 18
         static let chevronSpacing: CGFloat = 4
         static let fullSpacing: CGFloat = 4

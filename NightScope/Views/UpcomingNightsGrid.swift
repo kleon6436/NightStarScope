@@ -39,7 +39,7 @@ struct UpcomingNightsGrid: View {
                     .accessibilityLabel(L10n.tr("今日に移動"))
             }
             if !viewModel.weatherByDate.isEmpty {
-                WeatherAttributionBadge()
+                WeatherAttributionBadge(size: .headline)
             }
         }
     }
