@@ -211,7 +211,7 @@ struct iOSTodayView: View {
                     )
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(HeaderStyle.primaryTextColor)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.9)
                 }
                 .layoutPriority(1)

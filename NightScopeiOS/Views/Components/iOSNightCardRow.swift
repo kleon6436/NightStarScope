@@ -17,6 +17,10 @@ struct iOSNightCardRow: View {
     var showsHourlyStrip: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// アクセシビリティ文字サイズでは固定幅の 4 列が収まらないため、2 段組みに切り替える。
+    private var usesStackedLayout: Bool { dynamicTypeSize.isAccessibilitySize }
 
     private var presentation: ForecastCardPresentation {
         ForecastCardPresentation(
@@ -72,12 +76,27 @@ struct iOSNightCardRow: View {
 
     // MARK: - Main Row
 
+    @ViewBuilder
     private var mainRow: some View {
-        HStack(alignment: .center, spacing: Spacing.xs) {
-            dateColumn
-            cloudColumn
-            indexColumn
-            trailingColumn
+        if usesStackedLayout {
+            VStack(alignment: .leading, spacing: IOSDesignTokens.NightRow.contentSpacing) {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+                    dateColumn
+                    Spacer(minLength: Spacing.xs)
+                    trailingColumn
+                }
+                HStack(alignment: .center, spacing: Spacing.sm) {
+                    cloudColumn
+                    indexColumn
+                }
+            }
+        } else {
+            HStack(alignment: .center, spacing: Spacing.xs) {
+                dateColumn
+                cloudColumn
+                indexColumn
+                trailingColumn
+            }
         }
     }
 
@@ -93,7 +112,7 @@ struct iOSNightCardRow: View {
                     .lineLimit(1)
             }
         }
-        .frame(width: IOSDesignTokens.NightRow.dateColumnWidth, alignment: .leading)
+        .frame(width: usesStackedLayout ? nil : IOSDesignTokens.NightRow.dateColumnWidth, alignment: .leading)
     }
 
     private var cloudColumn: some View {
@@ -107,7 +126,7 @@ struct iOSNightCardRow: View {
                 .lineLimit(1)
                 .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
         }
-        .frame(width: IOSDesignTokens.NightRow.cloudColumnWidth, alignment: .leading)
+        .frame(width: usesStackedLayout ? nil : IOSDesignTokens.NightRow.cloudColumnWidth, alignment: .leading)
     }
 
     @ViewBuilder
@@ -165,7 +184,7 @@ struct iOSNightCardRow: View {
                     .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
             }
         }
-        .frame(width: IOSDesignTokens.NightRow.trailingColumnWidth, alignment: .trailing)
+        .frame(width: usesStackedLayout ? nil : IOSDesignTokens.NightRow.trailingColumnWidth, alignment: .trailing)
     }
 
     // MARK: - Hourly Strip

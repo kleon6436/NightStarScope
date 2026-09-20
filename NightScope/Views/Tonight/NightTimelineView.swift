@@ -12,13 +12,21 @@ struct NightTimelineView: View {
 
     let model: NightTimelineModel
     var style: Style = .onSurface
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// アクセシビリティ文字サイズでは 5 つの目盛りが重なるため、両端だけを示す。
+    private var isAccessibilitySize: Bool { dynamicTypeSize.isAccessibilitySize }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.rowSpacing) {
-            GeometryReader { proxy in
-                tickLabels(width: proxy.size.width)
+            if isAccessibilitySize {
+                edgeTickLabels
+            } else {
+                GeometryReader { proxy in
+                    tickLabels(width: proxy.size.width)
+                }
+                .frame(height: Metrics.tickRowHeight)
             }
-            .frame(height: Metrics.tickRowHeight)
 
             track
 
@@ -30,6 +38,21 @@ struct NightTimelineView: View {
     }
 
     // MARK: - Tick Labels
+
+    /// 両端の目盛りだけを左右に配置する（アクセシビリティ文字サイズ用）。
+    private var edgeTickLabels: some View {
+        HStack {
+            if let first = model.tickLabels.first {
+                Text(first.text)
+            }
+            Spacer(minLength: Spacing.xs)
+            if model.tickLabels.count > 1, let last = model.tickLabels.last {
+                Text(last.text)
+            }
+        }
+        .font(.caption2.monospacedDigit())
+        .foregroundStyle(secondaryColor)
+    }
 
     private func tickLabels(width: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
@@ -167,16 +190,28 @@ struct NightTimelineView: View {
 
     // MARK: - Legend
 
+    @ViewBuilder
     private var legend: some View {
-        HStack(spacing: Spacing.xs) {
-            ForEach(Array(legendTexts.enumerated()), id: \.offset) { _, text in
-                Text(text)
+        if isAccessibilitySize {
+            // 大きな文字では 1 行に収まらないので縦に並べ、折り返しも許す。
+            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                ForEach(Array(legendTexts.enumerated()), id: \.offset) { _, text in
+                    Text(text)
+                }
             }
+            .font(.caption)
+            .foregroundStyle(secondaryColor)
+        } else {
+            HStack(spacing: Spacing.xs) {
+                ForEach(Array(legendTexts.enumerated()), id: \.offset) { _, text in
+                    Text(text)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(secondaryColor)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
         }
-        .font(.caption)
-        .foregroundStyle(secondaryColor)
-        .lineLimit(1)
-        .minimumScaleFactor(0.75)
     }
 
     private var legendTexts: [String] {
