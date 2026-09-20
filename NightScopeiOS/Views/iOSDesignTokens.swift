@@ -41,6 +41,9 @@ enum IOSDesignTokens {
         static let minimumTapTarget: CGFloat = 44
         /// Slider のつまみ半径ぶんの内側余白。ヒートバーのトラック端を Slider に揃える。
         static let heatBarTrackInset: CGFloat = 14
+        /// popover 内の graphical DatePicker に与える固定枠（月表示 1 か月分が収まる大きさ）。
+        static let datePickerPopoverWidth: CGFloat = 320
+        static let datePickerPopoverHeight: CGFloat = 340
         /// ヒートバーと Slider の間隔。ひと続きの時間軸に見せるため詰める。
         static let timelineSpacing: CGFloat = Spacing.xs / 2
     }

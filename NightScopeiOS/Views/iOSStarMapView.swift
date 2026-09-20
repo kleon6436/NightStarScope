@@ -192,9 +192,15 @@ struct iOSStarMapView: View {
         .accessibilityLabel(L10n.tr("観測日"))
         .accessibilityValue(Text(viewModel.observationDate, format: .dateTime.year().month().day()))
         .popover(isPresented: $isPresentingDatePicker) {
+            // graphical の DatePicker は固有サイズを持たず、popover 内では極端に細く潰れるため
+            // カレンダーが収まる固定枠を与える。
             DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
                 .labelsHidden()
                 .datePickerStyle(.graphical)
+                .frame(
+                    width: IOSDesignTokens.StarMap.datePickerPopoverWidth,
+                    height: IOSDesignTokens.StarMap.datePickerPopoverHeight
+                )
                 .padding(Spacing.sm)
                 .presentationCompactAdaptation(.popover)
         }
