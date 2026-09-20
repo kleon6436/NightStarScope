@@ -260,9 +260,6 @@
         }
       }
     },
-    "%@/100" : {
-
-    },
     "%@から%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -331,9 +328,6 @@
           }
         }
       }
-    },
-    "%lld/100" : {
-
     },
     "+ 登録" : {
       "extractionState" : "manual",
