@@ -3,14 +3,50 @@ import SwiftUI
 /// 月相と月齢から観測への影響を示すカード。
 struct MoonPhaseCard: View {
     let summary: NightSummary
+    var style: SummaryCardStyle = .regular
 
     private var moonAgeDays: Double {
         summary.moonPhaseAtMidnight * 29.53
     }
 
-    var body: some View {
-        let moonRecommendationText = summary.isMoonFavorable ? L10n.tr("撮影に適しています") : L10n.tr("月明かりに注意")
+    private var moonRecommendationText: String {
+        summary.isMoonFavorable ? L10n.tr("撮影に適しています") : L10n.tr("月明かりに注意")
+    }
 
+    var body: some View {
+        switch style {
+        case .regular: regularBody
+        case .compact: compactBody
+        }
+    }
+
+    // MARK: - Compact
+
+    private var compactBody: some View {
+        MetricCard(icon: summary.moonPhaseIcon, title: "月の状態", tint: .indigo) {
+            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                Text(summary.moonPhaseName)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text(L10n.format("月齢 %.1f日", moonAgeDays))
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text(moonRecommendationText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    // MARK: - Regular
+
+    private var regularBody: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             CardHeader(icon: summary.moonPhaseIcon, iconColor: .indigo, title: "月の状態")
             HStack(alignment: .center, spacing: Spacing.sm) {
@@ -43,15 +79,17 @@ struct MoonPhaseCard: View {
             }
             .frame(minHeight: CardVisual.metricVisualHeight, alignment: .leading)
         }
-        .glassCard()
+        .contentCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            L10n.format(
-                "月の状態: %@、月齢%.1f日。%@",
-                summary.moonPhaseName,
-                moonAgeDays,
-                moonRecommendationText
-            )
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        L10n.format(
+            "月の状態: %@、月齢%.1f日。%@",
+            summary.moonPhaseName,
+            moonAgeDays,
+            moonRecommendationText
         )
     }
 }

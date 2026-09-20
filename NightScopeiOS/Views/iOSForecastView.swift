@@ -6,13 +6,25 @@ struct iOSForecastRowModel {
     let night: NightSummary
     let index: StarGazingIndex?
     let weather: DayWeatherSummary?
-    let rangeText: String
     let isReliableWeather: Bool
     let hasPartialWeather: Bool
     let isForecastOutOfRange: Bool
     let hasWeatherLoadError: Bool
     let isSelected: Bool
     let accessibilityLabel: String
+
+    /// 短縮日付や薄明開始時刻など、カード表示用の文言。
+    var presentation: ForecastCardPresentation {
+        ForecastCardPresentation(
+            night: night,
+            weather: weather,
+            timeZone: night.timeZone,
+            isReliableWeather: isReliableWeather,
+            hasPartialWeather: hasPartialWeather,
+            isForecastOutOfRange: isForecastOutOfRange,
+            hasWeatherLoadError: hasWeatherLoadError
+        )
+    }
 }
 
 @MainActor
@@ -31,7 +43,6 @@ struct iOSForecastViewModel {
     func rowModel(for night: NightSummary, using gridViewModel: UpcomingNightsGridViewModel) -> iOSForecastRowModel {
         let index = gridViewModel.starGazingIndex(for: night.date)
         let weather = gridViewModel.weatherSummary(for: night.date)
-        let rangeText = gridViewModel.observableRangeText(night: night, weather: weather)
         let isReliableWeather = gridViewModel.hasReliableWeatherData(for: night, weather: weather)
         let hasPartialWeather = gridViewModel.hasPartialWeatherData(for: night, weather: weather)
         let isForecastOutOfRange = gridViewModel.isForecastOutOfRange(for: night, weather: weather)
@@ -40,7 +51,6 @@ struct iOSForecastViewModel {
             night: night,
             index: index,
             weather: weather,
-            rangeText: rangeText,
             isReliableWeather: isReliableWeather,
             hasPartialWeather: hasPartialWeather,
             isForecastOutOfRange: isForecastOutOfRange,
@@ -91,11 +101,6 @@ struct iOSForecastView: View {
                             location: location,
                             timeZone: detailViewModel.selectedTimeZone
                         )
-                    }
-                    if displayState == .content {
-                        WeatherAttributionBadge()
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .padding(.horizontal, Spacing.xs)
                     }
                 }
                 .padding(.horizontal, Spacing.sm)
@@ -175,12 +180,80 @@ struct iOSForecastView: View {
     private var forecastList: some View {
         let nightItems = Array(gridViewModel.displayNights.enumerated())
 
-        return LazyVStack(alignment: .leading, spacing: IOSDesignTokens.Forecast.rowSpacing) {
-            ForEach(nightItems, id: \.offset) { _, night in
-                forecastRow(for: night)
+        return VStack(alignment: .leading, spacing: IOSDesignTokens.Forecast.calloutSpacing) {
+            if let pick = bestNightPick {
+                bestNightCallout(pick: pick)
             }
+            LazyVStack(alignment: .leading, spacing: IOSDesignTokens.Forecast.rowSpacing) {
+                ForEach(nightItems, id: \.offset) { _, night in
+                    forecastRow(for: night)
+                }
+            }
+            // 天気データを含む一覧の直下に帰属表示を置く（WeatherKit 利用規約）。
+            WeatherAttributionBadge()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, Spacing.xs)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 強調する価値のある夜。採点済みの候補が 1 夜だけの一覧では「いちばんの夜」に意味がないため出さない。
+    private var bestNightPick: BestNightPick? {
+        let candidates = gridViewModel.bestNightCandidates()
+        guard candidates.filter({ $0.index != nil }).count >= IOSDesignTokens.Forecast.calloutMinimumNightCount,
+              let pick = BestNightPicker.pick(nights: candidates),
+              pick.isWorthHighlighting else { return nil }
+        return pick
+    }
+
+    /// 一覧の先頭で「この期間の狙い目」を 1 枚に要約するカード。タップ操作は行と同じ。
+    private func bestNightCallout(pick: BestNightPick) -> some View {
+        let rowModel = viewModel.rowModel(for: pick.summary, using: gridViewModel)
+        let presentation = rowModel.presentation
+        let timeText = pick.windowText ?? presentation.darkStartText
+        let headline = [presentation.shortDateLabel, timeText]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        let calloutShape = RoundedRectangle(cornerRadius: Layout.cardCornerRadius, style: .continuous)
+
+        return Button {
+            viewModel.selectNight(pick.summary.date, using: gridViewModel, selectedTab: $selectedTab)
+        } label: {
+            HStack(alignment: .top, spacing: Spacing.xs) {
+                Image(systemName: AppIcons.Astronomy.starFill)
+                    .font(.title3)
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: IOSDesignTokens.NightRow.tightLineSpacing) {
+                    Text(L10n.tr("この9日でいちばんの狙い目"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    Text(headline)
+                        .font(.headline.monospacedDigit())
+                        .lineLimit(1)
+                        .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
+                    Text(pick.reasonText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Layout.cardPadding)
+            .background(calloutShape.fill(Color.accentColor.opacity(IOSDesignTokens.Forecast.calloutTintOpacity)))
+            .cardSurface()
+            .overlay(
+                calloutShape.stroke(
+                    Color.accentColor.opacity(IOSDesignTokens.Forecast.calloutStrokeOpacity),
+                    lineWidth: IOSDesignTokens.Forecast.calloutStrokeWidth
+                )
+            )
+        }
+        .buttonStyle(ForecastRowButtonStyle())
+        .accessibilityLabel(rowModel.accessibilityLabel)
+        .accessibilityHint(L10n.tr("タップして今夜タブで詳細を表示"))
     }
 
     private func forecastRow(for night: NightSummary) -> some View {
@@ -193,12 +266,12 @@ struct iOSForecastView: View {
                 night: rowModel.night,
                 index: rowModel.index,
                 weather: rowModel.weather,
-                rangeText: rowModel.rangeText,
                 isReliableWeather: rowModel.isReliableWeather,
                 hasPartialWeather: rowModel.hasPartialWeather,
                 isForecastOutOfRange: rowModel.isForecastOutOfRange,
                 hasWeatherLoadError: rowModel.hasWeatherLoadError,
-                isSelected: rowModel.isSelected
+                isSelected: rowModel.isSelected,
+                showsHourlyStrip: rowModel.isSelected
             )
         }
         .buttonStyle(ForecastRowButtonStyle())

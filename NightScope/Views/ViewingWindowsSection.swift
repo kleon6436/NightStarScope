@@ -3,11 +3,52 @@ import SwiftUI
 /// 天の川のベストウィンドウだけを抜き出す要約カード。
 struct MilkyWaySummaryCard: View {
     let summary: NightSummary
+    var style: SummaryCardStyle = .regular
 
     private let viewModel = ViewingWindowsSectionViewModel()
     private var bestWindow: ViewingWindow? { summary.bestViewingWindow }
 
     var body: some View {
+        switch style {
+        case .regular: regularBody
+        case .compact: compactBody
+        }
+    }
+
+    // MARK: - Compact
+
+    private var compactBody: some View {
+        MetricCard(icon: AppIcons.Astronomy.sparkles, title: "天の川", tint: .indigo) {
+            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                if let window = bestWindow {
+                    Text(viewModel.directionText(window))
+                        .font(.title3.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Text(viewModel.windowTimeText(window, timeZone: summary.timeZone))
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(viewModel.altitudeText(window))
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text(L10n.tr("観測に適した時間帯がありません"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    // MARK: - Regular
+
+    private var regularBody: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             CardHeader(icon: AppIcons.Astronomy.sparkles, iconColor: .indigo, title: "天の川")
             if let window = bestWindow {
@@ -16,12 +57,14 @@ struct MilkyWaySummaryCard: View {
                 ViewingWindowsEmptyStateCardContent()
             }
         }
-        .glassCard()
+        .contentCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            bestWindow.map { viewModel.accessibilityDescription(for: $0, timeZone: summary.timeZone) }
-                ?? L10n.tr("観測に適した時間帯がありません")
-        )
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        bestWindow.map { viewModel.accessibilityDescription(for: $0, timeZone: summary.timeZone) }
+            ?? L10n.tr("観測に適した時間帯がありません")
     }
 }
 

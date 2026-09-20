@@ -46,6 +46,9 @@
         }
       }
     },
+    "/ 100" : {
+
+    },
     "%.1f 等星" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -115,6 +118,17 @@
         }
       }
     },
+    "%@ %d日後" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ in %2$d d"
+          }
+        }
+      }
+    },
     "%@ まで%d日" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -159,6 +173,28 @@
         }
       }
     },
+    "%@・雲量%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ cloud cover"
+          }
+        }
+      }
+    },
+    "%@、今夜の星空指数 %d点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, tonight's stargazing score %d"
+          }
+        }
+      }
+    },
     "%@、出 %@、南中 %@、没 %@、最大高度 %@度" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -166,6 +202,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@, rises %2$@, transits %3$@, sets %4$@, max altitude %5$@ degrees"
+          }
+        }
+      }
+    },
+    "%@、指数未取得" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, score unavailable"
           }
         }
       }
@@ -213,9 +260,6 @@
         }
       }
     },
-    "%@/100" : {
-
-    },
     "%@から%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -223,6 +267,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ to %@"
+          }
+        }
+      }
+    },
+    "%@で雲量%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ with %2$@ cloud cover"
           }
         }
       }
@@ -273,9 +328,6 @@
           }
         }
       }
-    },
-    "%lld/100" : {
-
     },
     "+ 登録" : {
       "extractionState" : "manual",
@@ -659,23 +711,6 @@
         }
       }
     },
-    "observation.mode.breakdown.note" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Breakdown shows pre-adjustment values"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内訳はモード補正前の値"
-          }
-        }
-      }
-    },
     "observation.mode.change" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1029,6 +1064,23 @@
     },
     "Public Domain" : {
 
+    },
+    "reason.separator" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。"
+          }
+        }
+      }
     },
     "S" : {
 
@@ -2306,6 +2358,17 @@
         }
       }
     },
+    "この9日でいちばんの狙い目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best night in the next 9 days"
+          }
+        }
+      }
+    },
     "この日の最良地点" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2754,28 +2817,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap to open details in the Tonight tab"
-          }
-        }
-      }
-    },
-    "ダブルタップで折り畳む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double-tap to collapse"
-          }
-        }
-      }
-    },
-    "ダブルタップで詳細を表示" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double-tap for details"
           }
         }
       }
@@ -3957,6 +3998,39 @@
         }
       }
     },
+    "今夜はやや不向き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not ideal tonight"
+          }
+        }
+      }
+    },
+    "今夜は星見に不向き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poor night for stargazing"
+          }
+        }
+      }
+    },
+    "今夜は星見向き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good night for stargazing"
+          }
+        }
+      }
+    },
     "今後9日間の予報" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4118,17 +4192,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Light Pollution"
-          }
-        }
-      }
-    },
-    "光害 %@。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Light pollution %@."
           }
         }
       }
@@ -4992,6 +5055,28 @@
         }
       }
     },
+    "夜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Night"
+          }
+        }
+      }
+    },
+    "夜のタイムライン" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Night timeline"
+          }
+        }
+      }
+    },
     "夜空を表示中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5069,6 +5154,28 @@
         }
       }
     },
+    "天の川 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Milky Way %@"
+          }
+        }
+      }
+    },
+    "天の川ピーク" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MW peak"
+          }
+        }
+      }
+    },
     "天候・月明かりを考慮" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5120,6 +5227,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Astronomical twilight is in progress"
+          }
+        }
+      }
+    },
+    "天気" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weather"
           }
         }
       }
@@ -5223,6 +5341,17 @@
         }
       }
     },
+    "天気データなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No weather data"
+          }
+        }
+      }
+    },
     "天気データの解析に失敗しました: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5241,6 +5370,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Using dark hours only"
+          }
+        }
+      }
+    },
+    "天気データ提供: Apple Weather。データソースの法的情報を開く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weather data by Apple Weather. Opens the data source attribution page"
           }
         }
       }
@@ -5355,17 +5495,6 @@
         }
       }
     },
-    "展開中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expanded"
-          }
-        }
-      }
-    },
     "市民薄明中です" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5417,17 +5546,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Planets"
-          }
-        }
-      }
-    },
-    "折り畳み中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Collapsed"
           }
         }
       }
@@ -5542,6 +5660,17 @@
         }
       }
     },
+    "明るい月明かりあり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bright moonlight"
+          }
+        }
+      }
+    },
     "明夜" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5652,17 +5781,6 @@
         }
       }
     },
-    "星空 %d/%d。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sky %d/%d."
-          }
-        }
-      }
-    },
     "星空データを計算中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5751,13 +5869,13 @@
         }
       }
     },
-    "星空指数 %d点、%@。" : {
+    "星空指数 %d点、%@。%@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stargazing score %d, %@."
+            "value" : "Stargazing index %1$d points, %2$@. %3$@"
           }
         }
       }
@@ -5872,6 +5990,50 @@
         }
       }
     },
+    "暗夜 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark %@"
+          }
+        }
+      }
+    },
+    "暗夜 %@（%@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "暗夜%@h" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@h dark"
+          }
+        }
+      }
+    },
+    "暗夜開始" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark starts"
+          }
+        }
+      }
+    },
     "曇り" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5879,6 +6041,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cloudy"
+          }
+        }
+      }
+    },
+    "月" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon"
           }
         }
       }
@@ -6015,6 +6188,17 @@
         }
       }
     },
+    "月明かりはほぼなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Almost no moonlight"
+          }
+        }
+      }
+    },
     "月齢" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6022,6 +6206,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Moon age"
+          }
+        }
+      }
+    },
+    "月齢 %.1f日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon age %.1f days"
           }
         }
       }
@@ -6077,6 +6272,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If unavailable, some displays and calculations are simplified."
+          }
+        }
+      }
+    },
+    "条件はまずまず" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conditions are fair"
           }
         }
       }
@@ -6180,17 +6386,6 @@
         }
       }
     },
-    "次: %@(%d日後)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next: %@ (%d days)"
-          }
-        }
-      }
-    },
     "次の月" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6209,17 +6404,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Weather"
-          }
-        }
-      }
-    },
-    "気象 %@。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Weather %@."
           }
         }
       }
@@ -6358,6 +6542,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mars"
+          }
+        }
+      }
+    },
+    "狙い目: %@ %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best bet: %1$@ %2$@"
           }
         }
       }
@@ -6560,6 +6755,17 @@
         }
       }
     },
+    "結露リスク高" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High dew risk"
+          }
+        }
+      }
+    },
     "絶好の星空" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6567,6 +6773,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Excellent"
+          }
+        }
+      }
+    },
+    "絶好の星空日和" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perfect night for stargazing"
           }
         }
       }
@@ -7000,6 +7217,17 @@
         }
       }
     },
+    "計算中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calculating"
+          }
+        }
+      }
+    },
     "計算中…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7040,17 +7268,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Settings"
-          }
-        }
-      }
-    },
-    "評価: 星%dつ（5段階）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rating: %d stars out of 5"
           }
         }
       }
@@ -7183,6 +7400,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Snow"
+          }
+        }
+      }
+    },
+    "雲 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clouds %@"
+          }
+        }
+      }
+    },
+    "雲量" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clouds"
+          }
+        }
+      }
+    },
+    "雲量%@・暗夜%@h" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ clouds · %2$@h dark"
           }
         }
       }

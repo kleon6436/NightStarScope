@@ -1,260 +1,272 @@
+#if os(macOS)
 import SwiftUI
 
-/// 今後 9 日分の夜間条件をカードグリッドで並べるビュー。
+/// 今後 9 日分の夜間条件を 1 行 1 夜の表で並べるビュー。
+/// - Note: 表は天気データを含むため、スクロール位置に関わらず見えるよう見出し行にも帰属表示を置く。
 struct UpcomingNightsGrid: View {
     @ObservedObject var viewModel: UpcomingNightsGridViewModel
-    private let placeholderCardCount = 4
+    private let placeholderRowCount = 5
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text("今後9日間の予報")
-                    .font(.title3.bold())
-                if viewModel.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel(L10n.tr("今後9日間の予報を更新中"))
-                }
-                Spacer()
-                if !viewModel.isSelectedDateToday() {
-                    Button("今日") { viewModel.setSelectedDate(Date()) }
-                        .glassButtonStyle()
-                        .accessibilityLabel(L10n.tr("今日に移動"))
-                }
-                WeatherAttributionBadge()
+            sectionHeader
+            content
+        }
+    }
+
+    // MARK: - Section Header
+
+    private var sectionHeader: some View {
+        HStack(spacing: Spacing.xs) {
+            Text("今後9日間の予報")
+                .font(.title3.bold())
+            if viewModel.isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(L10n.tr("今後9日間の予報を更新中"))
             }
-
-            let displayNights = viewModel.displayNights
-
-            if viewModel.isLoading && displayNights.isEmpty {
-                placeholderGrid
-            } else if displayNights.isEmpty {
-                ContentUnavailableView(
-                    "予報データがありません",
-                    systemImage: AppIcons.Astronomy.moonZzz,
-                    description: Text("今後9日間の夜間予報を表示できませんでした")
-                )
-            } else {
-                let nightItems = Array(displayNights.enumerated())
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: Spacing.xs)], spacing: Spacing.xs) {
-                    ForEach(nightItems, id: \.offset) { _, night in
-                        upcomingNightCard(night: night)
-                    }
-                }
+            if let highlight = viewModel.bestNightHighlightText() {
+                Text(highlight)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .lineLimit(1)
+                    .panelTooltip(highlight)
+            }
+            Spacer()
+            if !viewModel.isSelectedDateToday() {
+                Button("今日") { viewModel.setSelectedDate(Date()) }
+                    .glassButtonStyle()
+                    .accessibilityLabel(L10n.tr("今日に移動"))
+            }
+            if !viewModel.weatherByDate.isEmpty {
+                WeatherAttributionBadge(size: .headline)
             }
         }
     }
 
-    private func upcomingNightCard(night: NightSummary) -> some View {
-        let weather = viewModel.weatherSummary(for: night.date)
-        let presentation = ForecastCardPresentation(
-            night: night,
-            weather: weather,
-            timeZone: viewModel.selectedTimeZone,
-            isReliableWeather: viewModel.hasReliableWeatherData(for: night, weather: weather),
-            hasPartialWeather: viewModel.hasPartialWeatherData(for: night, weather: weather),
-            isForecastOutOfRange: viewModel.isForecastOutOfRange(for: night, weather: weather),
-            hasWeatherLoadError: viewModel.weatherErrorMessage != nil
-        )
-        let isSelected = viewModel.isDateSelected(night.date)
-        let index = viewModel.starGazingIndex(for: night.date)
+    // MARK: - Table
 
-        return VStack(alignment: .leading, spacing: Spacing.xs) {
-            cardHeader(night: night, presentation: presentation)
-            if presentation.weatherDetailText != nil, let weather {
-                weatherDetailRow(weather: weather, presentation: presentation)
-            } else if let detailText = presentation.weatherDetailText {
-                weatherStatusRow(detailText: detailText)
-            }
-            moonPhaseRow(night: night)
+    @ViewBuilder
+    private var content: some View {
+        let displayNights = viewModel.displayNights
 
-            Divider()
-
-            observationColumns(night: night, weather: weather, index: index)
+        if viewModel.isLoading && displayNights.isEmpty {
+            table(nights: (0..<placeholderRowCount).map(viewModel.placeholderNight(at:)))
+                .redacted(reason: .placeholder)
+                .allowsHitTesting(false)
+        } else if displayNights.isEmpty {
+            ContentUnavailableView(
+                "予報データがありません",
+                systemImage: AppIcons.Astronomy.moonZzz,
+                description: Text("今後9日間の夜間予報を表示できませんでした")
+            )
+        } else {
+            table(nights: displayNights)
         }
-        .padding(Layout.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(height: Layout.upcomingCardHeight)
-        .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Layout.cardCornerRadius)
-                .stroke(Color.accentColor, lineWidth: isSelected ? 1.5 : 0)
-        )
+    }
+
+    /// 列幅が固定のため、ウィンドウが狭いときだけ横スクロールへ退避する。
+    private func table(nights: [NightSummary]) -> some View {
+        ViewThatFits(in: .horizontal) {
+            tableBody(nights: nights)
+            ScrollView(.horizontal) {
+                tableBody(nights: nights)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private func tableBody(nights: [NightSummary]) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+            headerRow
+            LazyVStack(alignment: .leading, spacing: TableMetrics.rowSpacing) {
+                ForEach(Array(nights.enumerated()), id: \.offset) { offset, night in
+                    row(night: night)
+                    if offset < nights.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: TableMetrics.minimumWidth, alignment: .leading)
+    }
+
+    private var headerRow: some View {
+        HStack(spacing: Spacing.xs) {
+            Text("夜")
+                .frame(width: LayoutMacOS.forecastDateColumn, alignment: .leading)
+            Text("雲量")
+                .frame(width: LayoutMacOS.forecastCloudColumn, alignment: .leading)
+            Text("天気")
+                .frame(width: LayoutMacOS.forecastWeatherColumn, alignment: .leading)
+            Text("月")
+                .frame(width: LayoutMacOS.forecastMoonColumn, alignment: .leading)
+            Text("星空指数")
+                .frame(
+                    minWidth: LayoutMacOS.forecastIndexColumnMinWidth,
+                    maxWidth: LayoutMacOS.forecastIndexColumnMaxWidth,
+                    alignment: .leading
+                )
+            Text("暗夜開始")
+                .frame(width: LayoutMacOS.forecastDarkColumn, alignment: .leading)
+            Text("天の川ピーク")
+                .frame(width: LayoutMacOS.forecastMilkyWayColumn, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .padding(.horizontal, Spacing.xs)
+        .accessibilityHidden(true)
+    }
+
+    // MARK: - Row
+
+    private func row(night: NightSummary) -> some View {
+        let presentation = viewModel.forecastPresentation(for: night)
+        let weather = viewModel.weatherSummary(for: night.date)
+        let index = viewModel.starGazingIndex(for: night.date)
+        let isSelected = viewModel.isDateSelected(night.date)
+
+        return HStack(spacing: Spacing.xs) {
+            dateCell(presentation: presentation)
+            Text(presentation.cloudCoverText)
+                .frame(width: LayoutMacOS.forecastCloudColumn, alignment: .leading)
+            weatherCell(presentation: presentation, weather: weather)
+            moonCell(night: night)
+            indexCell(index: index)
+            Text(presentation.darkStartText ?? TableMetrics.emptyValue)
+                .frame(width: LayoutMacOS.forecastDarkColumn, alignment: .leading)
+            Text(viewModel.milkyWayPeakText(night: night))
+                .frame(width: LayoutMacOS.forecastMilkyWayColumn, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .font(.subheadline.monospacedDigit())
+        .lineLimit(1)
+        .padding(.horizontal, Spacing.xs)
+        .frame(height: LayoutMacOS.forecastRowHeight)
+        .background { rowBackground(isSelected: isSelected) }
         .contentShape(Rectangle())
         .onTapGesture {
             guard !viewModel.isLoading else { return }
             viewModel.setSelectedDate(night.date)
         }
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(viewModel.cardAccessibilityLabel(night: night, weather: weather, index: index))
         .accessibilityAddTraits(.isButton)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var placeholderGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: Spacing.xs)], spacing: Spacing.xs) {
-            ForEach(0..<placeholderCardCount, id: \.self) { offset in
-                upcomingNightCard(night: viewModel.placeholderNight(at: offset))
-                    .allowsHitTesting(false)
+    /// 選択行だけカード面を敷き、他の行は背景を持たない。
+    private func rowBackground(isSelected: Bool) -> some View {
+        Color.clear
+            .cardSurface(cornerRadius: Layout.innerCornerRadius)
+            .overlay {
+                RoundedRectangle(cornerRadius: Layout.innerCornerRadius, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: TableMetrics.selectionStrokeWidth)
             }
-        }
+            .opacity(isSelected ? 1 : 0)
     }
 
-    private func cardHeader(night: NightSummary, presentation: ForecastCardPresentation) -> some View {
-        HStack {
+    private func dateCell(presentation: ForecastCardPresentation) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs / 2) {
             Text(presentation.shortDateLabel)
-                .font(.headline)
-            Spacer()
-            HStack(spacing: 2) {
-                Image(systemName: AppIcons.Weather.cloudFill)
-                    .font(.body)
-                    .accessibilityHidden(true)
-                Text(presentation.cloudCoverText)
-                    .font(.body)
+            if let relative = presentation.relativeNightLabel {
+                Text(relative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .foregroundStyle(Color.cyan.opacity(0.9))
         }
+        .frame(width: LayoutMacOS.forecastDateColumn, alignment: .leading)
     }
 
-    private func weatherDetailRow(weather: DayWeatherSummary, presentation: ForecastCardPresentation) -> some View {
+    private func weatherCell(
+        presentation: ForecastCardPresentation,
+        weather: DayWeatherSummary?
+    ) -> some View {
         HStack(spacing: Spacing.xs / 2) {
-            Image(systemName: weather.weatherIconName)
-                .foregroundStyle(viewModel.weatherIconColor(code: weather.representativeWeatherCode))
-                .font(.body)
+            Image(systemName: weather?.weatherIconName ?? "questionmark.circle")
+                .foregroundStyle(
+                    weather.map { viewModel.weatherIconColor(code: $0.representativeWeatherCode) } ?? .secondary
+                )
                 .accessibilityHidden(true)
-            Text(presentation.weatherDetailText ?? weather.weatherLabel)
-                .font(.body)
-                .foregroundStyle(.secondary)
+            Text(presentation.weatherDetailText ?? TableMetrics.emptyValue)
         }
+        .frame(width: LayoutMacOS.forecastWeatherColumn, alignment: .leading)
     }
 
-    private func weatherStatusRow(detailText: String) -> some View {
-        HStack(spacing: Spacing.xs / 2) {
-            Image(systemName: "questionmark.circle")
-                .foregroundStyle(.secondary)
-                .font(.body)
-                .accessibilityHidden(true)
-            Text(detailText)
-                .font(.body)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func moonPhaseRow(night: NightSummary) -> some View {
+    private func moonCell(night: NightSummary) -> some View {
         HStack(spacing: Spacing.xs / 2) {
             Image(systemName: night.moonPhaseIcon)
                 .foregroundStyle(Color.indigo)
-                .font(.body)
                 .accessibilityHidden(true)
             Text(night.moonPhaseName)
-                .font(.body)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func observationColumns(
-        night: NightSummary,
-        weather: DayWeatherSummary?,
-        index: StarGazingIndex?
-    ) -> some View {
-        let isIndexLoading = index == nil
-        return HStack(alignment: .top, spacing: Spacing.xs) {
-            starGazingColumn(night: night, weather: weather, index: index, isIndexLoading: isIndexLoading)
-            Divider()
-            milkyWayColumn(night: night)
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    private func starGazingColumn(
-        night: NightSummary,
-        weather: DayWeatherSummary?,
-        index: StarGazingIndex?,
-        isIndexLoading: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("星空")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Spacing.xs / 2, verticalSpacing: 3) {
-                GridRow {
-                    Image(systemName: AppIcons.Astronomy.sparkles)
-                        .frame(width: Layout.gridIconWidth, alignment: .center)
-                        .foregroundStyle(index.map { $0.tier.color } ?? .secondary)
-                        .accessibilityHidden(true)
-                    if let index {
-                        Text(index.label)
-                            .font(.headline)
-                            .foregroundStyle(index.tier.color)
-                            .lineLimit(1)
-                            .panelTooltip(index.label)
-                    } else {
-                        Text("計算中…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                GridRow {
-                    Image(systemName: AppIcons.Astronomy.moonStars)
-                        .frame(width: Layout.gridIconWidth, alignment: .center)
-                        .accessibilityHidden(true)
-                    let observableRangeText = viewModel.observableRangeText(night: night, weather: weather)
-                    Text(observableRangeText)
-                        .font(.body)
-                        .lineLimit(1)
-                        .panelTooltip(observableRangeText)
-                }
+            if !night.isMoonFavorable {
+                Text("月明かりに注意")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .foregroundStyle(.secondary)
-            .redacted(reason: isIndexLoading ? .placeholder : [])
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(width: LayoutMacOS.forecastMoonColumn, alignment: .leading)
     }
 
-    private func milkyWayColumn(night: NightSummary) -> some View {
-        let bestViewingText = night.bestViewingTime.map {
-            L10n.format("見頃 %@", $0.nightTimeString(timeZone: night.timeZone))
-        } ?? L10n.tr("見頃 —")
-        let observationHoursText = L10n.format("観測 %.1f時間", night.totalViewingHours)
-
-        return VStack(alignment: .leading, spacing: 3) {
-            Text("天の川")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Spacing.xs / 2, verticalSpacing: 3) {
-                GridRow {
-                    Image(systemName: AppIcons.Astronomy.star)
-                        .frame(width: Layout.gridIconWidth, alignment: .center)
-                        .accessibilityHidden(true)
-                    Text(bestViewingText)
-                        .font(.body)
-                        .lineLimit(1)
-                        .panelTooltip(bestViewingText)
-                }
-                GridRow {
-                    Image(systemName: AppIcons.Observation.clock)
-                        .frame(width: Layout.gridIconWidth, alignment: .center)
-                        .accessibilityHidden(true)
-                    Text(observationHoursText)
-                        .font(.body)
-                        .lineLimit(1)
-                        .panelTooltip(observationHoursText)
-                }
-                if let direction = night.bestDirection {
-                    GridRow {
-                        Image(systemName: AppIcons.Observation.azimuthArrow)
-                            .frame(width: Layout.gridIconWidth, alignment: .center)
-                            .accessibilityHidden(true)
-                        Text(direction)
-                            .font(.body)
-                            .lineLimit(1)
-                            .panelTooltip(direction)
-                    }
-                }
+    private func indexCell(index: StarGazingIndex?) -> some View {
+        HStack(spacing: Spacing.xs / 2) {
+            tierSquares(index: index)
+            if let index {
+                Text(index.label)
+                    .foregroundStyle(index.tier.color)
+            } else {
+                Text("計算中…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(
+            minWidth: LayoutMacOS.forecastIndexColumnMinWidth,
+            maxWidth: LayoutMacOS.forecastIndexColumnMaxWidth,
+            alignment: .leading
+        )
+    }
+
+    /// 5 段階評価を小さな四角で示す。星アイコンより横幅が安定し、行の高さを抑えられる。
+    private func tierSquares(index: StarGazingIndex?) -> some View {
+        HStack(spacing: TableMetrics.tierSquareSpacing) {
+            ForEach(0..<5, id: \.self) { position in
+                RoundedRectangle(cornerRadius: TableMetrics.tierSquareRadius, style: .continuous)
+                    .fill(tierSquareStyle(index: index, position: position))
+                    .frame(width: TableMetrics.tierSquareSize, height: TableMetrics.tierSquareSize)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func tierSquareStyle(index: StarGazingIndex?, position: Int) -> AnyShapeStyle {
+        guard let index, position < index.starCount else {
+            return AnyShapeStyle(.quaternary)
+        }
+        return AnyShapeStyle(index.tier.color)
+    }
+
+    private enum TableMetrics {
+        static let rowSpacing: CGFloat = 2
+        static let selectionStrokeWidth: CGFloat = 1.5
+        static let tierSquareSize: CGFloat = 9
+        static let tierSquareSpacing: CGFloat = 3
+        static let tierSquareRadius: CGFloat = 2
+        static let emptyValue = "—"
+
+        /// 固定列 + 可変列の最小幅 + 列間スペース + 行の左右パディング。
+        static let minimumWidth: CGFloat =
+            LayoutMacOS.forecastDateColumn
+            + LayoutMacOS.forecastCloudColumn
+            + LayoutMacOS.forecastWeatherColumn
+            + LayoutMacOS.forecastMoonColumn
+            + LayoutMacOS.forecastIndexColumnMinWidth
+            + LayoutMacOS.forecastDarkColumn
+            + LayoutMacOS.forecastMilkyWayColumn
+            + Spacing.xs * 6
+            + Spacing.xs * 2
     }
 }
+#endif

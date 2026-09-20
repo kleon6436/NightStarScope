@@ -66,27 +66,39 @@ struct iOSTabHeaderView<Subtitle: View, Trailing: View>: View {
     }
 }
 
-/// Material パネルの背景と境界線を共通化する ViewModifier。
-/// iOS 26+ では Liquid Glass を使用し、それ以前は指定 material にフォールバックする。
+/// パネルの背景と境界線を共通化する ViewModifier。
+/// `material` 未指定時はコンテンツ層の不透明サーフェス（`cardSurface`）を使う。
+/// `material` 指定時のみガラス扱いとし、iOS 26+ では Liquid Glass、それ以前は指定 material にフォールバックする。
 private struct iOSMaterialPanelModifier: ViewModifier {
-    let material: Material
+    let material: Material?
     let cornerRadius: CGFloat
     let style: RoundedCornerStyle
     let showsBorder: Bool
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: style)
-        if #available(iOS 26, *) {
-            content
-                .glassEffect(in: shape)
-                .overlay {
-                    if showsBorder {
-                        shape.strokeBorder(.quaternary, lineWidth: 1)
+        if let material {
+            if #available(iOS 26, *) {
+                content
+                    .glassEffect(in: shape)
+                    .overlay {
+                        if showsBorder {
+                            shape.strokeBorder(.quaternary, lineWidth: 1)
+                        }
                     }
-                }
+            } else {
+                content
+                    .background(material, in: shape)
+                    .overlay {
+                        if showsBorder {
+                            shape.strokeBorder(.quaternary, lineWidth: 1)
+                        }
+                    }
+            }
         } else {
             content
-                .background(material, in: shape)
+                .cardSurface(cornerRadius: cornerRadius)
                 .overlay {
                     if showsBorder {
                         shape.strokeBorder(.quaternary, lineWidth: 1)
@@ -97,9 +109,9 @@ private struct iOSMaterialPanelModifier: ViewModifier {
 }
 
 extension View {
-    /// Material パネルの見た目を簡単に適用する。
+    /// パネルの見た目を簡単に適用する。`material` 未指定なら不透明サーフェス。
     func iOSMaterialPanel(
-        material: Material = .thinMaterial,
+        material: Material? = nil,
         cornerRadius: CGFloat = Layout.smallCornerRadius,
         style: RoundedCornerStyle = .continuous,
         showsBorder: Bool = true

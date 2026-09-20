@@ -202,15 +202,21 @@ final class LightPollutionTileOverlay: MKTileOverlay {
         // 各カラーは straight alpha 値に alpha を掛けてプリマルチプライドに変換
         func premul(_ v: Double) -> UInt8 { UInt8(min(255, (v * alpha).rounded())) }
 
+        // 色はアプリ共通の BortleScale ランプから取得する（0〜1 成分 → 0〜255）
+        func rgba(_ bortleClass: Double) -> (UInt8, UInt8, UInt8, UInt8) {
+            let c = BortleScale.rgb(for: bortleClass)
+            return (premul(c.r * 255), premul(c.g * 255), premul(c.b * 255), a)
+        }
+
         switch ratio {
-        case ..<0.03:  return (premul(20),  premul(20),  premul(60),  a)   // Bortle 2
-        case ..<0.10:  return (premul(0),   premul(0),   premul(140), a)   // Bortle 3
-        case ..<0.30:  return (premul(0),   premul(100), premul(0),   a)   // Bortle 4
-        case ..<1.0:   return (premul(150), premul(175), premul(30),  a)   // Bortle 5
-        case ..<3.0:   return (premul(255), premul(230), premul(0),   a)   // Bortle 6
-        case ..<9.0:   return (premul(255), premul(140), premul(0),   a)   // Bortle 7
-        case ..<27.0:  return (premul(220), premul(30),  premul(30),  a)   // Bortle 8
-        default:       return (premul(255), premul(20),  premul(147), a)   // Bortle 9 (deep pink)
+        case ..<0.03:  return rgba(2)
+        case ..<0.10:  return rgba(3)
+        case ..<0.30:  return rgba(4)
+        case ..<1.0:   return rgba(5)
+        case ..<3.0:   return rgba(6)
+        case ..<9.0:   return rgba(7)
+        case ..<27.0:  return rgba(8)
+        default:       return rgba(9)
         }
     }
 

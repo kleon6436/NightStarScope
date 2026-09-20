@@ -786,10 +786,10 @@ struct StarGazingIndex {
 extension StarGazingIndex.Tier {
     var color: Color {
         switch self {
-        case .excellent, .good: return .green
-        case .fair:             return .yellow
-        case .poor:             return .orange
-        case .bad:              return .red
+        case .excellent, .good: return Color("TierExcellent")
+        case .fair:             return Color("TierFair")
+        case .poor:             return Color("TierPoor")
+        case .bad:              return Color("TierBad")
         }
     }
 }

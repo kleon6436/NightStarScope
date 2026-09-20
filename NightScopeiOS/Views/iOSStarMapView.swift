@@ -15,6 +15,7 @@ struct iOSStarMapView: View {
     @State private var cameraNotice: CameraNotice?
     @State private var cameraPermissionRequestID = 0
     @State private var bottomControlPanelHeight: CGFloat = 0
+    @State private var isPresentingDatePicker = false
     @State private var interfaceOrientation: UIInterfaceOrientation = .portrait
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -127,15 +128,14 @@ struct iOSStarMapView: View {
 
     private var bottomControlPanel: some View {
         VStack(spacing: Spacing.xs) {
-            dateControlRow
-            timeSliderRow
-            locationLabel
+            primaryControlRow
+            timelineRow
         }
         .padding(.horizontal, Spacing.sm)
-        .padding(.vertical, Spacing.sm)
+        .padding(.vertical, IOSDesignTokens.StarMap.panelVerticalPadding)
         .iOSMaterialPanel(
             material: .ultraThinMaterial,
-            cornerRadius: Layout.cardCornerRadius,
+            cornerRadius: IOSDesignTokens.StarMap.panelCornerRadius,
             style: .continuous,
             showsBorder: false
         )
@@ -155,52 +155,83 @@ struct iOSStarMapView: View {
         )
     }
 
-    private var dateControlRow: some View {
-        HStack {
-            Label("観測日", systemImage: "calendar")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+    /// 時刻・観測日・空の状況・「現在」を 1 行にまとめた主操作行。
+    private var primaryControlRow: some View {
+        HStack(spacing: Spacing.xs) {
+            Text(viewModel.displayTimeString)
+                .font(.title2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.white)
 
-            DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
-            .labelsHidden()
-            .datePickerStyle(.compact)
-            .colorScheme(.dark)
-            .fixedSize()
+            observationDateButton
 
-            Spacer()
+            Spacer(minLength: Spacing.xs)
 
-            Button("現在") {
-                viewModel.resetToNow()
-            }
-            .font(.caption)
-            .buttonStyle(.bordered)
-            .tint(.accentColor)
+            skyStatusLabel
+
+            nowButton
         }
-        .padding(.vertical, Spacing.xs)
     }
 
-    private var timeSliderRow: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: "moon.stars")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Slider(
-                    value: timeSliderBinding,
-                    in: 0...viewModel.timeSliderMaximumMinutes,
-                    step: 1,
-                    onEditingChanged: timeSliderEditingChanged
-                )
-                    .accessibilityLabel(L10n.tr("時刻"))
-                    .tint(.accentColor)
-
-                Text(viewModel.displayTimeString)
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(.white)
-                    .frame(width: StarMapLayout.timeLabelWidth, alignment: .trailing)
+    /// 観測日を示すコンパクトラベル。タップで DatePicker を popover 表示する。
+    private var observationDateButton: some View {
+        Button {
+            isPresentingDatePicker = true
+        } label: {
+            HStack(spacing: IOSDesignTokens.StarMap.statusIconSpacing) {
+                Text(viewModel.observationDate, format: .dateTime.month(.abbreviated).day())
+                Image(systemName: "chevron.down")
+                    .font(.system(size: IOSDesignTokens.StarMap.statusIconSize))
             }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .frame(minHeight: IOSDesignTokens.StarMap.minimumTapTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.tr("観測日"))
+        .accessibilityValue(Text(viewModel.observationDate, format: .dateTime.year().month().day()))
+        .popover(isPresented: $isPresentingDatePicker) {
+            // graphical の DatePicker は固有サイズを持たず、popover 内では極端に細く潰れるため
+            // カレンダーが収まる固定枠を与える。
+            DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
+                .labelsHidden()
+                .datePickerStyle(.graphical)
+                .frame(
+                    width: IOSDesignTokens.StarMap.datePickerPopoverWidth,
+                    height: IOSDesignTokens.StarMap.datePickerPopoverHeight
+                )
+                .padding(Spacing.sm)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
 
+    /// 現在時刻へ戻すカプセルボタン。見た目は 28pt、当たり判定は 44pt を確保する。
+    private var nowButton: some View {
+        Button {
+            viewModel.resetToNow()
+        } label: {
+            Text("現在")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, Spacing.xs)
+                .frame(height: IOSDesignTokens.StarMap.nowButtonHeight)
+                .glassEffectCompat(
+                    in: RoundedRectangle(
+                        cornerRadius: IOSDesignTokens.StarMap.nowButtonHeight / 2,
+                        style: .continuous
+                    )
+                )
+                .frame(height: IOSDesignTokens.StarMap.minimumTapTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.tr("現在"))
+    }
+
+    /// ヒートバーと時刻スライダーを重ねた時間軸行。
+    private var timelineRow: some View {
+        VStack(alignment: .leading, spacing: IOSDesignTokens.StarMap.timelineSpacing) {
             ObservationHeatBarView(
                 observationConditionTimeline: viewModel.observationConditionTimeline,
                 sliderFraction: viewModel.timeSliderFraction,
@@ -209,8 +240,19 @@ struct iOSStarMapView: View {
                 currentSunAltitude: viewModel.sunAltitude,
                 currentTimeText: viewModel.displayTimeString
             )
+            // Slider のつまみ半径ぶん内側に寄せ、スライダーのトラック端と揃える。
+            .padding(.horizontal, IOSDesignTokens.StarMap.heatBarTrackInset)
+
+            Slider(
+                value: timeSliderBinding,
+                in: 0...viewModel.timeSliderMaximumMinutes,
+                step: 1,
+                onEditingChanged: timeSliderEditingChanged
+            )
+            .tint(.accentColor)
+            .accessibilityLabel(L10n.tr("時刻"))
+            .accessibilityValue(viewModel.displayTimeString)
         }
-        .padding(.vertical, Spacing.xs)
     }
 
     private var observationDateBinding: Binding<Date> {
@@ -220,59 +262,54 @@ struct iOSStarMapView: View {
         )
     }
 
-    private var locationLabel: some View {
-        HStack {
-            Image(systemName: "location.fill")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("夜空を表示中")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            terrainStatusLabel
-            Spacer()
-            skyStatusLabel
-        }
-        .padding(.bottom, 2)
-    }
-
-    private var terrainStatusLabel: some View {
-        Label(viewModel.terrainFetchState.statusText, systemImage: viewModel.terrainFetchState.systemImageName)
-            .font(.caption2)
-            .foregroundStyle(terrainStatusColor)
-            .accessibilityLabel(L10n.format("地形データ状態: %@", viewModel.terrainFetchState.statusText))
-    }
-
-    private var terrainStatusColor: Color {
-        switch viewModel.terrainFetchState {
-        case .idle, .loading:
-            .secondary
-        case .available:
-            Color(red: 0.4, green: 1.0, blue: 0.7)
-        case .unavailable:
-            .orange
-        }
-    }
-
+    /// 月高度と流星群を 1 行に詰めたステータスクラスタ。
     private var skyStatusLabel: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Spacing.xs) {
             if viewModel.moonAltitude > 0 {
-                Label(L10n.format("月 %.0f°", viewModel.moonAltitude),
-                      systemImage: "moon.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.8))
+                statusChip(
+                    systemImage: "moon.fill",
+                    text: L10n.format("月 %.0f°", viewModel.moonAltitude),
+                    tint: .white.opacity(0.8)
+                )
             }
-            if !viewModel.meteorShowerRadiants.isEmpty {
-                let shower = viewModel.meteorShowerRadiants[0].shower
-                Label(L10n.format("%@活動中", shower.localizedName), systemImage: "sparkles")
-                    .font(.caption2)
-                    .foregroundStyle(Color(red: 0.4, green: 1.0, blue: 0.7))
-            } else if let next = viewModel.nextMeteorShower {
-                Label(L10n.format("次: %@(%d日後)", next.shower.localizedName, next.daysUntilPeak),
-                       systemImage: "sparkles")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            if let meteorStatus {
+                statusChip(
+                    systemImage: "sparkles",
+                    text: meteorStatus.text,
+                    tint: meteorStatus.tint
+                )
             }
         }
+        .lineLimit(1)
+        .layoutPriority(-1)
+    }
+
+    /// 活動中の流星群を優先し、無ければ次の流星群を返す。
+    private var meteorStatus: (text: String, tint: Color)? {
+        if let radiant = viewModel.meteorShowerRadiants.first {
+            return (
+                L10n.format("%@活動中", radiant.shower.localizedName),
+                StarMapPalette.meteorAccent
+            )
+        }
+        if let next = viewModel.nextMeteorShower {
+            return (
+                L10n.format("%@ %d日後", next.shower.localizedName, next.daysUntilPeak),
+                .secondary
+            )
+        }
+        return nil
+    }
+
+    private func statusChip(systemImage: String, text: String, tint: Color) -> some View {
+        HStack(spacing: IOSDesignTokens.StarMap.statusIconSpacing) {
+            Image(systemName: systemImage)
+                .font(.system(size: IOSDesignTokens.StarMap.statusIconSize))
+            Text(text)
+                .font(.caption)
+        }
+        .foregroundStyle(tint)
+        .accessibilityElement(children: .combine)
     }
 
     private var controlState: iOSStarMapControlState {
@@ -322,7 +359,8 @@ struct iOSStarMapView: View {
             canToggleCameraBackground: viewModel.isGyroMode && cameraController.hasCameraHardware && !isRequestingCameraPermission,
             cameraButtonHelpText: cameraButtonHelpText,
             cameraButtonHintText: cameraButtonHintText,
-            displayedCameraNotice: displayedCameraNotice
+            displayedCameraNotice: displayedCameraNotice,
+            terrainFetchState: viewModel.terrainFetchState
         )
     }
 

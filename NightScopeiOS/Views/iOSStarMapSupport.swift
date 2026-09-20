@@ -15,6 +15,19 @@ struct iOSStarMapControlState {
     let cameraButtonHelpText: String
     let cameraButtonHintText: String
     let displayedCameraNotice: CameraNotice?
+    let terrainFetchState: StarMapTerrainFetchState
+
+    /// 地形取得状態の色。取得済みは流星群と同じ強調色、失敗は警告色。
+    var terrainStatusColor: Color {
+        switch terrainFetchState {
+        case .idle, .loading:
+            .white.opacity(0.7)
+        case .available:
+            StarMapPalette.meteorAccent
+        case .unavailable:
+            .orange
+        }
+    }
 }
 
 /// 星空タブの上部に重ねる操作パネル。
@@ -34,18 +47,23 @@ struct iOSStarMapHeaderOverlay: View {
                 subtitleColor: .white.opacity(0.75),
                 horizontalPadding: Spacing.xs
             ) {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: "sparkles")
-                        .font(.subheadline)
-                    Text("星空を表示")
-                        .font(.subheadline)
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "sparkles")
+                            .font(.subheadline)
+                        Text("星空を表示")
+                            .font(.subheadline)
+                            .lineLimit(1)
+                    }
+                    terrainStatusLabel
                 }
             } trailing: {
-                HStack(spacing: Spacing.xs / 2) {
-                    displaySettingsButton
-                    cameraBackgroundButton
-                    gyroToggleButton
+                GlassEffectContainerCompat {
+                    HStack(spacing: Spacing.xs) {
+                        displaySettingsButton
+                        cameraBackgroundButton
+                        gyroToggleButton
+                    }
                 }
             }
 
@@ -55,13 +73,31 @@ struct iOSStarMapHeaderOverlay: View {
         }
     }
 
+    /// 地形データの取得状態。下部パネルから上部オーバーレイへ移設した。
+    private var terrainStatusLabel: some View {
+        HStack(spacing: IOSDesignTokens.StarMap.statusIconSpacing) {
+            Image(systemName: controlState.terrainFetchState.systemImageName)
+                .font(.system(size: IOSDesignTokens.StarMap.statusIconSize))
+            Text(controlState.terrainFetchState.statusText)
+                .font(.caption2)
+        }
+        .foregroundStyle(controlState.terrainStatusColor)
+        .lineLimit(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.format("地形データ状態: %@", controlState.terrainFetchState.statusText))
+    }
+
     private var displaySettingsButton: some View {
         Button(action: onOpenDisplaySettings) {
             Image(systemName: "slider.horizontal.3")
                 .font(.headline)
-                .frame(width: 44, height: 44)
+                .frame(
+                    width: IOSDesignTokens.StarMap.minimumTapTarget,
+                    height: IOSDesignTokens.StarMap.minimumTapTarget
+                )
         }
         .glassButtonStyle()
+        .buttonBorderShape(.circle)
         .help(L10n.tr("星空の表示設定を開く"))
         .accessibilityLabel(L10n.tr("星空の表示設定"))
         .accessibilityValue(
@@ -86,6 +122,7 @@ struct iOSStarMapHeaderOverlay: View {
             )
         }
         .glassButtonStyle()
+        .buttonBorderShape(.circle)
         .help(controlState.cameraButtonHelpText)
         .accessibilityLabel(
             controlState.isCameraBackgroundVisible
@@ -105,6 +142,7 @@ struct iOSStarMapHeaderOverlay: View {
             )
         }
         .glassButtonStyle()
+        .buttonBorderShape(.circle)
         .help(controlState.isGyroMode ? L10n.tr("タッチ操作に切り替える") : L10n.tr("ジャイロ操作に切り替える"))
         .accessibilityLabel(
             controlState.isGyroMode
@@ -118,7 +156,10 @@ struct iOSStarMapHeaderOverlay: View {
     private func toggleIcon(systemName: String, isActive: Bool) -> some View {
         let icon = Image(systemName: systemName)
             .font(.headline)
-            .frame(width: 44, height: 44)
+            .frame(
+                width: IOSDesignTokens.StarMap.minimumTapTarget,
+                height: IOSDesignTokens.StarMap.minimumTapTarget
+            )
 
         if reduceMotion {
             icon

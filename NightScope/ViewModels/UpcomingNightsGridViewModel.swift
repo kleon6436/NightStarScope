@@ -111,6 +111,53 @@ final class UpcomingNightsGridViewModel: ObservableObject {
         )
     }
 
+    /// 1 夜分の表示用プレゼンテーションを、判定ロジック込みで組み立てる。
+    func forecastPresentation(for night: NightSummary) -> ForecastCardPresentation {
+        let weather = weatherSummary(for: night.date)
+        return ForecastCardPresentation(
+            night: night,
+            weather: weather,
+            timeZone: selectedTimeZone,
+            isReliableWeather: hasReliableWeatherData(for: night, weather: weather),
+            hasPartialWeather: hasPartialWeatherData(for: night, weather: weather),
+            isForecastOutOfRange: isForecastOutOfRange(for: night, weather: weather),
+            hasWeatherLoadError: weatherErrorMessage != nil
+        )
+    }
+
+    /// 天の川のピーク時刻と観測窓の長さ（例: "23:10・3.5h"）。ウィンドウが無い夜は "—"。
+    func milkyWayPeakText(night: NightSummary) -> String {
+        guard let window = night.bestViewingWindow else { return "—" }
+        let peak = window.peakTime.nightTimeString(timeZone: night.timeZone)
+        let hours = L10n.number(window.duration / 3600, fractionDigits: 1)
+        return "\(peak)・\(hours)h"
+    }
+
+    /// 「狙い目」判定に渡す候補を `displayNights` から組み立てる。macOS / iOS で同じ入力を使う。
+    func bestNightCandidates() -> [BestNightPicker.Input] {
+        displayNights.map { night in
+            let weather = weatherSummary(for: night.date)
+            return (
+                summary: night,
+                index: starGazingIndex(for: night.date),
+                weather: weather,
+                isReliableWeather: hasReliableWeatherData(for: night, weather: weather)
+            )
+        }
+    }
+
+    /// 「狙い目」として 1 行で添える文言。強調に値しない、または比較対象が無い場合は nil。
+    func bestNightHighlightText(referenceDate: Date = Date()) -> String? {
+        let candidates = bestNightCandidates()
+        // 指数が出ていない夜は比較対象にならないため、採点済みの夜数で判定する。
+        guard candidates.filter({ $0.index != nil }).count >= 2 else { return nil }
+        guard let pick = BestNightPicker.pick(nights: candidates, referenceDate: referenceDate),
+              pick.isWorthHighlighting else { return nil }
+        let presentation = forecastPresentation(for: pick.summary)
+        let window = pick.windowText ?? presentation.darkStartText ?? "—"
+        return L10n.format("狙い目: %@ %@", presentation.shortDateLabel, window)
+    }
+
     /// 指定日が現在の選択日かを返す。
     func isDateSelected(_ date: Date) -> Bool {
         ObservationTimeZone.isDate(date, inSameDayAs: selectedDate, timeZone: selectedTimeZone)

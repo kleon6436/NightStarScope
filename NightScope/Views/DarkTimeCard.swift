@@ -4,12 +4,42 @@ import SwiftUI
 struct DarkTimeCard: View {
     let summary: NightSummary
     let weather: DayWeatherSummary?
+    var style: SummaryCardStyle = .regular
 
     private var viewModel: DarkTimeCardViewModel {
         DarkTimeCardViewModel(summary: summary, weather: weather)
     }
 
     var body: some View {
+        switch style {
+        case .regular: regularBody
+        case .compact: compactBody
+        }
+    }
+
+    // MARK: - Compact
+
+    private var compactBody: some View {
+        MetricCard(icon: AppIcons.Observation.clock, title: "観測可能時間", tint: .green) {
+            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                Text(L10n.format("%.1f時間", summary.totalDarkHours))
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                Text(viewModel.displayText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(viewModel.accessibilityLabel)
+    }
+
+    // MARK: - Regular
+
+    @ViewBuilder
+    private var regularBody: some View {
         let totalDarkHoursText = L10n.format("%.1f時間", summary.totalDarkHours)
 
         VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -47,7 +77,7 @@ struct DarkTimeCard: View {
             }
             .frame(minHeight: CardVisual.metricVisualHeight, alignment: .leading)
         }
-        .glassCard()
+        .contentCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(viewModel.accessibilityLabel)
     }

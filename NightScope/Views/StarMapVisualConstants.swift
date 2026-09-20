@@ -12,13 +12,19 @@ enum StarMapLayout {
     static let zoomStep: Double = 10
     static let timeLabelWidth: CGFloat = 52
     static let sheetMinWidth: CGFloat = 900
-    static let sheetMinHeight: CGFloat = 820
+    static let sheetMinHeight: CGFloat = 760
     static let canvasMinWidth: CGFloat = 860
     static let canvasMinHeight: CGFloat = 620
     static let cardinalLabelBottomInset: CGFloat = 28
     static let cardinalLabelSidePadding: CGFloat = 12
     static let cardinalLabelHorizontalPadding: CGFloat = 8
     static let cardinalLabelVerticalPadding: CGFloat = 4
+    /// macOS 星空マップ下部バーの操作行の高さ。
+    static let macControlRowHeight: CGFloat = 28
+    /// macOS 星空マップ下部バーのステータスチップ間隔。
+    static let macStatusChipSpacing: CGFloat = 16
+    /// Slider のつまみ半径ぶんヒートバーを内側へ寄せる量。
+    static let macHeatBarTrackInset: CGFloat = 10
 
     static func clampedFOV(_ value: Double) -> Double {
         max(minFOV, min(maxFOV, value))

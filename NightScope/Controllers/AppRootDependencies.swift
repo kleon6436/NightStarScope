@@ -13,6 +13,7 @@ struct AppRootDependencies {
     let starMapViewModel: StarMapViewModel
     let comparisonController: ComparisonController
     let dashboardCommandBridge: DashboardCommandBridge
+    let favoriteTonightScoreProvider: FavoriteTonightScoreProvider
 
     /// AppController を起点に各 ViewModel と補助コントローラを組み立てる。
     init(
@@ -23,10 +24,17 @@ struct AppRootDependencies {
     ) {
         self.appController = appController
         self.observationModePreference = observationModePreference
+        let favoriteTonightScoreProvider = FavoriteTonightScoreProvider(
+            weatherService: appController.weatherService,
+            lightPollutionService: appController.lightPollutionService,
+            calculationService: appController.calculationService
+        )
+        self.favoriteTonightScoreProvider = favoriteTonightScoreProvider
         self.sidebarViewModel = SidebarViewModel(
             locationController: appController.locationController,
             lightPollutionService: appController.lightPollutionService,
-            favoriteStore: appController.favoriteStore
+            favoriteStore: appController.favoriteStore,
+            tonightScoreProvider: favoriteTonightScoreProvider
         )
         self.detailViewModel = DetailViewModel(
             appController: appController,

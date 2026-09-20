@@ -39,7 +39,7 @@ struct StarMapDisplaySettingsSection: View {
 
                 ForEach(ObservationHeatBarView.legendItems) { item in
                     HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        RoundedRectangle(cornerRadius: Layout.smallCornerRadius, style: .continuous)
                             .fill(item.color)
                             .frame(width: 18, height: 10)
                             .accessibilityHidden(true)

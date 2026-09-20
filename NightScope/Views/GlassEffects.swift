@@ -34,6 +34,17 @@ extension View {
         #endif
     }
 
+    /// `.backgroundExtensionEffect()` の互換ラッパー。
+    /// iOS 26 / macOS 26 以降では背景をウィンドウ端まで引き伸ばし、それ以前は何もしない。
+    @ViewBuilder
+    func backgroundExtensionEffectCompat() -> some View {
+        if #available(iOS 26, macOS 26, *) {
+            self.backgroundExtensionEffect()
+        } else {
+            self
+        }
+    }
+
     /// `.buttonStyle(.glass)` の互換ラッパー。
     @ViewBuilder
     func glassButtonStyle() -> some View {
@@ -61,18 +72,25 @@ struct GlassEffectContainerCompat<Content: View>: View {
     }
 }
 
-// MARK: - GlassCard ViewModifier
+// MARK: - ContentCard ViewModifier
 
-struct GlassCardModifier: ViewModifier {
+/// カード共通の余白とサーフェスをまとめる。ガラス（Material）は使わない。
+struct ContentCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(Layout.cardPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
+            .cardSurface()
     }
 }
 
 extension View {
+    /// コンテンツ層の共通サーフェス。不透明なカード背景を角丸で敷く。
+    /// ガラス（Material）はシェル層専用とし、カード類はこちらに統一する。
+    func cardSurface(cornerRadius: CGFloat = Layout.cardCornerRadius) -> some View {
+        opaqueCardBackground(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
     func opaqueCardBackground<S: Shape>(in shape: S) -> some View {
         #if os(macOS)
         background(Color(nsColor: .controlBackgroundColor), in: shape)
@@ -81,8 +99,9 @@ extension View {
         #endif
     }
 
-    func glassCard() -> some View {
-        modifier(GlassCardModifier())
+    /// コンテンツ層のカード共通スタイル（余白 + 不透明サーフェス）。
+    func contentCard() -> some View {
+        modifier(ContentCardModifier())
     }
 
     func summaryCardMetricVisualFrame() -> some View {
