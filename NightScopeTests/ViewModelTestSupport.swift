@@ -207,6 +207,12 @@ final class MockLightPollutionService: LightPollutionProviding {
     @Published var bortleClass: Double?
     @Published var isLoading = false
     @Published var fetchFailed = false
+    /// 座標ごとに返す Bortle 値。キーは小数 4 桁の "lat,lon"。未登録の座標は既定値を返す。
+    var bortleByCoordinate: [String: Double]
+
+    init(bortleByCoordinate: [String: Double] = [:]) {
+        self.bortleByCoordinate = bortleByCoordinate
+    }
 
     var bortleClassPublisher: Published<Double?>.Publisher { $bortleClass }
     var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
@@ -219,6 +225,6 @@ final class MockLightPollutionService: LightPollutionProviding {
     }
 
     func fetchBortle(latitude: Double, longitude: Double) async throws -> Double {
-        4.0
+        bortleByCoordinate[String(format: "%.4f,%.4f", latitude, longitude)] ?? 4.0
     }
 }

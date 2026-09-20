@@ -133,10 +133,9 @@ final class UpcomingNightsGridViewModel: ObservableObject {
         return "\(peak)・\(hours)h"
     }
 
-    /// 「狙い目」として 1 行で添える文言。強調に値しない、または比較対象が無い場合は nil。
-    func bestNightHighlightText(referenceDate: Date = Date()) -> String? {
-        guard displayNights.count >= 2 else { return nil }
-        let candidates = displayNights.map { night in
+    /// 「狙い目」判定に渡す候補を `displayNights` から組み立てる。macOS / iOS で同じ入力を使う。
+    func bestNightCandidates() -> [BestNightPicker.Input] {
+        displayNights.map { night in
             let weather = weatherSummary(for: night.date)
             return (
                 summary: night,
@@ -145,6 +144,13 @@ final class UpcomingNightsGridViewModel: ObservableObject {
                 isReliableWeather: hasReliableWeatherData(for: night, weather: weather)
             )
         }
+    }
+
+    /// 「狙い目」として 1 行で添える文言。強調に値しない、または比較対象が無い場合は nil。
+    func bestNightHighlightText(referenceDate: Date = Date()) -> String? {
+        let candidates = bestNightCandidates()
+        // 指数が出ていない夜は比較対象にならないため、採点済みの夜数で判定する。
+        guard candidates.filter({ $0.index != nil }).count >= 2 else { return nil }
         guard let pick = BestNightPicker.pick(nights: candidates, referenceDate: referenceDate),
               pick.isWorthHighlighting else { return nil }
         let presentation = forecastPresentation(for: pick.summary)

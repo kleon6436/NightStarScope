@@ -77,7 +77,7 @@ struct DarkTimeCard: View {
             }
             .frame(minHeight: CardVisual.metricVisualHeight, alignment: .leading)
         }
-        .glassCard()
+        .contentCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(viewModel.accessibilityLabel)
     }

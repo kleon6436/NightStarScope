@@ -72,9 +72,10 @@ struct GlassEffectContainerCompat<Content: View>: View {
     }
 }
 
-// MARK: - GlassCard ViewModifier
+// MARK: - ContentCard ViewModifier
 
-struct GlassCardModifier: ViewModifier {
+/// カード共通の余白とサーフェスをまとめる。ガラス（Material）は使わない。
+struct ContentCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(Layout.cardPadding)
@@ -98,8 +99,9 @@ extension View {
         #endif
     }
 
-    func glassCard() -> some View {
-        modifier(GlassCardModifier())
+    /// コンテンツ層のカード共通スタイル（余白 + 不透明サーフェス）。
+    func contentCard() -> some View {
+        modifier(ContentCardModifier())
     }
 
     func summaryCardMetricVisualFrame() -> some View {

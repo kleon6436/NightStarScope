@@ -13,13 +13,11 @@ struct FavoriteTonightScore: Equatable, Sendable {
 ///
 /// `WeatherKitService.fetchWeatherSnapshot` はキャッシュを書かないため、
 /// お気に入り 1 件につき WeatherKit 呼び出しが 1 回発生する。
-/// そのため TTL（`cacheLifetime`）と件数上限（`maxFavorites`）で呼び出し回数を抑える。
+/// そのため TTL（`cacheLifetime`）で呼び出し回数を抑える。
 @MainActor
 final class FavoriteTonightScoreProvider: ObservableObject {
     /// 計算結果を再利用する有効期間（秒）。
     static let cacheLifetime: TimeInterval = 3600
-    /// 1 回の更新で計算する最大地点数。
-    static let maxFavorites = 6
 
     @Published private(set) var scoresByFavoriteID: [UUID: FavoriteTonightScore] = [:]
     @Published private(set) var isRefreshing = false
@@ -52,8 +50,7 @@ final class FavoriteTonightScoreProvider: ObservableObject {
     /// - Parameter force: true なら TTL を無視して対象全件を再計算する。
     func refreshIfNeeded(favorites: [FavoriteLocation], force: Bool = false) async {
         let referenceDate = referenceDateProvider()
-        let candidates = Array(favorites.prefix(Self.maxFavorites))
-        let targets = candidates.filter { favorite in
+        let targets = favorites.filter { favorite in
             guard !force, let cached = scoresByFavoriteID[favorite.id] else { return true }
             return referenceDate.timeIntervalSince(cached.computedAt) >= Self.cacheLifetime
         }

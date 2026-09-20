@@ -6,8 +6,6 @@ struct iOSNightCardRow: View {
     let night: NightSummary
     let index: StarGazingIndex?
     let weather: DayWeatherSummary?
-    /// 観測可能時間帯の文言。行本体では使わないが、呼び出し側の行モデルと対応を保つため受け取る。
-    let rangeText: String
     let isReliableWeather: Bool
     let hasPartialWeather: Bool
     let isForecastOutOfRange: Bool

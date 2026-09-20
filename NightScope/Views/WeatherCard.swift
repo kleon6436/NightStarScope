@@ -39,7 +39,7 @@ struct NightWeatherCard: View {
             }
             .frame(minHeight: CardVisual.metricVisualHeight, alignment: .leading)
         }
-        .glassCard()
+        .contentCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -184,10 +184,9 @@ private struct WeatherSymbolVisual: View {
 /// WeatherKit 利用規約に基づく帰属表示バッジ。
 /// Apple の天気データを表示する画面には Apple Weather 商標と、他データソースへの法的リンクが必須。
 /// - compact: 天気を表示するセクションの末尾に置く小さなマーク（タップで法的情報ページへ）
-/// - onSky: 空のグラデーション上に置く版。背景が常に暗いので白抜き（dark 用）マークを固定で使う
 /// - full: 設定「データソースとクレジット」用（マーク + リンク文言）
 struct WeatherAttributionBadge: View {
-    enum Style { case compact, onSky, full }
+    enum Style { case compact, full }
     /// マークの高さ。画像はロゴ込みで文字より背が高いため、隣接する文字の cap height に合わせて小さめに取る。
     enum Size { case caption, headline }
     /// `WeatherAttribution.legalPageURL` が取得できない場合の予備リンク。
@@ -209,13 +208,13 @@ struct WeatherAttributionBadge: View {
         Group {
             if let data = attributionService.attributionData {
                 switch style {
-                case .compact, .onSky:
+                case .compact:
                     Link(destination: data.legalPageURL) {
                         HStack(spacing: AttributionMetrics.chevronSpacing) {
                             combinedMark(url: markURL(for: data), height: markHeight)
                             Image(systemName: "chevron.right")
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(secondaryColor)
+                                .foregroundStyle(.secondary)
                                 .accessibilityHidden(true)
                         }
                     }
@@ -235,37 +234,26 @@ struct WeatherAttributionBadge: View {
         .task { await attributionService.loadIfNeeded() }
     }
 
-    /// 空の上では常に暗背景用マーク。それ以外はカラースキームに追従する。
+    /// マークはカラースキームに追従して明暗を切り替える。
     private func markURL(for data: WeatherAttributionData) -> URL {
-        switch style {
-        case .onSky: return data.logoDarkURL
-        case .compact, .full: return colorScheme == .dark ? data.logoDarkURL : data.logoLightURL
-        }
-    }
-
-    private var primaryColor: Color {
-        style == .onSky ? .white : .primary
-    }
-
-    private var secondaryColor: Color {
-        style == .onSky ? Color.white.opacity(AttributionMetrics.onSkySecondaryOpacity) : .secondary
+        colorScheme == .dark ? data.logoDarkURL : data.logoLightURL
     }
 
     @ViewBuilder
     private var fallbackAttribution: some View {
         switch style {
-        case .compact, .onSky:
+        case .compact:
             Link(destination: Self.legalURL) {
                 HStack(spacing: AttributionMetrics.chevronSpacing) {
                     Image(systemName: "cloud.sun.fill")
                         .font(.caption2)
-                        .foregroundStyle(secondaryColor)
+                        .foregroundStyle(.secondary)
                     Text(L10n.tr("Apple Weather"))
                         .font(.caption)
-                        .foregroundStyle(primaryColor)
+                        .foregroundStyle(.primary)
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(secondaryColor)
+                        .foregroundStyle(.secondary)
                 }
             }
             .buttonStyle(.plain)
@@ -291,7 +279,7 @@ struct WeatherAttributionBadge: View {
         } placeholder: {
             Text(L10n.tr("Apple Weather"))
                 .font(.caption)
-                .foregroundStyle(secondaryColor)
+                .foregroundStyle(.secondary)
         }
         .frame(height: height)
     }
@@ -304,6 +292,5 @@ struct WeatherAttributionBadge: View {
         static let fullMarkHeight: CGFloat = 18
         static let chevronSpacing: CGFloat = 4
         static let fullSpacing: CGFloat = 4
-        static let onSkySecondaryOpacity: Double = 0.72
     }
 }

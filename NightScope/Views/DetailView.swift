@@ -140,10 +140,7 @@ struct DetailView: View {
         }
         ToolbarItemGroup(placement: .primaryAction) {
             starMapButton
-            ObservationModeMenu(
-                observationModePreference: observationModePreference,
-                appearance: .toolbar
-            )
+            ObservationModeMenu(observationModePreference: observationModePreference)
         }
     }
 

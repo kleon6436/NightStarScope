@@ -146,14 +146,7 @@ final class TonightPresentationTests: XCTestCase {
     }
 
     func test_headline_missingIndex_showsCalculating() {
-        let verdict = makeVerdict(score: nil)
-        XCTAssertEqual(verdict.headline, L10n.tr("計算中"))
-        XCTAssertEqual(verdict.tierChipText, "")
-    }
-
-    func test_tierChipText_usesIndexLabel() {
-        XCTAssertEqual(makeVerdict(score: 95).tierChipText, makeIndex(score: 95).label)
-        XCTAssertEqual(makeVerdict(score: 40).tierChipText, makeIndex(score: 40).label)
+        XCTAssertEqual(makeVerdict(score: nil).headline, L10n.tr("計算中"))
     }
 
     func test_reason_rainWithBrightMoonAndHighDew_keepsTwoHighestPriorityClauses() {
@@ -428,6 +421,24 @@ final class TonightPresentationTests: XCTestCase {
         let pick = try XCTUnwrap(BestNightPicker.pick(nights: nights, referenceDate: referenceDate))
 
         XCTAssertEqual(pick.index.tier, .poor)
+        XCTAssertTrue(pick.isWorthHighlighting)
+    }
+
+    func test_isWorthHighlighting_falseWhenPoorNightIsTheOnlyCandidate() throws {
+        let pick = try XCTUnwrap(
+            BestNightPicker.pick(nights: [night(day: 12, score: 45)], referenceDate: referenceDate)
+        )
+
+        XCTAssertEqual(pick.index.tier, .poor)
+        XCTAssertFalse(pick.isWorthHighlighting, "比較対象が無い夜は「抜けている」と言えない")
+    }
+
+    func test_isWorthHighlighting_trueWhenFairNightIsTheOnlyCandidate() throws {
+        let pick = try XCTUnwrap(
+            BestNightPicker.pick(nights: [night(day: 12, score: 50)], referenceDate: referenceDate)
+        )
+
+        XCTAssertEqual(pick.index.tier, .fair)
         XCTAssertTrue(pick.isWorthHighlighting)
     }
 

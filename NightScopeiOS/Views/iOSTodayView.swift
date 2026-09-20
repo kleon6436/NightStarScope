@@ -281,8 +281,6 @@ struct iOSTodayView: View {
         static let primaryTextColor = Color.white
         static let secondaryTextColor = Color.white.opacity(0.72)
         static let capsuleFill = Color.white.opacity(0.14)
-        /// HIG の最小タップ領域。
-        static let buttonSize: CGFloat = 44
         /// ガラスボタンはスタイル側で余白が付くため、グリフ枠は小さめにして全体を約 44pt の円に収める。
         static let buttonGlyphSize: CGFloat = 28
     }

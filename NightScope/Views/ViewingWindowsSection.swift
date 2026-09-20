@@ -57,7 +57,7 @@ struct MilkyWaySummaryCard: View {
                 ViewingWindowsEmptyStateCardContent()
             }
         }
-        .glassCard()
+        .contentCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }

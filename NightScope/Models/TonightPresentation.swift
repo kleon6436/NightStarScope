@@ -2,15 +2,13 @@ import Foundation
 
 // MARK: - Night Verdict
 
-/// 「今夜は星を見に行くべきか」を見出し・理由・段階チップの 3 点で伝える表示モデル。
+/// 「今夜は星を見に行くべきか」を見出しと理由の 2 点で伝える表示モデル。
 /// - Note: 純粋な値型。入力が同じなら常に同じ文字列を返す（I/O も現在時刻依存もなし）。
 struct NightVerdictPresentation {
     /// 段階に応じた見出し。指数が未計算の場合は「計算中」。
     let headline: String
     /// 見出しを補足する一文。最大 2 節を「。」で連結する。
     let reason: String
-    /// 星空指数の段階ラベル。指数が未計算の場合は空文字。
-    let tierChipText: String
 
     init(
         index: StarGazingIndex?,
@@ -20,7 +18,6 @@ struct NightVerdictPresentation {
     ) {
         let tier = index?.tier
         self.headline = Self.makeHeadline(tier: tier)
-        self.tierChipText = index?.label ?? ""
         self.reason = Self.makeReason(
             tier: tier,
             summary: summary,
@@ -234,10 +231,18 @@ struct BestNightPicker {
         isReliableWeather: Bool
     )
 
+    /// 判定に渡す入力。指数が未計算の夜も含められる。
+    typealias Input = (
+        summary: NightSummary,
+        index: StarGazingIndex?,
+        weather: DayWeatherSummary?,
+        isReliableWeather: Bool
+    )
+
     /// 星空指数が最も高い夜を選ぶ。同点なら観測可能時間が長い夜、それも同じなら早い日付。
     /// - Parameter referenceDate: 部分的な予報カバレッジ判定に使う基準時刻（テスト用に差し替え可能）。
     static func pick(
-        nights: [(summary: NightSummary, index: StarGazingIndex?, weather: DayWeatherSummary?, isReliableWeather: Bool)],
+        nights: [Input],
         referenceDate: Date = Date()
     ) -> BestNightPick? {
         let candidates: [Candidate] = nights.compactMap { night in
@@ -312,6 +317,8 @@ struct BestNightPicker {
         case .excellent, .good, .fair:
             return true
         case .poor, .bad:
+            // 比較対象が無ければ「抜けている」とは言えないので推さない。
+            guard !otherScores.isEmpty else { return false }
             // 条件自体は良くなくても、他の夜より明確に抜けているなら推す価値がある。
             return otherScores.allSatisfy { winner.index.score - $0 >= Constants.dominantScoreMargin }
         }

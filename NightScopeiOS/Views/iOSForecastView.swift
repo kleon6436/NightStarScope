@@ -6,7 +6,6 @@ struct iOSForecastRowModel {
     let night: NightSummary
     let index: StarGazingIndex?
     let weather: DayWeatherSummary?
-    let rangeText: String
     let isReliableWeather: Bool
     let hasPartialWeather: Bool
     let isForecastOutOfRange: Bool
@@ -44,7 +43,6 @@ struct iOSForecastViewModel {
     func rowModel(for night: NightSummary, using gridViewModel: UpcomingNightsGridViewModel) -> iOSForecastRowModel {
         let index = gridViewModel.starGazingIndex(for: night.date)
         let weather = gridViewModel.weatherSummary(for: night.date)
-        let rangeText = gridViewModel.observableRangeText(night: night, weather: weather)
         let isReliableWeather = gridViewModel.hasReliableWeatherData(for: night, weather: weather)
         let hasPartialWeather = gridViewModel.hasPartialWeatherData(for: night, weather: weather)
         let isForecastOutOfRange = gridViewModel.isForecastOutOfRange(for: night, weather: weather)
@@ -53,7 +51,6 @@ struct iOSForecastViewModel {
             night: night,
             index: index,
             weather: weather,
-            rangeText: rangeText,
             isReliableWeather: isReliableWeather,
             hasPartialWeather: hasPartialWeather,
             isForecastOutOfRange: isForecastOutOfRange,
@@ -61,23 +58,6 @@ struct iOSForecastViewModel {
             isSelected: gridViewModel.isDateSelected(night.date),
             accessibilityLabel: gridViewModel.cardAccessibilityLabel(night: night, weather: weather, index: index)
         )
-    }
-
-    /// 一覧の中で最も条件の良い夜を選ぶ。判定ロジックは共有の BestNightPicker に委ねる。
-    func bestNightPick(
-        for nights: [NightSummary],
-        using gridViewModel: UpcomingNightsGridViewModel
-    ) -> BestNightPick? {
-        let candidates = nights.map { night in
-            let model = rowModel(for: night, using: gridViewModel)
-            return (
-                summary: model.night,
-                index: model.index,
-                weather: model.weather,
-                isReliableWeather: model.isReliableWeather
-            )
-        }
-        return BestNightPicker.pick(nights: candidates)
     }
 
     func selectNight(_ date: Date, using gridViewModel: UpcomingNightsGridViewModel, selectedTab: Binding<Int>) {
@@ -217,11 +197,11 @@ struct iOSForecastView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 強調する価値のある夜。候補が 1 夜だけの一覧では「いちばんの夜」に意味がないため出さない。
+    /// 強調する価値のある夜。採点済みの候補が 1 夜だけの一覧では「いちばんの夜」に意味がないため出さない。
     private var bestNightPick: BestNightPick? {
-        let nights = gridViewModel.displayNights
-        guard nights.count >= IOSDesignTokens.Forecast.calloutMinimumNightCount,
-              let pick = viewModel.bestNightPick(for: nights, using: gridViewModel),
+        let candidates = gridViewModel.bestNightCandidates()
+        guard candidates.filter({ $0.index != nil }).count >= IOSDesignTokens.Forecast.calloutMinimumNightCount,
+              let pick = BestNightPicker.pick(nights: candidates),
               pick.isWorthHighlighting else { return nil }
         return pick
     }
@@ -286,7 +266,6 @@ struct iOSForecastView: View {
                 night: rowModel.night,
                 index: rowModel.index,
                 weather: rowModel.weather,
-                rangeText: rowModel.rangeText,
                 isReliableWeather: rowModel.isReliableWeather,
                 hasPartialWeather: rowModel.hasPartialWeather,
                 isForecastOutOfRange: rowModel.isForecastOutOfRange,

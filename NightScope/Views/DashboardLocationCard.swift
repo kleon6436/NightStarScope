@@ -31,7 +31,7 @@ struct DashboardLocationCard: View {
             Divider()
             observationWindow
         }
-        .glassCard()
+        .contentCard()
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .contextMenu {
             Button(role: .destructive) {

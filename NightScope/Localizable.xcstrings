@@ -717,23 +717,6 @@
         }
       }
     },
-    "observation.mode.breakdown.note" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Breakdown shows pre-adjustment values"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内訳はモード補正前の値"
-          }
-        }
-      }
-    },
     "observation.mode.change" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2844,28 +2827,6 @@
         }
       }
     },
-    "ダブルタップで折り畳む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double-tap to collapse"
-          }
-        }
-      }
-    },
-    "ダブルタップで詳細を表示" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double-tap for details"
-          }
-        }
-      }
-    },
     "タラゼド" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4241,17 +4202,6 @@
         }
       }
     },
-    "光害 %@。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Light pollution %@."
-          }
-        }
-      }
-    },
     "光害・地形データ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5551,17 +5501,6 @@
         }
       }
     },
-    "展開中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expanded"
-          }
-        }
-      }
-    },
     "市民薄明中です" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5613,17 +5552,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Planets"
-          }
-        }
-      }
-    },
-    "折り畳み中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Collapsed"
           }
         }
       }
@@ -5859,17 +5787,6 @@
         }
       }
     },
-    "星空 %d/%d。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sky %d/%d."
-          }
-        }
-      }
-    },
     "星空データを計算中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5954,17 +5871,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stargazing Score"
-          }
-        }
-      }
-    },
-    "星空指数 %d点、%@。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stargazing score %d, %@."
           }
         }
       }
@@ -6486,17 +6392,6 @@
         }
       }
     },
-    "次: %@(%d日後)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next: %@ (%d days)"
-          }
-        }
-      }
-    },
     "次の月" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6515,17 +6410,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Weather"
-          }
-        }
-      }
-    },
-    "気象 %@。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Weather %@."
           }
         }
       }
@@ -7390,17 +7274,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Settings"
-          }
-        }
-      }
-    },
-    "評価: 星%dつ（5段階）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rating: %d stars out of 5"
           }
         }
       }

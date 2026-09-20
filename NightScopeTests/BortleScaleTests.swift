@@ -8,9 +8,12 @@ final class BortleScaleTests: XCTestCase {
     func test_rgb_clampsBelowRangeToClassOne() {
         let expected = BortleScale.rgb(for: 1)
 
-        XCTAssertEqual(BortleScale.rgb(for: 0.5).r, expected.r, accuracy: 0.0001)
-        XCTAssertEqual(BortleScale.rgb(for: 0.5).g, expected.g, accuracy: 0.0001)
-        XCTAssertEqual(BortleScale.rgb(for: 0.5).b, expected.b, accuracy: 0.0001)
+        // 0.5 は四捨五入だけで 1 になるため、クランプの検証には使えない。
+        for value in [-1.0, 0.4] {
+            XCTAssertEqual(BortleScale.rgb(for: value).r, expected.r, accuracy: 0.0001)
+            XCTAssertEqual(BortleScale.rgb(for: value).g, expected.g, accuracy: 0.0001)
+            XCTAssertEqual(BortleScale.rgb(for: value).b, expected.b, accuracy: 0.0001)
+        }
     }
 
     func test_rgb_clampsAboveRangeToClassNine() {

@@ -17,7 +17,7 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         var now = baseDate
         let provider = FavoriteTonightScoreProvider(
             weatherService: weatherService,
-            lightPollutionService: MockTonightLightPollutionService(bortleByCoordinate: ["35.0000,135.0000": 3.0]),
+            lightPollutionService: MockLightPollutionService(bortleByCoordinate: ["35.0000,135.0000": 3.0]),
             calculationService: calculationService,
             referenceDateProvider: { now }
         )
@@ -38,7 +38,7 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         XCTAssertEqual(weatherService.fetchCount, 2)
     }
 
-    func test_refreshIfNeeded_capsBatchAtMaxFavorites() async {
+    func test_refreshIfNeeded_scoresEveryFavoriteInOneRefresh() async {
         let favorites = (0..<8).map { offset in
             makeFavorite(name: "Loc\(offset)", latitude: 30.0 + Double(offset), longitude: 135.0)
         }
@@ -51,17 +51,18 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
 
         let provider = FavoriteTonightScoreProvider(
             weatherService: weatherService,
-            lightPollutionService: MockTonightLightPollutionService(bortleByCoordinate: [:]),
+            lightPollutionService: MockLightPollutionService(),
             calculationService: calculationService,
             referenceDateProvider: { self.baseDate }
         )
 
         await provider.refreshIfNeeded(favorites: favorites)
 
-        XCTAssertEqual(weatherService.fetchCount, FavoriteTonightScoreProvider.maxFavorites)
-        XCTAssertEqual(provider.scoresByFavoriteID.count, FavoriteTonightScoreProvider.maxFavorites)
-        XCTAssertNil(provider.score(for: favorites[6].id))
-        XCTAssertNil(provider.score(for: favorites[7].id))
+        XCTAssertEqual(weatherService.fetchCount, favorites.count)
+        XCTAssertEqual(provider.scoresByFavoriteID.count, favorites.count)
+        for favorite in favorites {
+            XCTAssertNotNil(provider.score(for: favorite.id), "\(favorite.name) のスコアが計算されていない")
+        }
         XCTAssertFalse(provider.isRefreshing)
     }
 
@@ -77,7 +78,7 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
 
         let provider = FavoriteTonightScoreProvider(
             weatherService: weatherService,
-            lightPollutionService: MockTonightLightPollutionService(bortleByCoordinate: ["36.0000,136.0000": 2.0]),
+            lightPollutionService: MockLightPollutionService(bortleByCoordinate: ["36.0000,136.0000": 2.0]),
             calculationService: calculationService,
             referenceDateProvider: { self.baseDate }
         )
@@ -182,28 +183,6 @@ private final class MockTonightWeatherService: WeatherProviding {
 
     private func locationKey(latitude: Double, longitude: Double, timeZone: TimeZone) -> String {
         String(format: "%.4f,%.4f|%@", latitude, longitude, timeZone.identifier)
-    }
-}
-
-@MainActor
-private final class MockTonightLightPollutionService: LightPollutionProviding {
-    @Published var bortleClass: Double?
-    @Published var isLoading = false
-    @Published var fetchFailed = false
-    private let bortleByCoordinate: [String: Double]
-
-    init(bortleByCoordinate: [String: Double]) {
-        self.bortleByCoordinate = bortleByCoordinate
-    }
-
-    var bortleClassPublisher: Published<Double?>.Publisher { $bortleClass }
-    var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
-    var fetchFailedPublisher: Published<Bool>.Publisher { $fetchFailed }
-
-    func fetch(latitude: Double, longitude: Double) async {}
-
-    func fetchBortle(latitude: Double, longitude: Double) async throws -> Double {
-        bortleByCoordinate[String(format: "%.4f,%.4f", latitude, longitude)] ?? 4.0
     }
 }
 
