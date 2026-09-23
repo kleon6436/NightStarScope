@@ -155,7 +155,10 @@ struct NightScopeApp: App {
         #endif
 
         Settings {
-            SettingsView(observationModePreference: observationModePreference)
+            SettingsView(
+                observationModePreference: observationModePreference,
+                favoriteSyncReconciler: appController.favoriteSyncReconciler
+            )
                 .environmentObject(weatherAttributionService)
         }
     }

@@ -26,6 +26,7 @@ struct iOSTodayViewModel {
 struct iOSTodayView: View {
     @ObservedObject var detailViewModel: DetailViewModel
     @ObservedObject var observationModePreference: ObservationModePreference
+    private let favoriteSyncReconciler: FavoriteSyncReconciler?
     private let viewModel = iOSTodayViewModel()
     @StateObject private var lightPollutionViewModel: StarGazingIndexCardViewModel
     @StateObject private var weatherViewModel = NightWeatherCardViewModel()
@@ -35,10 +36,12 @@ struct iOSTodayView: View {
     /// 詳細画面の ViewModel と観測モード設定を受け取る。
     init(
         detailViewModel: DetailViewModel,
-        observationModePreference: ObservationModePreference = ObservationModePreference()
+        observationModePreference: ObservationModePreference = ObservationModePreference(),
+        favoriteSyncReconciler: FavoriteSyncReconciler? = nil
     ) {
         self.detailViewModel = detailViewModel
         self.observationModePreference = observationModePreference
+        self.favoriteSyncReconciler = favoriteSyncReconciler
         _lightPollutionViewModel = StateObject(
             wrappedValue: StarGazingIndexCardViewModel(
                 lightPollutionService: detailViewModel.lightPollutionService
@@ -337,7 +340,7 @@ struct iOSTodayView: View {
             }
             .presentationDetents([.medium])
         case .settings:
-            iOSSettingsSheetView()
+            iOSSettingsSheetView(favoriteSyncReconciler: favoriteSyncReconciler)
         }
     }
 }
@@ -393,10 +396,11 @@ private struct iOSObservationModeSelectionView: View {
 /// 設定画面を表示する sheet。
 private struct iOSSettingsSheetView: View {
     @Environment(\.dismiss) private var dismiss
+    let favoriteSyncReconciler: FavoriteSyncReconciler?
 
     var body: some View {
         NavigationStack {
-            SettingsView()
+            SettingsView(favoriteSyncReconciler: favoriteSyncReconciler)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("完了") {

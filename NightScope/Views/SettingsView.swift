@@ -5,9 +5,15 @@ struct SettingsView: View {
     @AppStorage("windSpeedUnit") private var windSpeedUnit: String = WindSpeedUnit.kmh.rawValue
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
     @ObservedObject private var observationModePreference: ObservationModePreference
+    private let favoriteSyncReconciler: FavoriteSyncReconciler?
+    @State private var isFavoriteImportPresented = false
 
-    init(observationModePreference: ObservationModePreference = ObservationModePreference()) {
+    init(
+        observationModePreference: ObservationModePreference = ObservationModePreference(),
+        favoriteSyncReconciler: FavoriteSyncReconciler? = nil
+    ) {
         self.observationModePreference = observationModePreference
+        self.favoriteSyncReconciler = favoriteSyncReconciler
     }
 
     var body: some View {
@@ -23,9 +29,21 @@ struct SettingsView: View {
             Section("iCloud 同期") {
                 Toggle("お気に入り地点を同期する", isOn: $iCloudSyncEnabled)
                 if iCloudSyncEnabled {
-                    Text("macOS・iPhone でお気に入りが共有されます。変更は次回起動後に反映されます。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                        Text("macOS・iPhone でお気に入りが共有されます。変更は次回起動後に反映されます。")
+                        #if os(macOS)
+                        Text("取り込みはこの画面またはサイドバーのバナーから行えます。")
+                        #else
+                        Text("取り込みはこの画面または「場所」タブのバナーから行えます。")
+                        #endif
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                if let favoriteSyncReconciler {
+                    FavoriteSyncSettingsRows(reconciler: favoriteSyncReconciler) {
+                        isFavoriteImportPresented = true
+                    }
                 }
             }
 
@@ -76,12 +94,47 @@ struct SettingsView: View {
             #endif
         }
         .formStyle(.grouped)
+        .onAppear {
+            favoriteSyncReconciler?.refresh()
+        }
+        .sheet(isPresented: $isFavoriteImportPresented) {
+            if let favoriteSyncReconciler {
+                FavoriteSyncImportView(reconciler: favoriteSyncReconciler)
+            }
+        }
         #if os(macOS)
         .frame(width: 420, alignment: .top)
         .padding(.vertical, Spacing.sm)
         #endif
     }
 
+}
+
+/// iCloud 同期セクションの差分件数と取り込み導線。一覧が0件のときは出さない。
+private struct FavoriteSyncSettingsRows: View {
+    @ObservedObject var reconciler: FavoriteSyncReconciler
+    let onReview: () -> Void
+
+    private var count: Int {
+        reconciler.activeMode == .icloud ? reconciler.localOnly.count : reconciler.cloudOnly.count
+    }
+
+    private var title: String {
+        reconciler.activeMode == .icloud ? L10n.tr("この端末にのみある地点") : L10n.tr("iCloud にのみある地点")
+    }
+
+    var body: some View {
+        if count > 0 {
+            LabeledContent(title) {
+                Text(L10n.format("%d 件", count))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            Button(action: onReview) {
+                Label("確認して取り込む", systemImage: "square.and.arrow.down.on.square")
+            }
+        }
+    }
 }
 
 private struct SettingsAboutView: View {

@@ -330,10 +330,7 @@ final class SidebarViewModel: ObservableObject {
 
     var isCurrentLocationFavorited: Bool {
         let coord = locationController.selectedLocation
-        return favorites.contains {
-            abs($0.latitude - coord.latitude) < 0.001
-                && abs($0.longitude - coord.longitude) < 0.001
-        }
+        return favorites.contains { $0.isNear(latitude: coord.latitude, longitude: coord.longitude) }
     }
 
     func addCurrentLocationToFavorites() {
@@ -358,10 +355,7 @@ final class SidebarViewModel: ObservableObject {
 
     private func removeCurrentLocationFromFavorites() {
         let coord = locationController.selectedLocation
-        favorites.removeAll {
-            abs($0.latitude - coord.latitude) < 0.001
-                && abs($0.longitude - coord.longitude) < 0.001
-        }
+        favorites.removeAll { $0.isNear(latitude: coord.latitude, longitude: coord.longitude) }
         favoriteStore.save(favorites)
     }
 

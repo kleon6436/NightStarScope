@@ -183,4 +183,51 @@ final class FavoriteLocationTests: XCTestCase {
         XCTAssertTrue(store.loadAll().isEmpty)
         defaults.removePersistentDomain(forName: suiteName)
     }
+
+    // MARK: - 同一地点の判定
+
+    private func makeSpot(_ name: String, latitude: Double, longitude: Double = 139.0, id: UUID = UUID()) -> FavoriteLocation {
+        FavoriteLocation(id: id, name: name, latitude: latitude, longitude: longitude, timeZoneIdentifier: "Asia/Tokyo")
+    }
+
+    func test_isSameSpot_prefersIDOverCoordinates() {
+        let id = UUID()
+        let original = makeSpot("元", latitude: 35.0, id: id)
+        let moved = makeSpot("移動後", latitude: 36.0, id: id)
+        let near = makeSpot("近く", latitude: 35.0005)
+        let far = makeSpot("遠く", latitude: 35.002)
+
+        XCTAssertTrue(original.isSameSpot(as: moved))
+        XCTAssertTrue(original.isSameSpot(as: near))
+        XCTAssertFalse(original.isSameSpot(as: far))
+    }
+
+    func test_setOperations_treatDifferentIDsAtSameCoordinatesAsSame() {
+        let local = makeSpot("ローカル", latitude: 35.0)
+        let cloud = makeSpot("iCloud", latitude: 35.0)
+
+        XCTAssertTrue([local].subtracting([cloud]).isEmpty)
+        XCTAssertEqual([local].unionPreservingOrder([cloud]), [local])
+    }
+
+    func test_union_keepsLeftHandElementOnDuplicate() {
+        let left = makeSpot("左辺の名前", latitude: 35.0)
+        let right = makeSpot("右辺の名前", latitude: 35.0003)
+
+        let union = [left].unionPreservingOrder([right])
+
+        XCTAssertEqual(union.map(\.name), ["左辺の名前"])
+        XCTAssertEqual(union.first?.id, left.id)
+    }
+
+    /// 判定は推移的ではない。A〜B、B〜C は同一、A〜C は別（緯度だけ 0.0008° ずつずれている）。
+    func test_setOperations_chainedSpots_fixExpectedResults() {
+        let spotA = makeSpot("A", latitude: 35.0)
+        let spotB = makeSpot("B", latitude: 35.0008)
+        let spotC = makeSpot("C", latitude: 35.0016)
+
+        XCTAssertEqual([spotA].unionPreservingOrder([spotB, spotC]), [spotA, spotC])
+        XCTAssertEqual([spotB].subtracting([spotA, spotC]), [])
+        XCTAssertEqual([spotA, spotC].subtracting([spotB]), [])
+    }
 }
