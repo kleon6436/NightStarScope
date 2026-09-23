@@ -222,6 +222,7 @@
 		FD0000000000000000001002 /* ConstellationLabelLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */; };
 		FD0000000000000000001004 /* StarMapObservationTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001004 /* StarMapObservationTimeline.swift */; };
 		FD0000000000000000001005 /* StarMapSpatialIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001005 /* StarMapSpatialIndex.swift */; };
+		IC0000000000000000002001 /* iCloudFavoriteLocationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = IC0000000000000000001001 /* iCloudFavoriteLocationStoreTests.swift */; };
 		FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000001006 /* GnomonicProjectionMathTests.swift */; };
 		FV000000000000000000B001 /* FavoriteTonightScoreProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FV000000000000000000F001 /* FavoriteTonightScoreProvider.swift */; };
 		FV000000000000000000C001 /* FavoriteTonightScoreProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FV000000000000000000F001 /* FavoriteTonightScoreProvider.swift */; };
@@ -387,6 +388,7 @@
 		FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstellationLabelLayoutEngine.swift; sourceTree = "<group>"; };
 		FE0000000000000000001004 /* StarMapObservationTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapObservationTimeline.swift; sourceTree = "<group>"; };
 		FE0000000000000000001005 /* StarMapSpatialIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapSpatialIndex.swift; sourceTree = "<group>"; };
+		IC0000000000000000001001 /* iCloudFavoriteLocationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iCloudFavoriteLocationStoreTests.swift; sourceTree = "<group>"; };
 		FE0000000000000000001006 /* GnomonicProjectionMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GnomonicProjectionMathTests.swift; sourceTree = "<group>"; };
 		FV000000000000000000F001 /* FavoriteTonightScoreProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteTonightScoreProvider.swift; sourceTree = "<group>"; };
 		FV000000000000000000F002 /* FavoriteTonightScoreProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteTonightScoreProviderTests.swift; sourceTree = "<group>"; };
@@ -627,6 +629,7 @@
 				E9018ABBBB27AE209C8B4401 /* FavoriteLocationTests.swift */,
 				FV000000000000000000F002 /* FavoriteTonightScoreProviderTests.swift */,
 				FE0000000000000000001006 /* GnomonicProjectionMathTests.swift */,
+				IC0000000000000000001001 /* iCloudFavoriteLocationStoreTests.swift */,
 			);
 			path = NightScopeTests;
 			sourceTree = "<group>";
@@ -1055,6 +1058,7 @@
 				E2B1BBFAE453C3FC09374E13 /* FavoriteLocationTests.swift in Sources */,
 				FV000000000000000000T002 /* FavoriteTonightScoreProviderTests.swift in Sources */,
 				FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */,
+				IC0000000000000000002001 /* iCloudFavoriteLocationStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1313,6 +1317,7 @@
 				PRODUCT_NAME = NightStarScope;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_DYNAMIC_ACTOR_ISOLATION = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;

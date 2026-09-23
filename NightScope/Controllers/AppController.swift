@@ -1,9 +1,12 @@
 import Foundation
 import Combine
 import CoreLocation
+import os
 #if os(macOS)
 import AppKit
 #endif
+
+private let logger = Logger(subsystem: "com.nightscope", category: "AppController")
 
 /// アプリ全体の観測状態と外部データ更新を統括するコントローラ。
 @MainActor
@@ -105,6 +108,7 @@ final class AppController: ObservableObject {
          weatherService: (any WeatherProviding)? = nil,
          lightPollutionService: LightPollutionService? = nil,
          calculationService: NightCalculating? = nil) {
+        let initStart = ContinuousClock.now
         self.locationController = locationController ?? LocationController()
         self.weatherService = weatherService ?? WeatherKitService()
         self.lightPollutionService = lightPollutionService ?? LightPollutionService()
@@ -122,6 +126,8 @@ final class AppController: ObservableObject {
         Task.detached(priority: .utility) {
             _ = await StarCatalog.preloadedStars()
         }
+        let elapsedMs = Int((ContinuousClock.now - initStart) / .milliseconds(1))
+        logger.notice("event=appControllerInit elapsedMs=\(elapsedMs, privacy: .public)")
     }
 
     func bindDashboardCommandBridge(
@@ -164,6 +170,7 @@ final class AppController: ObservableObject {
         // iCloud 側がすでにデータを持っている場合は seed しない
         guard iCloudStore.loadAll().isEmpty else {
             UserDefaults.standard.set(true, forKey: migrationKey)
+            logger.notice("event=migration v=1 kvEmpty=0 localCount=na seeded=0")
             return
         }
 
@@ -175,6 +182,9 @@ final class AppController: ObservableObject {
         }
 
         UserDefaults.standard.set(true, forKey: migrationKey)
+        logger.notice(
+            "event=migration v=1 kvEmpty=1 localCount=\(localFavorites.count, privacy: .public) seeded=\(localFavorites.isEmpty ? 0 : 1, privacy: .public)"
+        )
     }
 
     // MARK: - Startup Stage 1

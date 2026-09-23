@@ -11,8 +11,8 @@ struct iOSRootView: View {
     /// AppRootStore を外部から差し替えられるようにする。
     @MainActor
     init(dependencies: AppRootDependencies? = nil) {
-        let dependencies = dependencies ?? .makeDefault()
-        _rootStore = StateObject(wrappedValue: AppRootStore(dependencies: dependencies))
+        // autoclosure の内側で生成し、View の再生成のたびに AppController が作られないようにする。
+        _rootStore = StateObject(wrappedValue: AppRootStore(dependencies: dependencies ?? .makeDefault()))
     }
 
     var body: some View {
