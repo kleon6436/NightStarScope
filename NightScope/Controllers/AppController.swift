@@ -83,7 +83,7 @@ final class AppController: ObservableObject {
 
     // MARK: - Private State
     let favoriteStore: any FavoriteLocationStoring
-    /// お気に入りの差分一覧と取り込みを担う。ストアと同じ寿命で、メイン画面と設定画面の両方から参照する。
+    /// iCloud への自動追加と、iCloud からの取り込みを担う。ストアと同じ寿命で、メイン画面と設定画面の両方から参照する。
     let favoriteSyncReconciler: FavoriteSyncReconciler
     let calculationService: NightCalculating
     private var calculationTask: Task<Void, Never>?
@@ -164,7 +164,7 @@ final class AppController: ObservableObject {
     nonisolated private static let iCloudSyncEnabledKey = "iCloudSyncEnabled"
 
     /// iCloud 同期設定に応じて適切な FavoriteLocationStore を生成する。
-    /// 自動移行はしない（KV を正とし、ローカルとの差分は FavoriteSyncReconciler で選んで取り込む）。
+    /// 自動移行はしない（KV を正とし、ローカルとの差分は FavoriteSyncReconciler が扱う）。
     private static func makeFavoriteStore(
         defaults: UserDefaults,
         kvStore: any UbiquitousKeyValueStoring,

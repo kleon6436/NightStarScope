@@ -29,16 +29,9 @@ struct SettingsView: View {
             Section("iCloud 同期") {
                 Toggle("お気に入り地点を同期する", isOn: $iCloudSyncEnabled)
                 if iCloudSyncEnabled {
-                    VStack(alignment: .leading, spacing: Spacing.xs / 2) {
-                        Text("macOS・iPhone でお気に入りが共有されます。変更は次回起動後に反映されます。")
-                        #if os(macOS)
-                        Text("取り込みはこの画面またはサイドバーのバナーから行えます。")
-                        #else
-                        Text("取り込みはこの画面または「場所」タブのバナーから行えます。")
-                        #endif
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    Text("macOS・iPhone でお気に入りが共有されます。変更は次回起動後に反映されます。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 if let favoriteSyncReconciler {
                     FavoriteSyncSettingsRows(reconciler: favoriteSyncReconciler) {
@@ -110,7 +103,8 @@ struct SettingsView: View {
 
 }
 
-/// iCloud 同期セクションの差分件数と取り込み導線。一覧が0件のときは出さない。
+/// iCloud 同期セクションの差分件数と、選んで追加・取り込む導線。一覧が0件のときは出さない。
+/// iCloud モードでは、自動追加されなかった地点（v1 からの残りや、古い一覧の保存で iCloud から消えた地点など）の安全網になる。
 private struct FavoriteSyncSettingsRows: View {
     @ObservedObject var reconciler: FavoriteSyncReconciler
     let onReview: () -> Void
@@ -131,7 +125,11 @@ private struct FavoriteSyncSettingsRows: View {
                     .foregroundStyle(.secondary)
             }
             Button(action: onReview) {
-                Label("確認して取り込む", systemImage: "square.and.arrow.down.on.square")
+                if reconciler.activeMode == .icloud {
+                    Label("確認して追加", systemImage: "icloud.and.arrow.up")
+                } else {
+                    Label("確認して取り込む", systemImage: "square.and.arrow.down.on.square")
+                }
             }
         }
     }
