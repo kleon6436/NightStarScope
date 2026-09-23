@@ -30,3 +30,39 @@ struct FavoriteLocation: Identifiable, Codable, Equatable, Sendable {
         self.createdAt = createdAt
     }
 }
+
+// MARK: - 同一地点の判定
+
+extension FavoriteLocation {
+    /// 同一地点とみなす緯度・経度の差（度）。約111m 以内の別の地点も同一として扱う。
+    static let sameSpotTolerance = 0.001
+
+    /// 同じ地点かどうかを返す。ID の一致を優先し、ID が異なる場合は座標の近さで判定する。
+    /// - Note: 座標による判定は推移的ではない（A〜B、B〜C が同一でも A〜C は別になりうる）。
+    func isSameSpot(as other: FavoriteLocation) -> Bool {
+        id == other.id || isNear(latitude: other.latitude, longitude: other.longitude)
+    }
+
+    /// 緯度・経度の差がどちらも `sameSpotTolerance` 未満かどうかを返す。
+    func isNear(latitude: Double, longitude: Double) -> Bool {
+        abs(self.latitude - latitude) < Self.sameSpotTolerance
+            && abs(self.longitude - longitude) < Self.sameSpotTolerance
+    }
+}
+
+extension Array where Element == FavoriteLocation {
+    /// `other` のいずれかと同一地点である要素を取り除いた一覧を返す。
+    func subtracting(_ other: [FavoriteLocation]) -> [FavoriteLocation] {
+        filter { element in !other.contains { element.isSameSpot(as: $0) } }
+    }
+
+    /// `other` の要素を先頭から順に、その時点の結果のいずれとも同一でなければ末尾に追加した一覧を返す。
+    /// 重複したときは常に左辺（self 側）の要素（名前、id、createdAt）を残す。
+    func unionPreservingOrder(_ other: [FavoriteLocation]) -> [FavoriteLocation] {
+        var result = self
+        for element in other where !result.contains(where: { $0.isSameSpot(as: element) }) {
+            result.append(element)
+        }
+        return result
+    }
+}

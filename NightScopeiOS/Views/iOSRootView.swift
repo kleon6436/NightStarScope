@@ -20,7 +20,8 @@ struct iOSRootView: View {
         TabView(selection: $selectedTab) {
             iOSTodayView(
                 detailViewModel: rootStore.detailViewModel,
-                observationModePreference: rootStore.observationModePreference
+                observationModePreference: rootStore.observationModePreference,
+                favoriteSyncReconciler: rootStore.favoriteSyncReconciler
             )
                 .tabItem {
                     Label("空模様", systemImage: "moon.stars")
@@ -33,7 +34,10 @@ struct iOSRootView: View {
                 }
                 .tag(1)
 
-            iOSLocationView(sidebarViewModel: rootStore.sidebarViewModel)
+            iOSLocationView(
+                sidebarViewModel: rootStore.sidebarViewModel,
+                favoriteSyncReconciler: rootStore.favoriteSyncReconciler
+            )
                 .tabItem {
                     Label("場所", systemImage: "mappin.circle")
                 }

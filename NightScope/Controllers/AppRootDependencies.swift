@@ -14,6 +14,7 @@ struct AppRootDependencies {
     let comparisonController: ComparisonController
     let dashboardCommandBridge: DashboardCommandBridge
     let favoriteTonightScoreProvider: FavoriteTonightScoreProvider
+    let favoriteSyncReconciler: FavoriteSyncReconciler
 
     /// AppController を起点に各 ViewModel と補助コントローラを組み立てる。
     init(
@@ -30,6 +31,7 @@ struct AppRootDependencies {
             calculationService: appController.calculationService
         )
         self.favoriteTonightScoreProvider = favoriteTonightScoreProvider
+        self.favoriteSyncReconciler = appController.favoriteSyncReconciler
         self.sidebarViewModel = SidebarViewModel(
             locationController: appController.locationController,
             lightPollutionService: appController.lightPollutionService,
@@ -76,6 +78,7 @@ final class AppRootStore: ObservableObject {
     let starMapViewModel: StarMapViewModel
     let comparisonController: ComparisonController
     let dashboardCommandBridge: DashboardCommandBridge
+    let favoriteSyncReconciler: FavoriteSyncReconciler
     
     @Published private(set) var selectedDate: Date = Date()
 
@@ -88,6 +91,7 @@ final class AppRootStore: ObservableObject {
         self.starMapViewModel = dependencies.starMapViewModel
         self.comparisonController = dependencies.comparisonController
         self.dashboardCommandBridge = dependencies.dashboardCommandBridge
+        self.favoriteSyncReconciler = dependencies.favoriteSyncReconciler
         
         // detailViewModel の日付変化を AppRootStore に伝播させ ContentView を再描画させる
         dependencies.detailViewModel.$selectedDate

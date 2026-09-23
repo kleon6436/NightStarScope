@@ -8,6 +8,8 @@ struct SidebarView: View {
     @StateObject var viewModel: SidebarViewModel
     @ObservedObject var starMapViewModel: StarMapViewModel
     @Binding var selectedDate: Date
+    private let favoriteSyncReconciler: FavoriteSyncReconciler?
+    @State private var isFavoriteImportPresented = false
     @State private var highlightedIndex = SidebarSearchInteraction.noSelectionIndex
     @FocusState private var isSearchFocused: Bool
     @State private var locationInputMode: LocationInputMode = .map
@@ -16,11 +18,13 @@ struct SidebarView: View {
     init(
         viewModel: SidebarViewModel,
         selectedDate: Binding<Date>,
-        starMapViewModel: StarMapViewModel
+        starMapViewModel: StarMapViewModel,
+        favoriteSyncReconciler: FavoriteSyncReconciler? = nil
     ) {
         self._viewModel = StateObject(wrappedValue: viewModel)
         self.starMapViewModel = starMapViewModel
         self._selectedDate = selectedDate
+        self.favoriteSyncReconciler = favoriteSyncReconciler
     }
 
     var body: some View {
@@ -31,6 +35,11 @@ struct SidebarView: View {
         }
         .padding(.horizontal, Layout.sidebarHorizontalPadding)
         .padding(.vertical, Layout.sidebarVerticalPadding)
+        .sheet(isPresented: $isFavoriteImportPresented) {
+            if let favoriteSyncReconciler {
+                FavoriteSyncImportView(reconciler: favoriteSyncReconciler)
+            }
+        }
     }
 
     // MARK: - Location Section
@@ -65,6 +74,7 @@ struct SidebarView: View {
             searchResultsList
             mapView
             selectedLocationRow
+            favoriteSyncBanner
             favoritesSection
         }
     }
@@ -191,6 +201,17 @@ struct SidebarView: View {
                 viewModel.isCurrentLocationFavorited ? L10n.tr("お気に入りから削除") : L10n.tr("お気に入りに追加")
             )
             .accessibilityHint(L10n.tr("現在の場所をお気に入りに保存します"))
+        }
+    }
+
+    @ViewBuilder
+    private var favoriteSyncBanner: some View {
+        if let favoriteSyncReconciler {
+            FavoriteSyncLocalOnlyBanner(
+                reconciler: favoriteSyncReconciler,
+                isEmphasized: viewModel.favorites.isEmpty,
+                onReview: { isFavoriteImportPresented = true }
+            )
         }
     }
 

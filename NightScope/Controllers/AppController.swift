@@ -83,6 +83,8 @@ final class AppController: ObservableObject {
 
     // MARK: - Private State
     let favoriteStore: any FavoriteLocationStoring
+    /// お気に入りの差分一覧と取り込みを担う。ストアと同じ寿命で、メイン画面と設定画面の両方から参照する。
+    let favoriteSyncReconciler: FavoriteSyncReconciler
     let calculationService: NightCalculating
     private var calculationTask: Task<Void, Never>?
     private var upcomingTask: Task<Void, Never>?
@@ -107,12 +109,22 @@ final class AppController: ObservableObject {
     init(locationController: LocationController? = nil,
          weatherService: (any WeatherProviding)? = nil,
          lightPollutionService: LightPollutionService? = nil,
-         calculationService: NightCalculating? = nil) {
+         calculationService: NightCalculating? = nil,
+         favoriteDefaults: UserDefaults = .standard,
+         kvStore: any UbiquitousKeyValueStoring = NSUbiquitousKeyValueStore.default,
+         notificationCenter: NotificationCenter = .default) {
         let initStart = ContinuousClock.now
         self.locationController = locationController ?? LocationController()
         self.weatherService = weatherService ?? WeatherKitService()
         self.lightPollutionService = lightPollutionService ?? LightPollutionService()
-        self.favoriteStore = Self.makeFavoriteStore()
+        let favoriteStore = Self.makeFavoriteStore(defaults: favoriteDefaults, kvStore: kvStore, center: notificationCenter)
+        self.favoriteStore = favoriteStore
+        self.favoriteSyncReconciler = FavoriteSyncReconciler(
+            activeStore: favoriteStore,
+            localDefaults: favoriteDefaults,
+            kvStore: kvStore,
+            toggleProvider: { favoriteDefaults.bool(forKey: Self.iCloudSyncEnabledKey) }
+        )
         self.calculationService = calculationService ?? NightCalculationService()
         self.lastObservedTimeZone = self.locationController.selectedTimeZone
         self.selectedDate = ObservationTimeZone.startOfDay(
@@ -149,42 +161,19 @@ final class AppController: ObservableObject {
 
     // MARK: - Private Factory
 
+    nonisolated private static let iCloudSyncEnabledKey = "iCloudSyncEnabled"
+
     /// iCloud 同期設定に応じて適切な FavoriteLocationStore を生成する。
-    /// iCloud が有効なときは初回マイグレーションも実行する。
-    private static func makeFavoriteStore() -> any FavoriteLocationStoring {
-        let iCloudEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
-        guard iCloudEnabled else {
-            return FavoriteLocationStore()
+    /// 自動移行はしない（KV を正とし、ローカルとの差分は FavoriteSyncReconciler で選んで取り込む）。
+    private static func makeFavoriteStore(
+        defaults: UserDefaults,
+        kvStore: any UbiquitousKeyValueStoring,
+        center: NotificationCenter
+    ) -> any FavoriteLocationStoring {
+        guard defaults.bool(forKey: iCloudSyncEnabledKey) else {
+            return FavoriteLocationStore(userDefaults: defaults)
         }
-
-        let store = iCloudFavoriteLocationStore()
-        migrateLocalFavoritesToICloudIfNeeded(iCloudStore: store)
-        return store
-    }
-
-    /// UserDefaults のお気に入りを iCloud KVStore へ一度だけ移行する（idempotent）。
-    private static func migrateLocalFavoritesToICloudIfNeeded(iCloudStore: iCloudFavoriteLocationStore) {
-        let migrationKey = "favorites.icloud.migrated.v1"
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-
-        // iCloud 側がすでにデータを持っている場合は seed しない
-        guard iCloudStore.loadAll().isEmpty else {
-            UserDefaults.standard.set(true, forKey: migrationKey)
-            logger.notice("event=migration v=1 kvEmpty=0 localCount=na seeded=0")
-            return
-        }
-
-        // ローカル UserDefaults にデータがある場合のみ seed する
-        let localStore = FavoriteLocationStore()
-        let localFavorites = localStore.loadAll()
-        if !localFavorites.isEmpty {
-            iCloudStore.save(localFavorites)
-        }
-
-        UserDefaults.standard.set(true, forKey: migrationKey)
-        logger.notice(
-            "event=migration v=1 kvEmpty=1 localCount=\(localFavorites.count, privacy: .public) seeded=\(localFavorites.isEmpty ? 0 : 1, privacy: .public)"
-        )
+        return iCloudFavoriteLocationStore(kvStore: kvStore, fallbackDefaults: defaults, notificationCenter: center)
     }
 
     // MARK: - Startup Stage 1
