@@ -290,7 +290,7 @@ final class AstroModelsTests: XCTestCase {
         )
         XCTAssertEqual(nakedEye.observationDifficulty, .nakedEye)
         XCTAssertEqual(nakedEye.observationDifficulty.systemImage, "eye.fill")
-        XCTAssertEqual(nakedEye.observationDifficulty.localizedLabel, "肉眼")
+        XCTAssertEqual(nakedEye.observationDifficulty.localizedLabel, L10n.tr("肉眼"))
 
         let binoculars = PlanetNightSummary(
             name: "土星",
@@ -302,7 +302,7 @@ final class AstroModelsTests: XCTestCase {
         )
         XCTAssertEqual(binoculars.observationDifficulty, .binoculars)
         XCTAssertEqual(binoculars.observationDifficulty.systemImage, "binoculars.fill")
-        XCTAssertEqual(binoculars.observationDifficulty.localizedLabel, "双眼鏡")
+        XCTAssertEqual(binoculars.observationDifficulty.localizedLabel, L10n.tr("双眼鏡"))
 
         let telescope = PlanetNightSummary(
             name: "水星",
@@ -314,7 +314,7 @@ final class AstroModelsTests: XCTestCase {
         )
         XCTAssertEqual(telescope.observationDifficulty, .telescope)
         XCTAssertEqual(telescope.observationDifficulty.systemImage, "viewfinder")
-        XCTAssertEqual(telescope.observationDifficulty.localizedLabel, "望遠鏡")
+        XCTAssertEqual(telescope.observationDifficulty.localizedLabel, L10n.tr("望遠鏡"))
 
         let nakedEyeColor = NSColor(nakedEye.observationDifficulty.color).usingColorSpace(.deviceRGB)!
         XCTAssertEqual(nakedEyeColor.redComponent, 0.1882353, accuracy: 0.0001)
