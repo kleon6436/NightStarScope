@@ -66,13 +66,22 @@ final class FavoriteLocationStore: ObservableObject, FavoriteLocationStoring, @u
 
 private let iCloudLogger = Logger(subsystem: "com.nightscope", category: "iCloudFavoriteLocationStore")
 
+/// お気に入り同期で使う iCloud KV ストアの操作を抽象化する（テストでフェイクを注入するため）。
+protocol UbiquitousKeyValueStoring: AnyObject {
+    func data(forKey aKey: String) -> Data?
+    func set(_ aData: Data?, forKey aKey: String)
+    @discardableResult func synchronize() -> Bool
+}
+
+extension NSUbiquitousKeyValueStore: UbiquitousKeyValueStoring {}
+
 /// NSUbiquitousKeyValueStore を使って iCloud にお気に入り地点を同期する実装。
 /// iCloud が利用不可のときは UserDefaults にフォールバックする。
 @MainActor
 final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency FavoriteLocationStoring {
     // MARK: - Constants
 
-    private static let iCloudKey = "favorites.locations.v1"
+    nonisolated private static let iCloudKey = "favorites.locations.v1"
     private static let localFallbackKey = "favorites.locations.icloud.fallback"
     /// KV ストアの実用上限（Apple の 64KB 制限に対して余裕を持たせる）
     private static let maxDataSize = 60 * 1_024
@@ -80,28 +89,39 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     // MARK: - State
 
     @Published private(set) var locations: [FavoriteLocation]
-    private let kvStore: NSUbiquitousKeyValueStore
+    private let kvStore: any UbiquitousKeyValueStoring
     private let fallbackDefaults: UserDefaults
+    private let notificationCenter: NotificationCenter
 
     // MARK: - Init
 
-    init(kvStore: NSUbiquitousKeyValueStore = .default,
-         fallbackDefaults: UserDefaults = .standard) {
+    init(kvStore: any UbiquitousKeyValueStoring = NSUbiquitousKeyValueStore.default,
+         fallbackDefaults: UserDefaults = .standard,
+         notificationCenter: NotificationCenter = .default) {
         self.kvStore = kvStore
         self.fallbackDefaults = fallbackDefaults
-        self.locations = Self.loadFromKVStore(kvStore) ?? Self.loadFromFallback(fallbackDefaults)
+        self.notificationCenter = notificationCenter
+        let kvReadStart = ContinuousClock.now
+        let kvLocations = Self.loadFromKVStore(kvStore)
+        let kvReadMs = Int((ContinuousClock.now - kvReadStart) / .milliseconds(1))
+        self.locations = kvLocations ?? Self.loadFromFallback(fallbackDefaults)
 
-        NotificationCenter.default.addObserver(
+        notificationCenter.addObserver(
             self,
             selector: #selector(kvStoreDidChangeExternally(_:)),
             name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
             object: kvStore
         )
+        let syncStart = ContinuousClock.now
         kvStore.synchronize()
+        let syncMs = Int((ContinuousClock.now - syncStart) / .milliseconds(1))
+        iCloudLogger.notice(
+            "event=storeInit source=\(kvLocations == nil ? "fallback" : "kv", privacy: .public) count=\(self.locations.count, privacy: .public) kvReadMs=\(kvReadMs, privacy: .public) syncMs=\(syncMs, privacy: .public)"
+        )
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        notificationCenter.removeObserver(self)
     }
 
     // MARK: - FavoriteLocationStoring
@@ -136,23 +156,31 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
 
     // MARK: - External Change Notification
 
-    @objc private func kvStoreDidChangeExternally(_ notification: Notification) {
+    @objc nonisolated private func kvStoreDidChangeExternally(_ notification: Notification) {
         // Notification はメインキュー配信が原則だが iOS では稀にバックグラウンドで届く。
-        // assumeIsolated はメインアクター外からの呼び出しでクラッシュするため Task で安全にホップする。
+        // @objc thunk の実行時隔離チェックで trap しないよう nonisolated で受け、Sendable な値だけを Task でメインへ渡す。
         let reasonValue = notification.userInfo?[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int
-        Task { @MainActor [weak self] in
+        let changedKeys = notification.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]
+        let hasKey = changedKeys?.contains(Self.iCloudKey) == true
+        iCloudLogger.notice(
+            "event=externalChange phase=entry reason=\(reasonValue ?? -1, privacy: .public) hasKey=\(hasKey ? 1 : 0, privacy: .public) isMain=\(Thread.isMainThread ? 1 : 0, privacy: .public)"
+        )
+        Task { @MainActor [weak self, reasonValue] in
             guard let self else { return }
             let reason = reasonValue.flatMap { NSUbiquitousKeyValueStore.ChangeReason(rawValue: $0) }
             iCloudLogger.debug("iCloud KVStore changed externally (reason: \(String(describing: reason)))")
             if let updated = Self.loadFromKVStore(kvStore) {
                 locations = updated
             }
+            iCloudLogger.notice(
+                "event=externalChange phase=applied reason=\(reasonValue ?? -1, privacy: .public) count=\(self.locations.count, privacy: .public)"
+            )
         }
     }
 
     // MARK: - Private Helpers
 
-    private static func loadFromKVStore(_ kvStore: NSUbiquitousKeyValueStore) -> [FavoriteLocation]? {
+    private static func loadFromKVStore(_ kvStore: any UbiquitousKeyValueStoring) -> [FavoriteLocation]? {
         guard let data = kvStore.data(forKey: iCloudKey) else { return nil }
         do {
             return try JSONDecoder().decode([FavoriteLocation].self, from: data)
