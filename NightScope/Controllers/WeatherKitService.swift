@@ -300,12 +300,12 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
             to: calendar.startOfDay(for: latest.date)
         ) ?? calendar.startOfDay(for: latest.date)
 
-        // 各日の夜間インターバルを列挙（MilkyWayCalculator.nightInterval と統一）
+        // 各日の夜間インターバルを列挙（MilkyWayCalculator.civilDarknessInterval と統一）
         var intervals: [(key: String, interval: DateInterval)] = []
         var currentDay = startDay
         while currentDay <= endDay {
-            if let interval = MilkyWayCalculator.nightInterval(
-                for: currentDay,
+            if let interval = MilkyWayCalculator.civilDarknessInterval(
+                date: currentDay,
                 location: coordinate,
                 timeZone: timeZone
             ) {

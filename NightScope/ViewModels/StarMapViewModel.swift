@@ -503,11 +503,6 @@ final class StarMapViewModel: ObservableObject {
 
     // MARK: - Calculation
 
-    /// 現在の観測地緯度 (度)
-    private(set) var latitude: Double = 35.0
-    /// 現在の地方恒星時 (度)
-    private(set) var currentLST: Double = 0.0
-
     /// 進行中の計算タスク (新しい update() 呼び出しでキャンセルする)
     private var updateTask: Task<Void, Never>?
     /// trailing-edge debounce 用タスク
@@ -631,7 +626,7 @@ final class StarMapViewModel: ObservableObject {
             .dropFirst()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.handleSelectedLocationChanged()
+                self?.resyncAfterSelectionChange()
             }
             .store(in: &cancellables)
 
@@ -640,7 +635,7 @@ final class StarMapViewModel: ObservableObject {
             .removeDuplicates { $0.identifier == $1.identifier }
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.handleSelectedTimeZoneChanged()
+                self?.resyncAfterSelectionChange()
             }
             .store(in: &cancellables)
 
@@ -742,8 +737,6 @@ final class StarMapViewModel: ObservableObject {
     }
 
     private func apply(_ snapshot: StarMapComputation.Snapshot) {
-        latitude = snapshot.lat
-        currentLST = snapshot.lst
         starPositions = snapshot.starPositions
         sunAltitude = snapshot.sunAltitude
         moonAltitude = snapshot.moonAltitude
@@ -879,15 +872,13 @@ final class StarMapViewModel: ObservableObject {
             timeSliderScheduler.schedulePendingCommit(date: updatedDate) { [weak self] date in
                 self?.setDisplayDate(
                     date,
-                    skipNightRange: true,
-                    skipTimeSliderSync: true
+                    mode: .preserveNightRangeAndSlider
                 )
             }
         } else {
             setDisplayDate(
                 updatedDate,
-                skipNightRange: true,
-                skipTimeSliderSync: true
+                mode: .preserveNightRangeAndSlider
             )
         }
     }
@@ -939,8 +930,7 @@ final class StarMapViewModel: ObservableObject {
         timeSliderScheduler.flushPendingCommit { [weak self] date in
             self?.setDisplayDate(
                 date,
-                skipNightRange: true,
-                skipTimeSliderSync: true
+                mode: .preserveNightRangeAndSlider
             )
         }
     }
@@ -952,8 +942,7 @@ final class StarMapViewModel: ObservableObject {
             timeSliderScheduler.flushPendingCommit { [weak self] date in
                 self?.setDisplayDate(
                     date,
-                    skipNightRange: true,
-                    skipTimeSliderSync: true
+                    mode: .preserveNightRangeAndSlider
                 )
             }
         }
@@ -961,14 +950,6 @@ final class StarMapViewModel: ObservableObject {
 
     private var currentMinUpdateInterval: TimeInterval {
         isTimeSliderScrubbing ? Self.minScrubbingUpdateInterval : Self.minUpdateInterval
-    }
-
-    private func handleSelectedTimeZoneChanged() {
-        resyncAfterSelectionChange()
-    }
-
-    private func handleSelectedLocationChanged() {
-        resyncAfterSelectionChange()
     }
 
     private func handleSelectedDateChanged() {
@@ -998,13 +979,8 @@ final class StarMapViewModel: ObservableObject {
         syncWithSelectedDate(referenceDate: displayDate)
     }
 
-    private func setDisplayDate(
-        _ date: Date,
-        skipNightRange: Bool = false,
-        skipTimeSliderSync: Bool = false
-    ) {
-        displayDateUpdateMode =
-            (skipNightRange || skipTimeSliderSync) ? .preserveNightRangeAndSlider : .standard
+    private func setDisplayDate(_ date: Date, mode: DisplayDateUpdateMode) {
+        displayDateUpdateMode = mode
         displayDate = date
     }
 

@@ -44,7 +44,7 @@ enum MilkyWayCalculator {
     }
 
     // 赤経・赤緯から高度と方位角をまとめて計算 (度)
-    // altitude() / azimuth() を個別に呼ぶと中間値を2回計算してしまうため、
+    // 高度と方位角を個別に計算すると中間値を2回計算してしまうため、
     // 1回の呼び出しで両方を返す統合関数。ホットループ (星9,000+ 件) で使用する。
     static func altAz(ra: Double, dec: Double, latitude: Double, lst: Double) -> (alt: Double, az: Double) {
         let latRad = latitude * .pi / 180.0
@@ -84,11 +84,6 @@ enum MilkyWayCalculator {
     // 赤経・赤緯から高度を計算 (度)
     static func altitude(ra: Double, dec: Double, latitude: Double, lst: Double) -> Double {
         altAz(ra: ra, dec: dec, latitude: latitude, lst: lst).alt
-    }
-
-    // 赤経・赤緯から方位角を計算 (北=0°, 時計回り)
-    static func azimuth(ra: Double, dec: Double, latitude: Double, lst: Double) -> Double {
-        altAz(ra: ra, dec: dec, latitude: latitude, lst: lst).az
     }
 
     // 太陽の赤経・赤緯 (簡易計算)
@@ -217,21 +212,6 @@ enum MilkyWayCalculator {
             sunsetMinutes: sunsetMinutes.truncatingRemainder(dividingBy: 1_440),
             sunriseMinutes: sunriseMinutes.truncatingRemainder(dividingBy: 1_440)
         )
-    }
-
-    static func nightInterval(
-        for date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) -> DateInterval? {
-        guard let twilight = civilDarknessInterval(
-            date: date,
-            location: location,
-            timeZone: timeZone
-        ) else {
-            return nil
-        }
-        return twilight
     }
 
     // 月の赤経・赤緯・位相 (簡易計算)
