@@ -7,7 +7,7 @@ import SwiftUI
 @MainActor
 struct StarMapSettingsDependency {
     let currentSettings: () -> StarMapDisplaySettings
-    /// メインスレッドで配信すること。購読側では受け渡し先を指定しない。
+    /// メインスレッドで配信すること。購読側でも念のためメインで受け取る。
     let changes: AnyPublisher<StarMapDisplaySettings, Never>
 
     static let live = StarMapSettingsDependency(
@@ -640,6 +640,7 @@ final class StarMapViewModel: ObservableObject {
             .store(in: &cancellables)
 
         settingsDependency.changes
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] settings in
                 self?.applyStarMapDisplaySettings(settings)
             }
