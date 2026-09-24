@@ -152,8 +152,12 @@
 		BB0000000000000000003B03 /* bortle_map.bin in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000003F02 /* bortle_map.bin */; };
 		BB0000000000000000003B04 /* bortle_map.bin in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000003F02 /* bortle_map.bin */; };
 		BB0000000000000000003B08 /* StarMapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000003F08 /* StarMapViewModel.swift */; };
+		AB3A00000000000000000041 /* StarMapCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000040 /* StarMapCamera.swift */; };
+		AB3A00000000000000000044 /* StarMapMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000043 /* StarMapMotion.swift */; };
 		BB0000000000000000005B01 /* StarCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000002F21 /* StarCatalog.swift */; };
 		BB0000000000000000005B02 /* StarMapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000003F08 /* StarMapViewModel.swift */; };
+		AB3A00000000000000000042 /* StarMapCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000040 /* StarMapCamera.swift */; };
+		AB3A00000000000000000045 /* StarMapMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000043 /* StarMapMotion.swift */; };
 		BB0000000000000000005B03 /* StarMapCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000002F22 /* StarMapCanvasView.swift */; };
 		BB0000000000000000005B04 /* iOSStarMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000004F01 /* iOSStarMapView.swift */; };
 		BB0000000000000000005B05 /* ConstellationData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000002F23 /* ConstellationData.swift */; };
@@ -378,6 +382,8 @@
 		BB0000000000000000003F01 /* stars_fill.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = stars_fill.json; sourceTree = "<group>"; };
 		BB0000000000000000003F02 /* bortle_map.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = bortle_map.bin; sourceTree = "<group>"; };
 		BB0000000000000000003F08 /* StarMapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapViewModel.swift; sourceTree = "<group>"; };
+		AB3A00000000000000000040 /* StarMapCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapCamera.swift; sourceTree = "<group>"; };
+		AB3A00000000000000000043 /* StarMapMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapMotion.swift; sourceTree = "<group>"; };
 		BB0000000000000000003F09 /* StarMapPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapPresentation.swift; sourceTree = "<group>"; };
 		BB0000000000000000003F0A /* StarDisplayDensity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarDisplayDensity.swift; sourceTree = "<group>"; };
 		BB0000000000000000003F0B /* StarMapDateLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapDateLogic.swift; sourceTree = "<group>"; };
@@ -684,6 +690,8 @@
 				AA0000000000000000003F06 /* DarkTimeCardViewModel.swift */,
 				AA0000000000000000003F07 /* ViewingWindowsSectionViewModel.swift */,
 				BB0000000000000000003F08 /* StarMapViewModel.swift */,
+				AB3A00000000000000000040 /* StarMapCamera.swift */,
+				AB3A00000000000000000043 /* StarMapMotion.swift */,
 				BB0000000000000000003F09 /* StarMapPresentation.swift */,
 				BB0000000000000000003F0B /* StarMapDateLogic.swift */,
 				BB0000000000000000003F0C /* StarMapComputation.swift */,
@@ -936,6 +944,8 @@
 				BB0000000000000000005B09 /* StarDisplayDensity.swift in Sources */,
 				D1A100000000000000000003 /* StarMapDisplaySettings.swift in Sources */,
 				BB0000000000000000005B02 /* StarMapViewModel.swift in Sources */,
+				AB3A00000000000000000042 /* StarMapCamera.swift in Sources */,
+				AB3A00000000000000000045 /* StarMapMotion.swift in Sources */,
 				BB0000000000000000005B08 /* StarMapPresentation.swift in Sources */,
 				BB0000000000000000005B03 /* StarMapCanvasView.swift in Sources */,
 				BB0000000000000000005B11 /* StarMapDateLogic.swift in Sources */,
@@ -1045,6 +1055,8 @@
 				BB0000000000000000002B2A /* StarDisplayDensity.swift in Sources */,
 				D1A100000000000000000002 /* StarMapDisplaySettings.swift in Sources */,
 				BB0000000000000000003B08 /* StarMapViewModel.swift in Sources */,
+				AB3A00000000000000000041 /* StarMapCamera.swift in Sources */,
+				AB3A00000000000000000044 /* StarMapMotion.swift in Sources */,
 				BB0000000000000000002B28 /* StarMapPresentation.swift in Sources */,
 				BB0000000000000000002B22 /* StarMapCanvasView.swift in Sources */,
 				BB0000000000000000002B30 /* StarMapDateLogic.swift in Sources */,
