@@ -86,6 +86,9 @@ final class AppController: ObservableObject {
     /// iCloud への自動追加と、iCloud からの取り込みを担う。ストアと同じ寿命で、メイン画面と設定画面の両方から参照する。
     let favoriteSyncReconciler: FavoriteSyncReconciler
     let calculationService: NightCalculating
+    private let starGazingIndexBuilder: StarGazingIndexBuilder
+    /// 星空指数の「今日」判定に使う現在時刻。テストでは固定値を注入する。
+    private let now: () -> Date
     private var calculationTask: Task<Void, Never>?
     private var upcomingTask: Task<Void, Never>?
     private var locationTask: Task<Void, Never>?
@@ -112,10 +115,13 @@ final class AppController: ObservableObject {
          calculationService: NightCalculating? = nil,
          favoriteDefaults: UserDefaults = .standard,
          kvStore: any UbiquitousKeyValueStoring = NSUbiquitousKeyValueStore.default,
-         notificationCenter: NotificationCenter = .default) {
+         notificationCenter: NotificationCenter = .default,
+         now: @escaping () -> Date = Date.init) {
         let initStart = ContinuousClock.now
         self.locationController = locationController ?? LocationController()
         self.weatherService = weatherService ?? WeatherKitService()
+        self.starGazingIndexBuilder = StarGazingIndexBuilder(weatherService: self.weatherService)
+        self.now = now
         self.lightPollutionService = lightPollutionService ?? LightPollutionService()
         let favoriteStore = Self.makeFavoriteStore(defaults: favoriteDefaults, kvStore: kvStore, center: notificationCenter)
         self.favoriteStore = favoriteStore
@@ -649,15 +655,11 @@ final class AppController: ObservableObject {
         weatherByDate: [String: DayWeatherSummary],
         bortleClass: Double?
     ) -> StarGazingIndex {
-        let weather = weatherService.summary(
-            for: nightSummary.date,
-            from: weatherByDate,
-            timeZone: nightSummary.timeZone
-        )
-        return StarGazingIndex.compute(
-            nightSummary: nightSummary,
-            weather: weather,
-            bortleClass: bortleClass
+        starGazingIndexBuilder.index(
+            for: nightSummary,
+            weatherByDate: weatherByDate,
+            bortleClass: bortleClass,
+            referenceDate: now()
         )
     }
 
@@ -668,15 +670,16 @@ final class AppController: ObservableObject {
         timeZone: TimeZone
     ) -> [Date: StarGazingIndex] {
         var indexes: [Date: StarGazingIndex] = [:]
+        // 辞書のキーは表示側が選択中のタイムゾーンで引くため、そのタイムゾーンの日付で作る。
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let referenceDate = now()
         for night in upcomingNights {
-            let weather = weatherService.summary(
-                for: night.date,
-                from: weatherByDate,
-                timeZone: timeZone
+            indexes[calendar.startOfDay(for: night.date)] = starGazingIndexBuilder.index(
+                for: night,
+                weatherByDate: weatherByDate,
+                bortleClass: bortleClass,
+                referenceDate: referenceDate
             )
-            let idx = StarGazingIndex.compute(nightSummary: night, weather: weather, bortleClass: bortleClass)
-            indexes[calendar.startOfDay(for: night.date)] = idx
         }
         return indexes
     }

@@ -12,8 +12,12 @@ final class ComparisonControllerTests: XCTestCase {
         let weatherService = MockComparisonWeatherService()
         let lightPollutionService = MockLightPollutionService(bortleByCoordinate: ["35.6762,139.6503": 3.0])
         let calculationService = MockNightCalculationService()
-        let night1 = makeNightSummary(date: baseDate, withWindow: true)
-        let night2 = makeNightSummary(date: baseDate.addingTimeInterval(86_400), withWindow: true)
+        let night1 = makeNightSummary(date: baseDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
+        let night2 = makeNightSummary(
+            date: baseDate.addingTimeInterval(86_400),
+            withWindow: true,
+            timeZoneIdentifier: "Asia/Tokyo"
+        )
         await calculationService.enqueueUpcomingNights([night1, night2])
         weatherService.resultByLocationKey["35.6762,139.6503|Asia/Tokyo"] = weatherService.makeResult(
             dates: [night1.date, night2.date],
@@ -47,8 +51,8 @@ final class ComparisonControllerTests: XCTestCase {
             bortleByCoordinate: ["35.0000,135.0000": 3.0, "34.0000,135.0000": 7.0]
         )
         let calculationService = MockNightCalculationService()
-        let darkNight = makeNightSummary(date: baseDate, withWindow: true)
-        let brightNight = makeNightSummary(date: baseDate, withWindow: true)
+        let darkNight = makeNightSummary(date: baseDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
+        let brightNight = makeNightSummary(date: baseDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
         await calculationService.enqueueUpcomingNights([darkNight])
         await calculationService.enqueueUpcomingNights([brightNight])
         let tz = TestTimeZones.tokyo
@@ -65,6 +69,41 @@ final class ComparisonControllerTests: XCTestCase {
         await controller.refresh(referenceDate: baseDate)
 
         XCTAssertEqual(controller.bestCell(for: controller.matrix.dates[0])?.locationID, favorites[0].id)
+    }
+
+    func test_refresh_usesReferenceDateForPartialWeatherCoverage() async {
+        let tokyo = TestTimeZones.tokyo
+        let dayStart = ObservationTimeZone.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000), timeZone: tokyo)
+        let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: tokyo)
+
+        func refreshedIndex(referenceDate: Date) async -> StarGazingIndex? {
+            let favorite = FavoriteLocation(name: "Tokyo", latitude: 35.6762, longitude: 139.6503, timeZoneIdentifier: "Asia/Tokyo")
+            let weatherService = MockComparisonWeatherService()
+            weatherService.resultByLocationKey["35.6762,139.6503|Asia/Tokyo"] = WeatherFetchResult(
+                weatherByDate: [weatherService.dateKey(dayStart, timeZone: tokyo): weather],
+                errorMessage: nil,
+                lastModifiedDate: nil,
+                locationKey: "",
+                timeZoneIdentifier: tokyo.identifier
+            )
+            let calculationService = MockNightCalculationService()
+            await calculationService.enqueueUpcomingNights([night])
+            let controller = ComparisonController(
+                favoriteStore: InMemoryFavoriteStore(favorites: [favorite]),
+                weatherService: weatherService,
+                lightPollutionService: MockLightPollutionService(bortleByCoordinate: ["35.6762,139.6503": 3.0]),
+                calculationService: calculationService
+            )
+            controller.dayCount = 1
+            await controller.refresh(referenceDate: referenceDate)
+            return controller.cell(for: favorite.id, date: controller.matrix.dates[0])?.index
+        }
+
+        let todayIndex = await refreshedIndex(referenceDate: dayStart.addingTimeInterval(22 * 3600))
+        let laterIndex = await refreshedIndex(referenceDate: dayStart.addingTimeInterval(3 * 86_400))
+
+        XCTAssertEqual(todayIndex?.hasWeatherData, true)
+        XCTAssertEqual(laterIndex?.hasWeatherData, false)
     }
 
     func test_refresh_withNoFavorites_keepsMatrixEmpty() async {

@@ -437,8 +437,8 @@ final class AppControllerTests: XCTestCase {
             minute: 30
         ))!
         let nextDate = baseDate.addingTimeInterval(86_400)
-        let firstNight = makeNightSummary(date: baseDate)
-        let secondNight = makeNightSummary(date: nextDate)
+        let firstNight = makeNightSummary(date: baseDate, timeZoneIdentifier: losAngeles.identifier)
+        let secondNight = makeNightSummary(date: nextDate, timeZoneIdentifier: losAngeles.identifier)
         let firstWeather = makeWeatherSummary(date: baseDate)
         let secondWeather = makeWeatherSummary(date: nextDate)
         let snapshot = [
@@ -455,6 +455,53 @@ final class AppControllerTests: XCTestCase {
 
         XCTAssertEqual(indexes.count, 2)
         XCTAssertTrue(indexes.values.allSatisfy(\.hasWeatherData))
+    }
+
+    func test_makeStarGazingIndex_usesInjectedNowForPartialWeatherCoverage() {
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: losAngeles
+        )
+        let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: losAngeles)
+        let sameNight = AppController(
+            calculationService: MockNightCalculationService(),
+            now: { dayStart.addingTimeInterval(22 * 3600) }
+        )
+        let laterDay = AppController(
+            calculationService: MockNightCalculationService(),
+            now: { dayStart.addingTimeInterval(3 * 86_400) }
+        )
+        let snapshot = [sameNight.weatherService.dateKey(dayStart, timeZone: losAngeles): weather]
+
+        let todayIndex = sameNight.makeStarGazingIndex(nightSummary: night, weatherByDate: snapshot, bortleClass: 4)
+        let pastIndex = laterDay.makeStarGazingIndex(nightSummary: night, weatherByDate: snapshot, bortleClass: 4)
+
+        XCTAssertTrue(todayIndex.hasWeatherData)
+        XCTAssertFalse(pastIndex.hasWeatherData)
+    }
+
+    func test_makeUpcomingIndexes_usesInjectedNowForPartialWeatherCoverage() {
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: losAngeles
+        )
+        let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: losAngeles)
+        let appController = AppController(
+            calculationService: MockNightCalculationService(),
+            now: { dayStart.addingTimeInterval(22 * 3600) }
+        )
+        let snapshot = [appController.weatherService.dateKey(dayStart, timeZone: losAngeles): weather]
+
+        let indexes = appController.makeUpcomingIndexes(
+            upcomingNights: [night],
+            weatherByDate: snapshot,
+            bortleClass: 4,
+            timeZone: losAngeles
+        )
+
+        XCTAssertEqual(indexes[dayStart]?.hasWeatherData, true)
     }
 
     func test_recomputeStarGazingIndex_usesNightSummaryDateWhileSelectionIsChanging() {

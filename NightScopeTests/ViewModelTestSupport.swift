@@ -72,7 +72,8 @@ func makeDayWeatherSummary(
 func makeNightSummary(
     date: Date = Date(),
     withWindow: Bool = true,
-    moonPhase: Double = 0.12
+    moonPhase: Double = 0.12,
+    timeZoneIdentifier: String = TimeZone.current.identifier
 ) -> NightSummary {
     let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
     let eventDate = Calendar.current.date(byAdding: .hour, value: 21, to: date) ?? date
@@ -98,8 +99,50 @@ func makeNightSummary(
         location: location,
         events: [event],
         viewingWindows: windows,
-        moonPhaseAtMidnight: moonPhase
+        moonPhaseAtMidnight: moonPhase,
+        timeZoneIdentifier: timeZoneIdentifier
     )
+}
+
+/// 暗時間が 21 時台と 23 時台の2時間ある夜と、21 時台だけを覆う天気を返す。
+/// 天気が暗時間の一部しか覆わないため、`referenceDate` が同じ日のときだけ天気が評価に使われる。
+func makePartiallyCoveredNight(
+    dayStart: Date,
+    timeZone: TimeZone
+) -> (night: NightSummary, weather: DayWeatherSummary) {
+    let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+    let events = [21, 23].map { hour in
+        AstroEvent(
+            date: calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart,
+            galacticCenterAltitude: 28,
+            galacticCenterAzimuth: 190,
+            sunAltitude: -22,
+            moonAltitude: -8,
+            moonPhase: 0.12
+        )
+    }
+    let night = NightSummary(
+        date: dayStart,
+        location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+        events: events,
+        viewingWindows: [],
+        moonPhaseAtMidnight: 0.12,
+        timeZoneIdentifier: timeZone.identifier
+    )
+    let coveredHour = HourlyWeather(
+        date: events[0].date,
+        temperatureCelsius: 15,
+        cloudCoverPercent: 10,
+        precipitationMM: 0,
+        windSpeedKmh: 5,
+        humidityPercent: 40,
+        dewpointCelsius: 2,
+        weatherCode: 0,
+        visibilityMeters: 20_000,
+        windGustsKmh: nil,
+        windSpeedKmh500hpa: nil
+    )
+    return (night, DayWeatherSummary(date: dayStart, nighttimeHours: [coveredHour]))
 }
 
 @MainActor
