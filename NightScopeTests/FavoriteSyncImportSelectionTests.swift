@@ -1,7 +1,7 @@
 import XCTest
 @testable import NightScope
 
-/// 取り込み画面（PR2b）の選択状態と、reconciler と組み合わせたときの取り込み結果のテスト。
+/// 取り込み画面の選択状態と、reconciler と組み合わせたときの追加・取り込み結果のテスト。
 @MainActor
 final class FavoriteSyncImportSelectionTests: XCTestCase {
 
@@ -19,7 +19,8 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
     private func makeEnvironment(
         kv: [FavoriteLocation]?,
         local: [FavoriteLocation],
-        iCloudSyncEnabled: Bool
+        iCloudSyncEnabled: Bool,
+        legacyMigrated: Bool = false
     ) throws -> Environment {
         let suiteName = "FavoriteSyncImportSelectionTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -29,6 +30,7 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
             FavoriteLocationStore(userDefaults: defaults).save(local)
         }
         defaults.set(iCloudSyncEnabled, forKey: "iCloudSyncEnabled")
+        defaults.set(legacyMigrated, forKey: FavoriteSyncReconciler.legacyMigratedKey)
         return Environment(
             defaults: defaults,
             kvStore: FakeUbiquitousKeyValueStore(center: center, favorites: kv),
@@ -113,16 +115,17 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
 
     // MARK: - reconciler との組み合わせ
 
-    /// 一部だけ選んで iCloud に追加すると、選んだ地点だけが KV に入り、二重実行しても重複しない。
+    /// iCloud モードで一部だけ選んで追加すると、選んだ地点だけが KV に入り、二重実行しても重複しない。
+    /// ローカルの地点を自動追加しないよう、v1 の利用者（ローカルは観測済み）として起動する。
     func test_iCloudMode_partialSelection_addsOnlySelectedAndDoubleTapDoesNotDuplicate() throws {
-        let env = try makeEnvironment(kv: [pointA], local: [pointB, pointC], iCloudSyncEnabled: true)
+        let env = try makeEnvironment(kv: [pointA], local: [pointB, pointC], iCloudSyncEnabled: true, legacyMigrated: true)
         let store = iCloudFavoriteLocationStore(
             kvStore: env.kvStore,
             fallbackDefaults: env.defaults,
             notificationCenter: env.center
         )
         let reconciler = makeReconciler(env, activeStore: store)
-        XCTAssertTrue(reconciler.isLocalOnlyBannerVisible)
+        XCTAssertEqual(reconciler.localOnly, [pointB, pointC])
         var selection = FavoriteSyncImportSelection()
         selection.toggle(pointB)
 
@@ -135,13 +138,13 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
         XCTAssertEqual(env.kvStore.favorites, [pointA, pointB])
         XCTAssertEqual(env.kvStore.setCount, setCountAfterFirst)
         XCTAssertEqual(reconciler.localOnly, [pointC])
-        // 取り込んでもローカルの一覧は変わらない（ローカルには書かない）。
+        // 追加してもローカルの一覧は変わらない（ローカルには書かない）。
         XCTAssertEqual(FavoriteLocationStore.loadFavorites(userDefaults: env.defaults), [pointB, pointC])
     }
 
     /// 同じ候補を2回まとめて渡しても、reconciler 側の和集合で重複しない。
     func test_iCloudMode_sameSelectionTwice_doesNotDuplicate() throws {
-        let env = try makeEnvironment(kv: [pointA], local: [pointB], iCloudSyncEnabled: true)
+        let env = try makeEnvironment(kv: [pointA], local: [pointB], iCloudSyncEnabled: true, legacyMigrated: true)
         let store = iCloudFavoriteLocationStore(
             kvStore: env.kvStore,
             fallbackDefaults: env.defaults,
@@ -161,7 +164,6 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
         let reconciler = makeReconciler(env, activeStore: store)
         reconciler.refresh()
         XCTAssertEqual(reconciler.cloudOnly, [pointA, pointD])
-        XCTAssertFalse(reconciler.isLocalOnlyBannerVisible)
         var selection = FavoriteSyncImportSelection()
         selection.toggle(pointD)
 
@@ -170,24 +172,5 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
         XCTAssertEqual(added, 1)
         XCTAssertEqual(store.loadAll(), [pointB, pointD])
         XCTAssertEqual(reconciler.cloudOnly, [pointA])
-    }
-
-    /// 「あとで」で閉じたバナーは、候補の集合が変わると再表示される。
-    func test_banner_dismissedUntilLocalOnlySetChanges() throws {
-        let env = try makeEnvironment(kv: [pointA], local: [pointB], iCloudSyncEnabled: true)
-        let store = iCloudFavoriteLocationStore(
-            kvStore: env.kvStore,
-            fallbackDefaults: env.defaults,
-            notificationCenter: env.center
-        )
-        let reconciler = makeReconciler(env, activeStore: store)
-        XCTAssertTrue(reconciler.isLocalOnlyBannerVisible)
-
-        reconciler.dismissLocalOnlyBanner()
-        XCTAssertFalse(reconciler.isLocalOnlyBannerVisible)
-
-        FavoriteLocationStore(userDefaults: env.defaults).save([pointB, pointC])
-        reconciler.refresh()
-        XCTAssertTrue(reconciler.isLocalOnlyBannerVisible)
     }
 }

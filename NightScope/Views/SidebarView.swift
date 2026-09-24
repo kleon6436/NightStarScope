@@ -9,7 +9,6 @@ struct SidebarView: View {
     @ObservedObject var starMapViewModel: StarMapViewModel
     @Binding var selectedDate: Date
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
-    @State private var isFavoriteImportPresented = false
     @State private var highlightedIndex = SidebarSearchInteraction.noSelectionIndex
     @FocusState private var isSearchFocused: Bool
     @State private var locationInputMode: LocationInputMode = .map
@@ -35,11 +34,6 @@ struct SidebarView: View {
         }
         .padding(.horizontal, Layout.sidebarHorizontalPadding)
         .padding(.vertical, Layout.sidebarVerticalPadding)
-        .sheet(isPresented: $isFavoriteImportPresented) {
-            if let favoriteSyncReconciler {
-                FavoriteSyncImportView(reconciler: favoriteSyncReconciler)
-            }
-        }
     }
 
     // MARK: - Location Section
@@ -74,7 +68,7 @@ struct SidebarView: View {
             searchResultsList
             mapView
             selectedLocationRow
-            favoriteSyncBanner
+            favoriteSyncNotice
             favoritesSection
         }
     }
@@ -205,13 +199,9 @@ struct SidebarView: View {
     }
 
     @ViewBuilder
-    private var favoriteSyncBanner: some View {
+    private var favoriteSyncNotice: some View {
         if let favoriteSyncReconciler {
-            FavoriteSyncLocalOnlyBanner(
-                reconciler: favoriteSyncReconciler,
-                isEmphasized: viewModel.favorites.isEmpty,
-                onReview: { isFavoriteImportPresented = true }
-            )
+            FavoriteSyncAutoUploadNotice(reconciler: favoriteSyncReconciler)
         }
     }
 

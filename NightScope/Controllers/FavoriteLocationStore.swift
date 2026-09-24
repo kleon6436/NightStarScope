@@ -5,6 +5,9 @@ import Combine
 private let logger = Logger(subsystem: "com.nightscope", category: "FavoriteLocationStore")
 
 /// 保存済み地点の永続化と読込を抽象化する。
+/// - Important: `locationsPublisher` の購読者は `receive(on: DispatchQueue.main)` で受け取ること。
+///   `iCloudFavoriteLocationStore` は reconciler が加えた地点を削除反映の基準に入れるのをメインキューの次のターンまで遅らせ、
+///   購読者への配信がそれより先に届く（FIFO）ことに依存している。
 protocol FavoriteLocationStoring: AnyObject, Sendable {
     var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> { get }
     func loadAll() -> [FavoriteLocation]
@@ -88,6 +91,12 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     /// KV ストアの実用上限（Apple の 64KB 制限に対して余裕を持たせる）
     private static let maxDataSize = 60 * 1_024
 
+    /// 一覧が KV の実用上限に収まるかを返す。収まらない一覧を save すると KV に書かれず fallback に回る。
+    static func fitsInKVStore(_ favorites: [FavoriteLocation]) -> Bool {
+        guard let data = try? JSONEncoder().encode(favorites) else { return false }
+        return data.count <= maxDataSize
+    }
+
     // MARK: - State
 
     @Published private(set) var locations: [FavoriteLocation]
@@ -98,6 +107,8 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     /// フォールバックの保存先。あわせて、退避と削除の反映でこの端末のお気に入り（`FavoriteLocationStore.storageKey`）を書き換える。
     private let fallbackDefaults: UserDefaults
     private let notificationCenter: NotificationCenter
+    private let evacuatedSubject = PassthroughSubject<[FavoriteLocation], Never>()
+    private let accountChangedSubject = PassthroughSubject<Void, Never>()
 
     // MARK: - Init
 
@@ -142,10 +153,31 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
         locations
     }
 
+    /// initialSyncChange でローカルへ退避した地点を流す。ローカルへ書き終えた後、`locations` を更新する前に流れる。
+    var evacuatedPublisher: AnyPublisher<[FavoriteLocation], Never> {
+        evacuatedSubject.eraseToAnyPublisher()
+    }
+
+    /// accountChange を受けたことを流す。`locations` を新しいアカウントの一覧に更新する前に流れる。
+    var accountChangedPublisher: AnyPublisher<Void, Never> {
+        accountChangedSubject.eraseToAnyPublisher()
+    }
+
     func save(_ favorites: [FavoriteLocation]) {
+        save(favorites, advancingDeletionBaseline: true)
+    }
+
+    /// `advancingDeletionBaseline` が false のときは削除の反映をせず、`lastSavedSnapshot` もその場では進めない。
+    /// reconciler が地点を加えるときに使う。ViewModel は `receive(on: DispatchQueue.main)` で次のターンに追いつくので、
+    /// それまでに古い配列で save されても、加えた地点をこの端末のお気に入りからは消さない。
+    /// 加えた地点はメインキューの次のターン（ViewModel への配信の後）で基準に入れ、その後の明示的な削除は通常どおり反映する。
+    func save(_ favorites: [FavoriteLocation], advancingDeletionBaseline: Bool) {
         do {
             let data = try JSONEncoder().encode(favorites)
-            reflectDeletionToLocal(newFavorites: favorites)
+            let added = favorites.subtracting(locations)
+            if advancingDeletionBaseline {
+                reflectDeletionToLocal(newFavorites: favorites)
+            }
             if data.count > Self.maxDataSize {
                 iCloudLogger.warning(
                     "Favorites data (\(data.count) bytes) exceeds 60 KB limit; skipping iCloud write."
@@ -157,7 +189,13 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
                 kvStore.synchronize()
             }
             locations = favorites
-            lastSavedSnapshot = favorites
+            if advancingDeletionBaseline {
+                lastSavedSnapshot = favorites
+            } else if !added.isEmpty {
+                DispatchQueue.main.async { [weak self] in
+                    self?.admitToDeletionBaseline(added)
+                }
+            }
         } catch {
             iCloudLogger.error("Failed to encode favorites for iCloud: \(error)")
         }
@@ -199,11 +237,13 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
                 iCloudLogger.notice(
                     "event=evacuate reason=\(reasonValue ?? -1, privacy: .public) count=\(lost.count, privacy: .public)"
                 )
+                evacuatedSubject.send(lost)
             }
             applyExternalLocations(newLocations)
         case .accountChange:
             // アカウントの境界を越えてデータを移さないため、退避も統合もせず KV をそのまま反映する。
             // 新しいアカウントに対象キーがなくても前のアカウントの一覧を残さないよう、changedKeys に関係なく KV を読み直す。
+            accountChangedSubject.send()
             applyExternalLocations(Self.loadFromKVStore(kvStore) ?? [])
         case .quotaViolationChange:
             iCloudLogger.warning("iCloud KVStore quota exceeded; favorites may not be synced.")
@@ -233,6 +273,13 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
         guard pruned.count != local.count else { return }
         writeLocalFavorites(pruned)
         iCloudLogger.notice("event=localPrune count=\(local.count - pruned.count, privacy: .public)")
+    }
+
+    /// reconciler が加えた地点のうち、まだ一覧に残っているものだけを削除反映の基準に加える。
+    /// 基準に地点を加えるのはこの経路だけ（それ以外は save で置き換えるか、届いた一覧との共通部分に絞る）。
+    private func admitToDeletionBaseline(_ added: [FavoriteLocation]) {
+        let remaining = added.filter { spot in locations.contains { spot.isSameSpot(as: $0) } }
+        lastSavedSnapshot = lastSavedSnapshot.unionPreservingOrder(remaining)
     }
 
     private func writeLocalFavorites(_ favorites: [FavoriteLocation]) {

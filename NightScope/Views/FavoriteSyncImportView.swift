@@ -211,62 +211,46 @@ private struct FavoriteSyncImportRow: View {
     }
 }
 
-/// iCloud モードで、この端末にのみある地点の件数を知らせるバナー。
-/// 表示条件は `reconciler.isLocalOnlyBannerVisible`。お気に入りが空のときは強調表示にする。
-struct FavoriteSyncLocalOnlyBanner: View {
+/// iCloud モードで、この起動中に自動で iCloud に追加した件数を知らせるお知らせ。閉じるまで表示する。
+struct FavoriteSyncAutoUploadNotice: View {
     @ObservedObject var reconciler: FavoriteSyncReconciler
-    let isEmphasized: Bool
-    let onReview: () -> Void
 
-    private static let tintOpacity: Double = 0.12
-    private static let strokeOpacity: Double = 0.28
-    private static let strokeWidth: CGFloat = 1
+    /// 閉じるボタンのタップ領域の最小の大きさ。
+    private static let minimumTapSize: CGFloat = 44
 
     var body: some View {
-        if reconciler.isLocalOnlyBannerVisible {
-            VStack(alignment: .leading, spacing: Spacing.xs) {
+        if !reconciler.autoUploadedIDs.isEmpty {
+            HStack(spacing: Spacing.xs) {
                 Label {
-                    Text(L10n.format("この端末にのみある地点が %d 件あります", reconciler.localOnly.count))
+                    Text(L10n.format("iCloud に %d 件追加しました", reconciler.autoUploadedIDs.count))
                         .font(.callout)
-                        .fontWeight(isEmphasized ? .semibold : .regular)
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: {
-                    Image(systemName: "icloud.and.arrow.up")
-                        .foregroundStyle(isEmphasized ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    Image(systemName: "checkmark.icloud")
+                        .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 }
-
-                HStack(spacing: Spacing.xs) {
-                    Spacer(minLength: 0)
-                    Button("あとで") {
-                        reconciler.dismissLocalOnlyBanner()
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityHint(L10n.tr("件数が変わるまでこのお知らせを表示しません"))
-                    Button("確認", action: onReview)
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityHint(L10n.tr("取り込む地点を選ぶ画面を開きます"))
+                Spacer(minLength: 0)
+                Button {
+                    reconciler.dismissAutoUploadNotice()
+                } label: {
+                    Image(systemName: "xmark")
+                        .foregroundStyle(.secondary)
+                        #if os(iOS)
+                        .frame(minWidth: Self.minimumTapSize, minHeight: Self.minimumTapSize)
+                        .contentShape(Rectangle())
+                        #endif
                 }
-                #if os(macOS)
-                .controlSize(.small)
-                #endif
+                .buttonStyle(.borderless)
+                .accessibilityLabel(L10n.tr("閉じる"))
             }
             .padding(Spacing.xs)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(background)
+            .background(
+                RoundedRectangle(cornerRadius: Layout.smallCornerRadius, style: .continuous)
+                    .fill(.fill.tertiary)
+            )
             .accessibilityElement(children: .contain)
-        }
-    }
-
-    @ViewBuilder
-    private var background: some View {
-        let shape = RoundedRectangle(cornerRadius: Layout.smallCornerRadius, style: .continuous)
-        if isEmphasized {
-            shape
-                .fill(Color.accentColor.opacity(Self.tintOpacity))
-                .overlay(shape.stroke(Color.accentColor.opacity(Self.strokeOpacity), lineWidth: Self.strokeWidth))
-        } else {
-            shape.fill(.fill.tertiary)
         }
     }
 }
@@ -296,26 +280,29 @@ private enum FavoriteSyncPreviewSupport {
     static let nagano = FavoriteLocation(name: "長野", latitude: 36.6486, longitude: 138.1948, timeZoneIdentifier: "Asia/Tokyo")
     static let ishigaki = FavoriteLocation(name: "石垣島", latitude: 24.3448, longitude: 124.1572, timeZoneIdentifier: "Asia/Tokyo")
 
-    /// 稼働中のストアは常に iCloud。`iCloudSyncEnabled` を false にすると再起動待ちの状態になる。
-    static func makeICloudReconciler(
+    /// `iCloudSync` が true なら稼働中のストアを iCloud、false ならこの端末にする。
+    /// `iCloudSyncEnabled` を `iCloudSync` と違う値にすると再起動待ちの状態になる。
+    static func makeReconciler(
         suffix: String,
+        iCloudSync: Bool,
         kv: [FavoriteLocation],
         local: [FavoriteLocation],
-        iCloudSyncEnabled: Bool = true
+        iCloudSyncEnabled: Bool? = nil,
+        legacyMigrated: Bool = false
     ) -> FavoriteSyncReconciler {
         let suiteName = "FavoriteSyncImportView.preview.\(suffix)"
         UserDefaults().removePersistentDomain(forName: suiteName)
         // suite 名がアプリの bundle ID や NSGlobalDomain でない限り nil にはならない。
         let defaults = UserDefaults(suiteName: suiteName)!
         FavoriteLocationStore(userDefaults: defaults).save(local)
-        defaults.set(iCloudSyncEnabled, forKey: "iCloudSyncEnabled")
+        defaults.set(iCloudSyncEnabled ?? iCloudSync, forKey: "iCloudSyncEnabled")
+        // v1 の利用者として扱うと、ローカルの地点は自動追加されずに候補として残る。
+        defaults.set(legacyMigrated, forKey: FavoriteSyncReconciler.legacyMigratedKey)
         let kvStore = PreviewKeyValueStore()
         kvStore.set(try? JSONEncoder().encode(kv), forKey: iCloudFavoriteLocationStore.iCloudKey)
-        let store = iCloudFavoriteLocationStore(
-            kvStore: kvStore,
-            fallbackDefaults: defaults,
-            notificationCenter: NotificationCenter()
-        )
+        let store: any FavoriteLocationStoring = iCloudSync
+            ? iCloudFavoriteLocationStore(kvStore: kvStore, fallbackDefaults: defaults, notificationCenter: NotificationCenter())
+            : FavoriteLocationStore(userDefaults: defaults)
         return FavoriteSyncReconciler(
             activeStore: store,
             localDefaults: defaults,
@@ -325,36 +312,49 @@ private enum FavoriteSyncPreviewSupport {
     }
 }
 
-#Preview("iCloud モード・候補2件") {
+#Preview("iCloud に追加・候補2件") {
     FavoriteSyncImportView(
-        reconciler: FavoriteSyncPreviewSupport.makeICloudReconciler(
-            suffix: "candidates",
+        reconciler: FavoriteSyncPreviewSupport.makeReconciler(
+            suffix: "icloud",
+            iCloudSync: true,
             kv: [FavoriteSyncPreviewSupport.tokyo],
-            local: [FavoriteSyncPreviewSupport.nagano, FavoriteSyncPreviewSupport.ishigaki]
+            local: [FavoriteSyncPreviewSupport.nagano, FavoriteSyncPreviewSupport.ishigaki],
+            legacyMigrated: true
+        )
+    )
+}
+
+#Preview("取り込み・候補2件") {
+    FavoriteSyncImportView(
+        reconciler: FavoriteSyncPreviewSupport.makeReconciler(
+            suffix: "candidates",
+            iCloudSync: false,
+            kv: [FavoriteSyncPreviewSupport.nagano, FavoriteSyncPreviewSupport.ishigaki],
+            local: [FavoriteSyncPreviewSupport.tokyo]
         )
     )
 }
 
 #Preview("再起動待ち") {
     FavoriteSyncImportView(
-        reconciler: FavoriteSyncPreviewSupport.makeICloudReconciler(
+        reconciler: FavoriteSyncPreviewSupport.makeReconciler(
             suffix: "pending",
-            kv: [FavoriteSyncPreviewSupport.tokyo],
-            local: [FavoriteSyncPreviewSupport.nagano, FavoriteSyncPreviewSupport.ishigaki],
-            iCloudSyncEnabled: false
+            iCloudSync: false,
+            kv: [FavoriteSyncPreviewSupport.nagano, FavoriteSyncPreviewSupport.ishigaki],
+            local: [FavoriteSyncPreviewSupport.tokyo],
+            iCloudSyncEnabled: true
         )
     )
 }
 
-#Preview("強調表示のバナー") {
-    FavoriteSyncLocalOnlyBanner(
-        reconciler: FavoriteSyncPreviewSupport.makeICloudReconciler(
-            suffix: "banner",
+#Preview("自動追加のお知らせ") {
+    FavoriteSyncAutoUploadNotice(
+        reconciler: FavoriteSyncPreviewSupport.makeReconciler(
+            suffix: "notice",
+            iCloudSync: true,
             kv: [],
             local: [FavoriteSyncPreviewSupport.nagano, FavoriteSyncPreviewSupport.ishigaki]
-        ),
-        isEmphasized: true,
-        onReview: {}
+        )
     )
     .padding()
     .frame(width: 320)

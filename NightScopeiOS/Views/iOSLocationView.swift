@@ -8,7 +8,6 @@ struct iOSLocationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var sidebarViewModel: SidebarViewModel
     var favoriteSyncReconciler: FavoriteSyncReconciler?
-    @State private var isFavoriteImportPresented = false
     @FocusState private var isSearchFocused: Bool
     @State private var locationInputMode: LocationInputMode = .map
 
@@ -27,7 +26,7 @@ struct iOSLocationView: View {
                         searchResultsList
                         mapArea
                         bottomBar
-                        favoriteSyncBanner
+                        favoriteSyncNotice
                         iOSFavoritesSection(
                             viewModel: sidebarViewModel,
                             onSelect: selectFavorite
@@ -59,21 +58,12 @@ struct iOSLocationView: View {
             guard newPhase == .active else { return }
             sidebarViewModel.refreshLocationAuthorizationState()
         }
-        .sheet(isPresented: $isFavoriteImportPresented) {
-            if let favoriteSyncReconciler {
-                FavoriteSyncImportView(reconciler: favoriteSyncReconciler)
-            }
-        }
     }
 
     @ViewBuilder
-    private var favoriteSyncBanner: some View {
+    private var favoriteSyncNotice: some View {
         if let favoriteSyncReconciler {
-            FavoriteSyncLocalOnlyBanner(
-                reconciler: favoriteSyncReconciler,
-                isEmphasized: sidebarViewModel.favorites.isEmpty,
-                onReview: { isFavoriteImportPresented = true }
-            )
+            FavoriteSyncAutoUploadNotice(reconciler: favoriteSyncReconciler)
         }
     }
 
