@@ -504,6 +504,56 @@ final class AppControllerTests: XCTestCase {
         XCTAssertEqual(indexes[dayStart]?.hasWeatherData, true)
     }
 
+    func test_makeUpcomingIndexes_whenNightTimeZoneMatchesKeyTimeZone_keysByNightDate() {
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let appController = AppController(calculationService: MockNightCalculationService())
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: losAngeles
+        )
+        let night = makeNightSummary(date: dayStart, timeZoneIdentifier: losAngeles.identifier)
+        let snapshot = [
+            appController.weatherService.dateKey(dayStart, timeZone: losAngeles): makeWeatherSummary(date: dayStart)
+        ]
+
+        let indexes = appController.makeUpcomingIndexes(
+            upcomingNights: [night],
+            weatherByDate: snapshot,
+            bortleClass: 4,
+            timeZone: losAngeles
+        )
+
+        XCTAssertEqual(Array(indexes.keys), [dayStart])
+        XCTAssertEqual(indexes[dayStart]?.hasWeatherData, true)
+    }
+
+    /// 前提が崩れた場合の現状の挙動を記録する。天気は夜のタイムゾーンで引けるが、キーは前日にずれる。
+    func test_makeUpcomingIndexes_whenNightTimeZoneDiffersFromKeyTimeZone_keyShiftsButWeatherIsFound() {
+        let tokyo = TestTimeZones.tokyo
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let appController = AppController(calculationService: MockNightCalculationService())
+        let tokyoDayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: tokyo
+        )
+        let night = makeNightSummary(date: tokyoDayStart, timeZoneIdentifier: tokyo.identifier)
+        let snapshot = [
+            appController.weatherService.dateKey(tokyoDayStart, timeZone: tokyo): makeWeatherSummary(date: tokyoDayStart)
+        ]
+
+        let indexes = appController.makeUpcomingIndexes(
+            upcomingNights: [night],
+            weatherByDate: snapshot,
+            bortleClass: 4,
+            timeZone: losAngeles
+        )
+
+        let losAngelesKey = ObservationTimeZone.startOfDay(for: tokyoDayStart, timeZone: losAngeles)
+        XCTAssertFalse(ObservationTimeZone.isDate(losAngelesKey, inSameDayAs: tokyoDayStart, timeZone: tokyo))
+        XCTAssertEqual(Array(indexes.keys), [losAngelesKey])
+        XCTAssertEqual(indexes[losAngelesKey]?.hasWeatherData, true)
+    }
+
     func test_recomputeStarGazingIndex_usesNightSummaryDateWhileSelectionIsChanging() {
         let appController = AppController(calculationService: MockNightCalculationService())
         let calendar = Calendar(identifier: .gregorian)

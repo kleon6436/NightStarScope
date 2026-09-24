@@ -671,6 +671,8 @@ final class AppController: ObservableObject {
     ) -> [Date: StarGazingIndex] {
         var indexes: [Date: StarGazingIndex] = [:]
         // 辞書のキーは表示側が選択中のタイムゾーンで引くため、そのタイムゾーンの日付で作る。
+        // 予報の夜は同じタイムゾーンで計算され、観測地の変更時には一度空にされるので、通常は night.timeZone と一致する。
+        // 一致しないと、天気は夜のタイムゾーンで引けるがキーが前後の日にずれることがある。
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let referenceDate = now()
         for night in upcomingNights {
