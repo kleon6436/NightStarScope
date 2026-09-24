@@ -123,14 +123,9 @@ final class AppController: ObservableObject {
         self.starGazingIndexBuilder = StarGazingIndexBuilder(weatherService: self.weatherService)
         self.now = now
         self.lightPollutionService = lightPollutionService ?? LightPollutionService()
-        let favoriteStore = Self.makeFavoriteStore(defaults: favoriteDefaults, kvStore: kvStore, center: notificationCenter)
-        self.favoriteStore = favoriteStore
-        self.favoriteSyncReconciler = FavoriteSyncReconciler(
-            activeStore: favoriteStore,
-            localDefaults: favoriteDefaults,
-            kvStore: kvStore,
-            toggleProvider: { favoriteDefaults.bool(forKey: AppSettingsKeys.iCloudSyncEnabled) }
-        )
+        let favorites = FavoritesComposition.make(defaults: favoriteDefaults, kvStore: kvStore, center: notificationCenter)
+        self.favoriteStore = favorites.store
+        self.favoriteSyncReconciler = favorites.reconciler
         self.calculationService = calculationService ?? NightCalculationService()
         self.lastObservedTimeZone = self.locationController.selectedTimeZone
         self.selectedDate = ObservationTimeZone.startOfDay(
@@ -163,21 +158,6 @@ final class AppController: ObservableObject {
         upcomingTask?.cancel()
         locationTask?.cancel()
         externalDataTask?.cancel()
-    }
-
-    // MARK: - Private Factory
-
-    /// iCloud 同期設定に応じて適切な FavoriteLocationStore を生成する。
-    /// 自動移行はしない（KV を正とし、ローカルとの差分は FavoriteSyncReconciler が扱う）。
-    private static func makeFavoriteStore(
-        defaults: UserDefaults,
-        kvStore: any UbiquitousKeyValueStoring,
-        center: NotificationCenter
-    ) -> any FavoriteLocationStoring {
-        guard defaults.bool(forKey: AppSettingsKeys.iCloudSyncEnabled) else {
-            return FavoriteLocationStore(userDefaults: defaults)
-        }
-        return iCloudFavoriteLocationStore(kvStore: kvStore, fallbackDefaults: defaults, notificationCenter: center)
     }
 
     // MARK: - Startup Stage 1

@@ -12,6 +12,7 @@
 		0C21A9833046DD44B1100A01 /* ComparisonMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */; };
 		0C21A9833046DD44B1100A02 /* ComparisonController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A12 /* ComparisonController.swift */; };
 		AB3A00000000000000000021 /* StarGazingIndexBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000020 /* StarGazingIndexBuilder.swift */; };
+		AB3A00000000000000000031 /* FavoritesComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000030 /* FavoritesComposition.swift */; };
 		0C21A9833046DD44B1100A03 /* ComparisonControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A13 /* ComparisonControllerTests.swift */; };
 		12716A5CFA05D4A9733EB7C0 /* iOSForecastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE64AD88B8F4595D25E01FF /* iOSForecastView.swift */; };
 		14E29A763046C8DBB1100A01 /* ObservationMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A11 /* ObservationMode.swift */; };
@@ -198,6 +199,7 @@
 		DDB100000000000000002008 /* ComparisonMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */; };
 		DDB100000000000000002009 /* ComparisonController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A12 /* ComparisonController.swift */; };
 		AB3A00000000000000000022 /* StarGazingIndexBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000020 /* StarGazingIndexBuilder.swift */; };
+		AB3A00000000000000000032 /* FavoritesComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000030 /* FavoritesComposition.swift */; };
 		DDB10000000000000000200A /* DashboardLocationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001005 /* DashboardLocationCard.swift */; };
 		DDB10000000000000000200B /* DashboardLocationPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001006 /* DashboardLocationPickerSheet.swift */; };
 		DDB10000000000000000200C /* DashboardWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001007 /* DashboardWindowView.swift */; };
@@ -271,6 +273,7 @@
 		0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonMatrix.swift; sourceTree = "<group>"; };
 		0C21A9833046DD44B1100A12 /* ComparisonController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonController.swift; sourceTree = "<group>"; };
 		AB3A00000000000000000020 /* StarGazingIndexBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarGazingIndexBuilder.swift; sourceTree = "<group>"; };
+		AB3A00000000000000000030 /* FavoritesComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesComposition.swift; sourceTree = "<group>"; };
 		0C21A9833046DD44B1100A13 /* ComparisonControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonControllerTests.swift; sourceTree = "<group>"; };
 		0C46800E2414065BEED56530 /* DateFormatting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
 		AB3A00000000000000000001 /* AngleMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AngleMath.swift; sourceTree = "<group>"; };
@@ -586,6 +589,7 @@
 				AA0000000000000000002F22 /* TerrainService.swift */,
 				2FA0C4060B1252A05AA86C03 /* FavoriteLocationStore.swift */,
 				IC0000000000000000001002 /* FavoriteSyncReconciler.swift */,
+				AB3A00000000000000000030 /* FavoritesComposition.swift */,
 				34751E11F1332B240190535A /* AppFocusedValues.swift */,
 			);
 			path = Controllers;
@@ -895,6 +899,7 @@
 				DDB100000000000000002008 /* ComparisonMatrix.swift in Sources */,
 				DDB100000000000000002009 /* ComparisonController.swift in Sources */,
 				AB3A00000000000000000022 /* StarGazingIndexBuilder.swift in Sources */,
+				AB3A00000000000000000032 /* FavoritesComposition.swift in Sources */,
 				DDB100000000000000002002 /* NightScope/Controllers/DashboardCommandBridge.swift in Sources */,
 				BD26966CB632FA724659667D /* LightPollutionService.swift in Sources */,
 				C71CDD3E6ABE68E1AA626B3E /* LocationController.swift in Sources */,
@@ -1003,6 +1008,7 @@
 				AA0000000000000000002B18 /* NightCalculationService.swift in Sources */,
 				0C21A9833046DD44B1100A02 /* ComparisonController.swift in Sources */,
 				AB3A00000000000000000021 /* StarGazingIndexBuilder.swift in Sources */,
+				AB3A00000000000000000031 /* FavoritesComposition.swift in Sources */,
 				AA0000000000000000002B12 /* LightPollutionService.swift in Sources */,
 				AA0000000000000000002B07 /* ContentView.swift in Sources */,
 				AA0000000000000000002B08 /* SidebarView.swift in Sources */,
