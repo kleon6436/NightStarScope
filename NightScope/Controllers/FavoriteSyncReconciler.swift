@@ -4,6 +4,12 @@ import os
 
 private let logger = Logger(subsystem: "com.nightscope", category: "FavoriteSyncReconciler")
 
+/// アプリ設定の UserDefaults キー。
+enum AppSettingsKeys {
+    /// お気に入りの iCloud 同期を有効にするトグル（`@AppStorage` と共有）。
+    static let iCloudSyncEnabled = "iCloudSyncEnabled"
+}
+
 /// iCloud とこの端末のお気に入りの差分を扱う。
 /// iCloud モードでは、この端末にのみある地点のうち未送信かつ未観測のものを自動で iCloud に追加し、
 /// 残りの差分は設定画面から選んで追加できるようにする。local モードでは、iCloud にのみある地点のうち選んだものを取り込む。

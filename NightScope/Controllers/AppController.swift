@@ -123,7 +123,7 @@ final class AppController: ObservableObject {
             activeStore: favoriteStore,
             localDefaults: favoriteDefaults,
             kvStore: kvStore,
-            toggleProvider: { favoriteDefaults.bool(forKey: Self.iCloudSyncEnabledKey) }
+            toggleProvider: { favoriteDefaults.bool(forKey: AppSettingsKeys.iCloudSyncEnabled) }
         )
         self.calculationService = calculationService ?? NightCalculationService()
         self.lastObservedTimeZone = self.locationController.selectedTimeZone
@@ -161,8 +161,6 @@ final class AppController: ObservableObject {
 
     // MARK: - Private Factory
 
-    nonisolated private static let iCloudSyncEnabledKey = "iCloudSyncEnabled"
-
     /// iCloud 同期設定に応じて適切な FavoriteLocationStore を生成する。
     /// 自動移行はしない（KV を正とし、ローカルとの差分は FavoriteSyncReconciler が扱う）。
     private static func makeFavoriteStore(
@@ -170,7 +168,7 @@ final class AppController: ObservableObject {
         kvStore: any UbiquitousKeyValueStoring,
         center: NotificationCenter
     ) -> any FavoriteLocationStoring {
-        guard defaults.bool(forKey: iCloudSyncEnabledKey) else {
+        guard defaults.bool(forKey: AppSettingsKeys.iCloudSyncEnabled) else {
             return FavoriteLocationStore(userDefaults: defaults)
         }
         return iCloudFavoriteLocationStore(kvStore: kvStore, fallbackDefaults: defaults, notificationCenter: center)

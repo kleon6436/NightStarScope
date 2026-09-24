@@ -295,7 +295,7 @@ private enum FavoriteSyncPreviewSupport {
         // suite 名がアプリの bundle ID や NSGlobalDomain でない限り nil にはならない。
         let defaults = UserDefaults(suiteName: suiteName)!
         FavoriteLocationStore(userDefaults: defaults).save(local)
-        defaults.set(iCloudSyncEnabled ?? iCloudSync, forKey: "iCloudSyncEnabled")
+        defaults.set(iCloudSyncEnabled ?? iCloudSync, forKey: AppSettingsKeys.iCloudSyncEnabled)
         // v1 の利用者として扱うと、ローカルの地点は自動追加されずに候補として残る。
         defaults.set(legacyMigrated, forKey: FavoriteSyncReconciler.legacyMigratedKey)
         let kvStore = PreviewKeyValueStore()
@@ -307,7 +307,7 @@ private enum FavoriteSyncPreviewSupport {
             activeStore: store,
             localDefaults: defaults,
             kvStore: kvStore,
-            toggleProvider: { defaults.bool(forKey: "iCloudSyncEnabled") }
+            toggleProvider: { defaults.bool(forKey: AppSettingsKeys.iCloudSyncEnabled) }
         )
     }
 }
