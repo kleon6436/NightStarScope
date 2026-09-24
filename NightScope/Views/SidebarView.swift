@@ -377,7 +377,7 @@ private struct SidebarBortleLabel: View {
                     .foregroundStyle(color(for: bortleClass))
                     .accessibilityLabel(L10n.format("光害レベル: Bortle %.0f", bortleClass))
             } else {
-                Text("--")
+                Text(verbatim: Placeholder.dash)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(L10n.tr("光害データなし"))
