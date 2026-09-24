@@ -232,11 +232,20 @@ private struct PlanetDetailSheet: View {
                     .padding(.bottom, 8)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    infoRow(label: "出",      value: summary.riseTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash)
+                    infoRow(
+                        label: "出",
+                        value: summary.riseTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash
+                    )
                     infoRow(label: "出 方位", value: summary.riseAzimuthLabel())
-                    infoRow(label: "南中",    value: summary.transitTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash)
+                    infoRow(
+                        label: "南中",
+                        value: summary.transitTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash
+                    )
                     infoRow(label: "南中 方位", value: summary.transitAzimuthLabel())
-                    infoRow(label: "没",      value: summary.setTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash)
+                    infoRow(
+                        label: "没",
+                        value: summary.setTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash
+                    )
                     infoRow(label: "没 方位", value: summary.setAzimuthLabel())
                     infoRow(label: "最大高度", value: AngleMath.degreesText(summary.peakAltitude))
                     infoRow(label: "等級",    value: String(format: "%.1f",   summary.magnitude))
