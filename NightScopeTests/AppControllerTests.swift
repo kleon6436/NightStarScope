@@ -566,31 +566,100 @@ final class AppControllerTests: XCTestCase {
         XCTAssertEqual(indexes[dayStart]?.hasWeatherData, true)
     }
 
-    /// 前提が崩れた場合の現状の挙動を記録する。天気は夜のタイムゾーンで引けるが、キーは前日にずれる。
-    func test_makeUpcomingIndexes_whenNightTimeZoneDiffersFromKeyTimeZone_keyShiftsButWeatherIsFound() {
+    func test_recomputeUpcomingIndexes_skipsNightsFromOtherTimeZone() {
+        let appController = AppController(calculationService: MockNightCalculationService())
+        let selectedTimeZone = appController.locationController.selectedTimeZone
+        let otherTimeZone = selectedTimeZone.identifier == TestTimeZones.tokyo.identifier
+            ? TimeZone(identifier: "America/Los_Angeles")!
+            : TestTimeZones.tokyo
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: selectedTimeZone
+        )
+        let nextDayStart = ObservationTimeZone.startOfDay(
+            for: dayStart.addingTimeInterval(36 * 3600),
+            timeZone: otherTimeZone
+        )
+
+        appController.upcomingNights = [
+            makeNightSummary(date: dayStart, timeZoneIdentifier: selectedTimeZone.identifier),
+            makeNightSummary(date: nextDayStart, timeZoneIdentifier: otherTimeZone.identifier)
+        ]
+        appController.recomputeUpcomingIndexes()
+
+        XCTAssertEqual(Array(appController.upcomingIndexes.keys), [dayStart])
+    }
+
+    /// タイムゾーンが変わった直後、場所変更タスクが走る前に指数を作り直しても、旧タイムゾーンの夜から指数を作らない。
+    func test_recomputeUpcomingIndexes_afterTimeZoneChangeBeforeLocationTaskRuns_producesNoShiftedIndexes() {
         let tokyo = TestTimeZones.tokyo
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
-        let appController = AppController(calculationService: MockNightCalculationService())
-        let tokyoDayStart = ObservationTimeZone.startOfDay(
-            for: Date(timeIntervalSince1970: 1_710_000_000),
-            timeZone: tokyo
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 35.6762
+        storage.longitude = 139.6503
+        storage.name = "東京"
+        storage.timeZoneIdentifier = tokyo.identifier
+        let locationController = LocationController(
+            storage: storage,
+            searchService: NoopLocationSearchService(),
+            locationNameResolver: FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "ロサンゼルス", timeZoneIdentifier: losAngeles.identifier)
+            )
         )
-        let night = makeNightSummary(date: tokyoDayStart, timeZoneIdentifier: tokyo.identifier)
-        let snapshot = [
-            appController.weatherService.dateKey(tokyoDayStart, timeZone: tokyo): makeWeatherSummary(date: tokyoDayStart)
+        let appController = AppController(
+            locationController: locationController,
+            calculationService: MockNightCalculationService()
+        )
+        let tokyoCalendar = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
+        let firstNight = tokyoCalendar.startOfDay(for: Date(timeIntervalSince1970: 1_710_000_000))
+        let secondNight = tokyoCalendar.date(byAdding: .day, value: 1, to: firstNight)!
+        appController.upcomingNights = [
+            makeNightSummary(date: firstNight, timeZoneIdentifier: tokyo.identifier),
+            makeNightSummary(date: secondNight, timeZoneIdentifier: tokyo.identifier)
         ]
+        appController.recomputeUpcomingIndexes()
+        XCTAssertEqual(Set(appController.upcomingIndexes.keys), [firstNight, secondNight])
 
-        let indexes = appController.makeUpcomingIndexes(
-            upcomingNights: [night],
-            weatherByDate: snapshot,
-            bortleClass: 4,
-            timeZone: losAngeles
+        locationController.selectCoordinate(CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437))
+        XCTAssertEqual(locationController.selectedTimeZone.identifier, losAngeles.identifier)
+        // 場所変更タスクより先に、天気の更新などで指数の再計算が走った場合を再現する。
+        appController.recomputeUpcomingIndexes()
+
+        XCTAssertTrue(appController.upcomingIndexes.isEmpty)
+    }
+
+    func test_recalculateUpcoming_discardsResultWhenLocationChangesBeforeCompletion() async {
+        let tokyo = TestTimeZones.tokyo
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 35.6762
+        storage.longitude = 139.6503
+        storage.timeZoneIdentifier = tokyo.identifier
+        let locationController = LocationController(
+            storage: storage,
+            searchService: NoopLocationSearchService(),
+            locationNameResolver: FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "東京", timeZoneIdentifier: tokyo.identifier)
+            )
         )
+        let mockCalculationService = MockNightCalculationService()
+        let appController = AppController(
+            locationController: locationController,
+            calculationService: mockCalculationService
+        )
+        let baseDate = ObservationTimeZone.startOfDay(for: Date(), timeZone: tokyo)
+        await mockCalculationService.enqueueUpcomingNights([
+            makeNightSummary(date: baseDate, timeZoneIdentifier: tokyo.identifier)
+        ])
 
-        let losAngelesKey = ObservationTimeZone.startOfDay(for: tokyoDayStart, timeZone: losAngeles)
-        XCTAssertFalse(ObservationTimeZone.isDate(losAngelesKey, inSameDayAs: tokyoDayStart, timeZone: tokyo))
-        XCTAssertEqual(Array(indexes.keys), [losAngelesKey])
-        XCTAssertEqual(indexes[losAngelesKey]?.hasWeatherData, true)
+        appController.recalculateUpcoming()
+        // 計算結果の反映はメインアクターで行うので、ここまでに完了することはない。
+        locationController.selectedLocation = CLLocationCoordinate2D(latitude: 36.6762, longitude: 140.6503)
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        let callCount = await mockCalculationService.getUpcomingCallCount()
+        XCTAssertEqual(callCount, 1)
+        XCTAssertTrue(appController.upcomingNights.isEmpty)
+        XCTAssertTrue(appController.upcomingIndexes.isEmpty)
     }
 
     func test_recomputeStarGazingIndex_usesNightSummaryDateWhileSelectionIsChanging() {

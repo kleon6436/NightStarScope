@@ -302,7 +302,7 @@ final class AppController: ObservableObject {
                 location: context.coordinate,
                 timeZone: context.timeZone
             )
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, isSelectedLocationContext(context) else { return }
             performObservationStateBatchUpdate {
                 nightSummary = summary
                 isCalculating = false
@@ -324,7 +324,8 @@ final class AppController: ObservableObject {
                 timeZone: context.timeZone,
                 days: ForecastConfiguration.upcomingNightCount
             )
-            guard !Task.isCancelled else { return }
+            // 観測地の変更直後は、場所変更タスクがこのタスクを取り消すより先に完了することがある。
+            guard !Task.isCancelled, isSelectedLocationContext(context) else { return }
             performObservationStateBatchUpdate {
                 upcomingNights = upcoming
                 recomputeUpcomingIndexes()
@@ -352,8 +353,10 @@ final class AppController: ObservableObject {
     /// 今後の夜ごとの星空指数一覧を最新の外部データから再構築します。
     func recomputeUpcomingIndexes() {
         let context = selectedLocationContext
+        // 観測地の変更直後は、旧タイムゾーンで計算した夜が場所変更タスクで消されるまで残っている。
+        // キーが前後の日にずれた指数を作らないよう、選択中のタイムゾーンの夜だけを使う。
         upcomingIndexes = makeUpcomingIndexes(
-            upcomingNights: upcomingNights,
+            upcomingNights: upcomingNights.filter { $0.timeZoneIdentifier == context.timeZone.identifier },
             weatherByDate: weatherService.weatherByDate,
             bortleClass: lightPollutionService.bortleClass,
             timeZone: context.timeZone
@@ -369,6 +372,13 @@ final class AppController: ObservableObject {
         SelectedLocationContext(
             coordinate: locationController.selectedLocation,
             timeZone: locationController.selectedTimeZone
+        )
+    }
+
+    private func isSelectedLocationContext(_ context: SelectedLocationContext) -> Bool {
+        selectedLocationContext.matches(
+            coordinate: context.coordinate,
+            timeZoneIdentifier: context.timeZone.identifier
         )
     }
 
@@ -639,11 +649,11 @@ final class AppController: ObservableObject {
     ) -> [Date: StarGazingIndex] {
         var indexes: [Date: StarGazingIndex] = [:]
         // 辞書のキーは表示側が選択中のタイムゾーンで引くため、そのタイムゾーンの日付で作る。
-        // 予報の夜は同じタイムゾーンで計算され、観測地の変更時には一度空にされるので、通常は night.timeZone と一致する。
-        // 一致しないと、天気は夜のタイムゾーンで引けるがキーが前後の日にずれることがある。
+        // 呼び出し側は同じタイムゾーンで計算した夜だけを渡す。違うとキーが前後の日にずれる。
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let referenceDate = now()
         for night in upcomingNights {
+            assert(night.timeZoneIdentifier == timeZone.identifier)
             indexes[calendar.startOfDay(for: night.date)] = starGazingIndexBuilder.index(
                 for: night,
                 weatherByDate: weatherByDate,
