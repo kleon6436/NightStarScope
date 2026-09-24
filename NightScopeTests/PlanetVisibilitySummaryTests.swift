@@ -7,7 +7,7 @@ final class PlanetVisibilitySummaryTests: XCTestCase {
     // MARK: - Helpers
 
     private let tokyo = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
-    private let tokyoTZ = TimeZone(identifier: "Asia/Tokyo")!
+    private let tokyoTZ = TestTimeZones.tokyo
 
     private func makeDate(
         year: Int,

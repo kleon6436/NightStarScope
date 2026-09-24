@@ -33,7 +33,12 @@ final class TonightViewsTests: XCTestCase {
 
     func test_breakdownItems_mapScoresToLabelledValues() {
         let items = IndexBreakdownView.items(
-            for: makeIndex(),
+            for: makeTestIndex(
+                milkyWayScore: 20,
+                constellationScore: 25,
+                weatherScore: 32,
+                lightPollutionScore: 18
+            ),
             lightPollutionStatusText: "取得中..."
         )
 
@@ -48,7 +53,14 @@ final class TonightViewsTests: XCTestCase {
 
     func test_breakdownItems_fallBackToStatusTextWhenDataMissing() {
         let items = IndexBreakdownView.items(
-            for: makeIndex(hasWeatherData: false, hasLightPollutionData: false),
+            for: makeTestIndex(
+                milkyWayScore: 20,
+                constellationScore: 25,
+                weatherScore: 32,
+                lightPollutionScore: 18,
+                hasWeatherData: false,
+                hasLightPollutionData: false
+            ),
             lightPollutionStatusText: "取得失敗"
         )
 
@@ -56,22 +68,5 @@ final class TonightViewsTests: XCTestCase {
         XCTAssertEqual(items[2].valueText, "取得失敗")
         XCTAssertNil(items[1].score)
         XCTAssertNil(items[2].score)
-    }
-
-    // MARK: - Fixtures
-
-    private func makeIndex(
-        hasWeatherData: Bool = true,
-        hasLightPollutionData: Bool = true
-    ) -> StarGazingIndex {
-        StarGazingIndex(
-            score: 75,
-            milkyWayScore: 20,
-            constellationScore: 25,
-            weatherScore: 32,
-            lightPollutionScore: 18,
-            hasWeatherData: hasWeatherData,
-            hasLightPollutionData: hasLightPollutionData
-        )
     }
 }

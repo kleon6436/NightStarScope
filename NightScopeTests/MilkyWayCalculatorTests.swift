@@ -288,7 +288,7 @@ final class MilkyWayCalculatorTests: XCTestCase {
     }
 
     func test_calculateNightSummary_eventsCoverNextMorningForObservationNight() {
-        let timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let timeZone = TestTimeZones.tokyo
         let date = makeDate(year: 2026, month: 4, day: 2, timeZoneIdentifier: timeZone.identifier)
         let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)

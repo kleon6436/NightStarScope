@@ -123,12 +123,12 @@ final class LocationControllerTests: XCTestCase {
 
             if query == "tok" {
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                return [Self.makeMapItem(latitude: 35.0, longitude: 139.0, name: "旧結果")]
+                return [makeTestMapItem(latitude: 35.0, longitude: 139.0, name: "旧結果")]
             }
 
             if query == "tokyo" {
                 try? await Task.sleep(nanoseconds: 1_000_000)
-                return [Self.makeMapItem(latitude: 35.6762, longitude: 139.6503, name: "最新結果")]
+                return [makeTestMapItem(latitude: 35.6762, longitude: 139.6503, name: "最新結果")]
             }
 
             return []
@@ -136,10 +136,6 @@ final class LocationControllerTests: XCTestCase {
 
         func getQueries() -> [String] {
             queries
-        }
-
-        private static func makeMapItem(latitude: Double, longitude: Double, name: String) -> MKMapItem {
-            makeTestMapItem(latitude: latitude, longitude: longitude, name: name)
         }
     }
 

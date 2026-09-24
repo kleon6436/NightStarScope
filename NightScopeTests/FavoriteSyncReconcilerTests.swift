@@ -855,15 +855,3 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         }
     }
 }
-
-@MainActor
-private final class StubComparisonController: ComparisonControlling {
-    var matrix: ComparisonMatrix = .empty
-    var dayCount: Int = DashboardViewModel.dayCount
-
-    func refresh(referenceDate: Date, locations: [FavoriteLocation]?) async {}
-
-    func computeMatrix(referenceDate: Date, locations: [FavoriteLocation]?) async -> ComparisonMatrix {
-        matrix
-    }
-}

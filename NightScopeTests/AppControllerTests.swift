@@ -342,7 +342,7 @@ final class AppControllerTests: XCTestCase {
     func test_locationChange_keepsNineUpcomingNights() async {
         let tokyo = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
         let losAngeles = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
-        let tokyoTimeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyoTimeZone = TestTimeZones.tokyo
         let losAngelesTimeZone = TimeZone(identifier: "America/Los_Angeles")!
         let storage = InMemoryLocationStorage()
         storage.latitude = tokyo.latitude
@@ -394,7 +394,7 @@ final class AppControllerTests: XCTestCase {
 
     func test_makeStarGazingIndex_usesProvidedWeatherSnapshotAndTimeZone() {
         let appController = AppController(calculationService: MockNightCalculationService())
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -503,7 +503,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_handleSceneDidBecomeActive_advancesSelectedDateWhenTrackingTodayAcrossDayBoundary() async {
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let storage = InMemoryLocationStorage()
         storage.timeZoneIdentifier = tokyo.identifier
         let locationController = LocationController(
@@ -550,7 +550,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_handleSceneDidBecomeActive_preservesCustomSelectedDateAcrossDayBoundary() async {
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let storage = InMemoryLocationStorage()
         storage.timeZoneIdentifier = tokyo.identifier
         let locationController = LocationController(
@@ -760,7 +760,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_selectedDate_preservesCalendarDayWhenTimeZoneChanges() async {
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         let storage = InMemoryLocationStorage()
         storage.latitude = 35.6762
@@ -844,61 +844,5 @@ final class AppControllerTests: XCTestCase {
         // With parallel execution all tasks may complete before cancel fires.
         // The invariant that must hold: no invisible computation (recorder == returned).
         XCTAssertEqual(recorder.count, summaries.count)
-    }
-}
-
-actor MockNightCalculationService: NightCalculating {
-    private var nightSummaryResponses: [(summary: NightSummary, delayNanoseconds: UInt64)] = []
-    private var upcomingResponses: [(summaries: [NightSummary], delayNanoseconds: UInt64)] = []
-    private var nightSummaryCallCount = 0
-    private var upcomingCallCount = 0
-
-    func enqueueNightSummary(_ summary: NightSummary, delayMilliseconds: UInt64 = 0) {
-        nightSummaryResponses.append((summary, delayMilliseconds * 1_000_000))
-    }
-
-    func enqueueUpcomingNights(_ summaries: [NightSummary], delayMilliseconds: UInt64 = 0) {
-        upcomingResponses.append((summaries, delayMilliseconds * 1_000_000))
-    }
-
-    func calculateNightSummary(
-        date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) async -> NightSummary {
-        nightSummaryCallCount += 1
-        guard !nightSummaryResponses.isEmpty else {
-            return .placeholder
-        }
-        let response = nightSummaryResponses.removeFirst()
-        if response.delayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: response.delayNanoseconds)
-        }
-        return response.summary
-    }
-
-    func calculateUpcomingNights(
-        from date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone,
-        days: Int
-    ) async -> [NightSummary] {
-        upcomingCallCount += 1
-        guard !upcomingResponses.isEmpty else {
-            return []
-        }
-        let response = upcomingResponses.removeFirst()
-        if response.delayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: response.delayNanoseconds)
-        }
-        return response.summaries
-    }
-
-    func getNightSummaryCallCount() -> Int {
-        nightSummaryCallCount
-    }
-
-    func getUpcomingCallCount() -> Int {
-        upcomingCallCount
     }
 }

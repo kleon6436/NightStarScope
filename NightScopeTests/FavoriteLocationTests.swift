@@ -5,22 +5,9 @@ import CoreLocation
 @MainActor
 final class FavoriteLocationTests: XCTestCase {
 
-    private final class MockFavoriteStore: FavoriteLocationStoring, @unchecked Sendable {
-        private(set) var saved: [FavoriteLocation] = []
-        var preloaded: [FavoriteLocation] = []
-
-        func loadAll() -> [FavoriteLocation] {
-            preloaded
-        }
-
-        func save(_ favorites: [FavoriteLocation]) {
-            saved = favorites
-        }
-    }
-
     private func makeSidebarViewModel(
-        favoriteStore: MockFavoriteStore = MockFavoriteStore()
-    ) -> (SidebarViewModel, MockLocationController, MockFavoriteStore) {
+        favoriteStore: InMemoryFavoriteStore = InMemoryFavoriteStore()
+    ) -> (SidebarViewModel, MockLocationController, InMemoryFavoriteStore) {
         let locationController = MockLocationController()
         locationController.selectedLocation = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
         locationController.locationName = "東京"
@@ -138,8 +125,8 @@ final class FavoriteLocationTests: XCTestCase {
     // MARK: - Load
 
     func test_init_loadsFavoritesFromStore() {
-        let store = MockFavoriteStore()
-        store.preloaded = [
+        let store = InMemoryFavoriteStore()
+        store.favorites = [
             FavoriteLocation(
                 name: "京都",
                 latitude: 35.0116,

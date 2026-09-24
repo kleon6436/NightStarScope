@@ -6,7 +6,7 @@ import WeatherKit
 @MainActor
 final class WeatherServiceTests: XCTestCase {
 
-    private let tokyoTimeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
+    private let tokyoTimeZone = TestTimeZones.tokyo
     private let tokyoLocation = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
 
     // MARK: - WeatherKitService 初期状態
@@ -94,7 +94,7 @@ final class WeatherServiceTests: XCTestCase {
 
     func test_weatherKitService_dateKey_format() {
         let service = WeatherKitService()
-        let tz = TimeZone(identifier: "Asia/Tokyo")!
+        let tz = TestTimeZones.tokyo
         var comps = DateComponents()
         comps.year = 2024; comps.month = 6; comps.day = 15; comps.hour = 12
         comps.timeZone = tz
@@ -104,7 +104,7 @@ final class WeatherServiceTests: XCTestCase {
 
     func test_weatherKitService_dateKey_singleDigitMonthAndDay_zeroPadded() {
         let service = WeatherKitService()
-        let tz = TimeZone(identifier: "Asia/Tokyo")!
+        let tz = TestTimeZones.tokyo
         var comps = DateComponents()
         comps.year = 2024; comps.month = 3; comps.day = 5; comps.hour = 12
         comps.timeZone = tz
