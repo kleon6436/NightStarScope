@@ -32,10 +32,13 @@ final class AppControllerTests: XCTestCase {
         private let lock = NSLock()
         private var invokedDates: [Date] = []
 
-        func record(_ date: Date) {
+        /// 記録後の呼び出し回数を返す。
+        @discardableResult
+        func record(_ date: Date) -> Int {
             lock.lock()
+            defer { lock.unlock() }
             invokedDates.append(date)
-            lock.unlock()
+            return invokedDates.count
         }
 
         var count: Int {
@@ -51,37 +54,35 @@ final class AppControllerTests: XCTestCase {
         }
     }
 
-    /// 開かれるまで呼び出し元のスレッドを止める。計算の途中でキャンセルする順序をテストで固定するために使う。
-    final class CalculationGate: @unchecked Sendable {
-        private let condition = NSCondition()
-        private var isOpen = false
-        private var arrivalCount = 0
+    /// 計算の途中から外側のタスクを取り消すための入れ物。スレッドを止めずに取り消しの順序を固定する。
+    final class TaskCancellationBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var task: Task<[NightSummary], Never>?
 
-        func wait() {
-            condition.lock()
-            arrivalCount += 1
-            condition.broadcast()
-            while !isOpen { condition.wait() }
-            condition.unlock()
+        func set(_ task: Task<[NightSummary], Never>) {
+            lock.lock()
+            self.task = task
+            lock.unlock()
         }
 
-        /// 最初の呼び出しがゲートに着くまで待つ。
-        /// 協調スレッドプールはゲートで埋まりうるので、Task.sleep ではなくスレッドを止めて待つ。
-        func waitForFirstArrival(timeout: TimeInterval) -> Bool {
-            let deadline = Date().addingTimeInterval(timeout)
-            condition.lock()
-            defer { condition.unlock() }
-            while arrivalCount == 0 {
-                guard condition.wait(until: deadline) else { return arrivalCount > 0 }
+        func cancel() {
+            lock.lock()
+            let task = task
+            lock.unlock()
+            task?.cancel()
+        }
+    }
+
+    /// ジョブを 1 本のキューで順に実行するタスクエグゼキュータ。
+    /// タスクグループが子タスクをすべて登録し終えてから、最初の子タスクが走る順序を固定するために使う。
+    final class SerialTaskExecutor: TaskExecutor, @unchecked Sendable {
+        private let queue = DispatchQueue(label: "AppControllerTests.SerialTaskExecutor")
+
+        func enqueue(_ job: consuming ExecutorJob) {
+            let job = UnownedJob(job)
+            queue.async {
+                job.runSynchronously(on: self.asUnownedTaskExecutor())
             }
-            return true
-        }
-
-        func open() {
-            condition.lock()
-            isOpen = true
-            condition.broadcast()
-            condition.unlock()
         }
     }
 
@@ -1019,12 +1020,13 @@ final class AppControllerTests: XCTestCase {
 
     func test_NightCalculationService_calculateUpcomingNights_stopsAfterCancellation() async {
         let recorder = CalculationInvocationRecorder()
-        let gate = CalculationGate()
-        // 同時に計算中になれる夜は協調スレッドプールの幅までなので、それより十分多い日数にする。
-        let days = 100
+        let cancellation = TaskCancellationBox()
+        let days = 20
         let service = NightCalculationService { date, location, _ in
-            recorder.record(date)
-            gate.wait()
+            // 最初の夜の計算中に外側のタスクを取り消す。以降の夜は始まる前に取り消しを見るはず。
+            if recorder.record(date) == 1 {
+                cancellation.cancel()
+            }
             return NightSummary(
                 date: date,
                 location: location,
@@ -1035,26 +1037,28 @@ final class AppControllerTests: XCTestCase {
         }
         let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
         let baseDate = Calendar.current.startOfDay(for: Date())
+        // 直列のエグゼキュータで動かすと、全日数の子タスクを登録し終えてから最初の子タスクが走る。
+        // 取り消しは登録後に起きるので、登録済みでまだ始まっていない夜の扱いだけを確かめられる。
+        let executor = SerialTaskExecutor()
+        // タスクを入れ物に入れてから計算を始める。先に計算が始まると取り消せない。
+        let (start, startContinuation) = AsyncStream<Void>.makeStream()
 
-        // テスト本体はゲート到着までメインスレッドを止めるので、計算はメインアクターの外で始める。
-        let task = Task.detached {
-            await service.calculateUpcomingNights(
+        let task = Task.detached(executorPreference: executor) {
+            for await _ in start { break }
+            return await service.calculateUpcomingNights(
                 from: baseDate,
                 location: location,
                 timeZone: .current,
                 days: days
             )
         }
-
-        // 計算中の夜がゲートで止まっている間にキャンセルし、その後でゲートを開く。
-        XCTAssertTrue(gate.waitForFirstArrival(timeout: 5.0))
-        task.cancel()
-        gate.open()
+        cancellation.set(task)
+        startContinuation.yield()
+        startContinuation.finish()
         let summaries = await task.value
 
-        // キャンセル前に始まっていなかった夜は計算されない。
-        XCTAssertGreaterThan(recorder.count, 0)
-        XCTAssertLessThan(recorder.count, days)
+        // 取り消した時点で計算中だった最初の夜だけが計算される。
+        XCTAssertEqual(recorder.count, 1)
         // 返すのは実際に計算した夜だけ。
         XCTAssertLessThanOrEqual(summaries.count, recorder.count)
         XCTAssertTrue(Set(summaries.map(\.date)).isSubset(of: Set(recorder.dates)))
