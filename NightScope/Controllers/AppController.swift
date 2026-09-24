@@ -566,7 +566,7 @@ final class AppController: ObservableObject {
                 .eraseToAnyPublisher()
         )
         externalDataPublisher
-            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .sink { [weak self] in
                 guard let self, !self.isApplyingLocationRefresh else { return }
                 self.recomputeAllIndexes()
