@@ -402,7 +402,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             jd: 2440000.5, latitude: 35.6762, longitude: 139.6503,
             gst: 241.65463699121028, lst: 21.304936991210297,
             sunRA: 60.832097501349033, sunDec: 20.735222451768635,
-            moonRA: 24.744094477608865, moonDec: 10.959535727980091, moonPhase: 0.90003367661493028,
+            moonRA: 24.744094477608865, moonDec: 10.959535727980091, moonPhase: 0.9000886175366972,
             planets: [
                 PlanetGolden(name: "水星", altitude: 34.781835535765744, azimuth: 81.647017461286325,
                              magnitude: -2.7954146205756687, distanceAU: 0.82871671970404737),
@@ -420,7 +420,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             jd: 2460678.25, latitude: -33.8688, longitude: 151.2093,
             gst: 12.624450793955475, lst: 163.83375079395549,
             sunRA: 283.69106491796879, sunDec: -22.842199992162605,
-            moonRA: 319.72731074454714, moonDec: -19.098638563098387, moonPhase: 0.093427499035108968,
+            moonRA: 319.72731074454714, moonDec: -19.098638563098387, moonPhase: 0.0934289301631703,
             planets: [
                 PlanetGolden(name: "水星", altitude: 6.5342994719240872, azimuth: 112.54685460955415,
                              magnitude: -1.9072914940267334, distanceAU: 1.1769955061876394),
@@ -438,7 +438,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             jd: 2462000.8, latitude: 64.1466, longitude: -21.9426,
             gst: 74.192382547538728, lst: 52.249782547538729,
             sunRA: 147.19663966172325, sunDec: 13.217891756576329,
-            moonRA: 103.75082706022624, moonDec: 23.132623701481087, moonPhase: 0.8825959831627137,
+            moonRA: 103.75082706022624, moonDec: 23.132623701481087, moonPhase: 0.8825405961964429,
             planets: [
                 PlanetGolden(name: "水星", altitude: -4.3752140503284451, azimuth: 65.580621093072054,
                              magnitude: -1.7797222531650434, distanceAU: 1.2136228958914006),
@@ -550,7 +550,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
     private let nightCases: [NightGolden] = [
         NightGolden(
             year: 2025, month: 1, day: 15, latitude: 35.6762, longitude: 139.6503,
-            moonPhaseAtMidnight: 0.55976541288434623, viewingWindowCount: 0,
+            moonPhaseAtMidnight: 0.5597429022812699, viewingWindowCount: 0,
             firstEvent: (18.217455892481304, 210.1453554200271, 33.188422321494244, -30.969832992939939),
             planets: [
                 PlanetNightGolden(name: "水星", riseTime: 1736974751.0796528, riseAzimuth: 119.79340358531016,
@@ -575,7 +575,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
         ),
         NightGolden(
             year: 2026, month: 6, day: 20, latitude: -33.8688, longitude: 151.2093,
-            moonPhaseAtMidnight: 0.20267923367873159, viewingWindowCount: 1,
+            moonPhaseAtMidnight: 0.20270625349686505, viewingWindowCount: 1,
             firstEvent: (-24.823905259896158, 162.54549032370343, 30.751643876899209, 23.529049395202641),
             planets: [
                 PlanetNightGolden(name: "水星", riseTime: nil, riseAzimuth: nil,
@@ -598,7 +598,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
         ),
         NightGolden(
             year: 2027, month: 11, day: 3, latitude: 64.1466, longitude: -21.9426,
-            moonPhaseAtMidnight: 0.16806223368024703, viewingWindowCount: 0,
+            moonPhaseAtMidnight: 0.1681095874240564, viewingWindowCount: 0,
             firstEvent: (-52.366841870922237, 328.79604910039461, -37.378584537779311, -47.270646348035385),
             planets: [
                 PlanetNightGolden(name: "水星", riseTime: nil, riseAzimuth: nil,

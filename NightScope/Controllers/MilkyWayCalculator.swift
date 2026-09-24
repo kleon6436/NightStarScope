@@ -83,14 +83,18 @@ enum MilkyWayCalculator {
         altAz(ra: ra, dec: dec, latitude: latitude, lst: lst).alt
     }
 
-    // 太陽の赤経・赤緯 (簡易計算)
-    static func sunRaDec(jd: Double) -> (ra: Double, dec: Double) {
+    // 太陽の視黄経 (rad, 簡易計算)
+    private static func sunEclipticLongitude(jd: Double) -> Double {
         let n = jd - AngleMath.j2000JulianDate
         var L = 280.460 + 0.9856474 * n
         let g = AngleMath.toRadians(357.528 + 0.9856003 * n)
         L = L.truncatingRemainder(dividingBy: 360.0)
+        return AngleMath.toRadians(L + 1.915 * sin(g) + 0.020 * sin(2 * g))
+    }
 
-        let lambdaRad = AngleMath.toRadians(L + 1.915 * sin(g) + 0.020 * sin(2 * g))
+    // 太陽の赤経・赤緯 (簡易計算)
+    static func sunRaDec(jd: Double) -> (ra: Double, dec: Double) {
+        let lambdaRad = sunEclipticLongitude(jd: jd)
         let epsilonRad = AngleMath.toRadians(23.439)
 
         let dec = AngleMath.toDegrees(asin(sin(epsilonRad) * sin(lambdaRad)))
@@ -227,10 +231,7 @@ enum MilkyWayCalculator {
 
         let (ra, dec) = eclipticToEquatorial(lambda: lambdaRad, beta: betaRad, epsilon: epsilonRad)
 
-        // 太陽の黄経 (近似)
-        let n = jd - AngleMath.j2000JulianDate
-        let sunG = AngleMath.toRadians(357.528 + 0.9856003 * n)
-        let sunLambdaRad = AngleMath.toRadians(280.460 + 0.9856474 * n + 1.915 * sin(sunG))
+        let sunLambdaRad = sunEclipticLongitude(jd: jd)
         let elongation = AngleMath.normalizedDegrees(AngleMath.toDegrees(lambdaRad) - AngleMath.toDegrees(sunLambdaRad))
         let phase = elongation / 360.0
 
