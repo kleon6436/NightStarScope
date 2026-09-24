@@ -128,7 +128,11 @@ final class AppController: ObservableObject {
         self.starGazingIndexBuilder = StarGazingIndexBuilder(weatherService: self.weatherService)
         self.now = now
         self.lightPollutionService = lightPollutionService ?? LightPollutionService()
-        let favorites = FavoritesComposition.make(defaults: favoriteDefaults, kvStore: kvStore, center: notificationCenter)
+        let favorites = FavoritesComposition.make(
+            defaults: favoriteDefaults,
+            kvStore: kvStore,
+            center: notificationCenter
+        )
         self.favoriteStore = favorites.store
         self.favoriteSyncReconciler = favorites.reconciler
         self.calculationService = calculationService ?? NightCalculationService()
