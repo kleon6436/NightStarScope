@@ -144,4 +144,3 @@ struct StarMapCameraSessionActivationState: Sendable {
         self.generation == generation && self.isActive == isActive
     }
 }
-
