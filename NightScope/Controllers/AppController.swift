@@ -302,7 +302,14 @@ final class AppController: ObservableObject {
                 location: context.coordinate,
                 timeZone: context.timeZone
             )
-            guard !Task.isCancelled, isSelectedLocationContext(context) else { return }
+            // 取り消されたときは、取り消した側が isCalculating を引き継いでいる。
+            guard !Task.isCancelled else { return }
+            // 取り消されずに観測地だけ変わっていたら、結果を捨てて今の観測地で計算し直す。
+            // このタスクが isCalculating を下ろす役なので、ここで止めると読み込み中のまま残る。
+            guard isSelectedLocationContext(context) else {
+                recalculate()
+                return
+            }
             performObservationStateBatchUpdate {
                 nightSummary = summary
                 isCalculating = false
@@ -324,8 +331,13 @@ final class AppController: ObservableObject {
                 timeZone: context.timeZone,
                 days: ForecastConfiguration.upcomingNightCount
             )
+            guard !Task.isCancelled else { return }
             // 観測地の変更直後は、場所変更タスクがこのタスクを取り消すより先に完了することがある。
-            guard !Task.isCancelled, isSelectedLocationContext(context) else { return }
+            // 結果は捨て、isUpcomingLoading を下ろす役ごと今の観測地の計算に引き継ぐ。
+            guard isSelectedLocationContext(context) else {
+                recalculateUpcoming(referenceDate: referenceDate)
+                return
+            }
             performObservationStateBatchUpdate {
                 upcomingNights = upcoming
                 recomputeUpcomingIndexes()
@@ -465,7 +477,12 @@ final class AppController: ObservableObject {
         let refreshResults = await locationRefreshFetcher.fetch(for: request, timeZone: timeZone)
         guard !Task.isCancelled else { return }
         let disposition = locationRefreshDisposition(for: request)
-        guard disposition != .discard else { return }
+        guard disposition != .discard else {
+            // 取り消されずに観測地だけ変わっていた場合は、新しい場所変更タスクが来ない。
+            // 読み込み中の表示を残さないよう、今の観測地で取り直す。
+            scheduleLocationChangeHandling()
+            return
+        }
 
         applyLocationRefresh(
             LocationRefreshPayload(
@@ -575,6 +592,8 @@ final class AppController: ObservableObject {
         _ payload: LocationRefreshPayload,
         disposition: LocationRefreshDisposition
     ) {
+        // 古い観測地のデータは何も反映しない。読み込み中フラグは取り直す側が下ろす。
+        guard disposition != .discard else { return }
         isApplyingLocationRefresh = true
         weatherService.applyFetchResult(payload.weatherResult)
         lightPollutionService.applyFetchResult(payload.lightPollutionResult)
