@@ -427,8 +427,7 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
 
     @discardableResult
     private func applyCoordinateSelection(_ coordinate: CLLocationCoordinate2D) -> Bool {
-        guard selectedLocation.latitude != coordinate.latitude
-                || selectedLocation.longitude != coordinate.longitude else {
+        guard !selectedLocation.isSameCoordinate(as: coordinate) else {
             return false
         }
         selectedLocation = coordinate
