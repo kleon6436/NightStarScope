@@ -27,27 +27,24 @@ enum MilkyWayCalculator {
 
     // グリニッジ恒星時 (度)
     static func greenwichSiderealTime(jd: Double) -> Double {
-        let T = (jd - 2451545.0) / 36525.0
-        var gst = 280.46061837
-            + 360.98564736629 * (jd - 2451545.0)
+        let T = (jd - AngleMath.j2000JulianDate) / 36525.0
+        let gst = 280.46061837
+            + 360.98564736629 * (jd - AngleMath.j2000JulianDate)
             + 0.000387933 * T * T
             - T * T * T / 38710000.0
-        gst = gst.truncatingRemainder(dividingBy: 360.0)
-        return gst < 0 ? gst + 360.0 : gst
+        return AngleMath.normalizedDegrees(gst)
     }
 
     // 地方恒星時 (度)
     static func localSiderealTime(jd: Double, longitude: Double) -> Double {
-        var lst = greenwichSiderealTime(jd: jd) + longitude
-        lst = lst.truncatingRemainder(dividingBy: 360.0)
-        return lst < 0 ? lst + 360.0 : lst
+        AngleMath.normalizedDegrees(greenwichSiderealTime(jd: jd) + longitude)
     }
 
     // 赤経・赤緯から高度と方位角をまとめて計算 (度)
     // 高度と方位角を個別に計算すると中間値を2回計算してしまうため、
     // 1回の呼び出しで両方を返す統合関数。ホットループ (星9,000+ 件) で使用する。
     static func altAz(ra: Double, dec: Double, latitude: Double, lst: Double) -> (alt: Double, az: Double) {
-        let latRad = latitude * .pi / 180.0
+        let latRad = AngleMath.toRadians(latitude)
         return altAzFast(ra: ra, dec: dec, cosLat: cos(latRad), sinLat: sin(latRad), lst: lst)
     }
 
@@ -88,17 +85,17 @@ enum MilkyWayCalculator {
 
     // 太陽の赤経・赤緯 (簡易計算)
     static func sunRaDec(jd: Double) -> (ra: Double, dec: Double) {
-        let n = jd - 2451545.0
+        let n = jd - AngleMath.j2000JulianDate
         var L = 280.460 + 0.9856474 * n
-        let g = (357.528 + 0.9856003 * n) * .pi / 180.0
+        let g = AngleMath.toRadians(357.528 + 0.9856003 * n)
         L = L.truncatingRemainder(dividingBy: 360.0)
 
-        let lambdaRad = (L + 1.915 * sin(g) + 0.020 * sin(2 * g)) * .pi / 180.0
-        let epsilonRad = 23.439 * .pi / 180.0
+        let lambdaRad = AngleMath.toRadians(L + 1.915 * sin(g) + 0.020 * sin(2 * g))
+        let epsilonRad = AngleMath.toRadians(23.439)
 
-        let dec = asin(sin(epsilonRad) * sin(lambdaRad)) * 180.0 / .pi
-        var ra = atan2(cos(epsilonRad) * sin(lambdaRad), cos(lambdaRad)) * 180.0 / .pi
-        if ra < 0 { ra += 360.0 }
+        let dec = AngleMath.toDegrees(asin(sin(epsilonRad) * sin(lambdaRad)))
+        let raRad = atan2(cos(epsilonRad) * sin(lambdaRad), cos(lambdaRad))
+        let ra = AngleMath.normalizedDegrees(AngleMath.toDegrees(raRad))
         return (ra, dec)
     }
 
@@ -117,7 +114,7 @@ enum MilkyWayCalculator {
         let samplingStart = calendar.date(byAdding: .hour, value: 12, to: observationDate)
             ?? observationDate.addingTimeInterval(12 * 60 * 60)
         let samplingEnd = samplingStart.addingTimeInterval(Constants.secondsPerDay)
-        let latRad = location.latitude * .pi / 180.0
+        let latRad = AngleMath.toRadians(location.latitude)
         let cosLat = cos(latRad)
         let sinLat = sin(latRad)
 
@@ -216,32 +213,40 @@ enum MilkyWayCalculator {
 
     // 月の赤経・赤緯・位相 (簡易計算)
     static func moonRaDec(jd: Double) -> (ra: Double, dec: Double, phase: Double) {
-        let d = jd - 2451545.0
+        let d = jd - AngleMath.j2000JulianDate
 
         // 月の平均要素
         let L = (218.316 + 13.176396 * d).truncatingRemainder(dividingBy: 360.0)
-        let M = (134.963 + 13.064993 * d) * .pi / 180.0
-        let F = (93.272 + 13.229350 * d) * .pi / 180.0
+        let M = AngleMath.toRadians(134.963 + 13.064993 * d)
+        let F = AngleMath.toRadians(93.272 + 13.229350 * d)
 
-        let lambdaRad = (L + 6.289 * sin(M)) * .pi / 180.0
-        let betaRad = (5.128 * sin(F)) * .pi / 180.0
+        let lambdaRad = AngleMath.toRadians(L + 6.289 * sin(M))
+        let betaRad = AngleMath.toRadians(5.128 * sin(F))
 
-        let epsilonRad = 23.439 * .pi / 180.0
+        let epsilonRad = AngleMath.toRadians(23.439)
 
-        let decRad = asin(max(-1, min(1, sin(betaRad) * cos(epsilonRad) + cos(betaRad) * sin(epsilonRad) * sin(lambdaRad))))
-        let dec = decRad * 180.0 / .pi
-        var ra = atan2(sin(lambdaRad) * cos(epsilonRad) - tan(betaRad) * sin(epsilonRad), cos(lambdaRad)) * 180.0 / .pi
-        if ra < 0 { ra += 360.0 }
+        let (ra, dec) = eclipticToEquatorial(lambda: lambdaRad, beta: betaRad, epsilon: epsilonRad)
 
         // 太陽の黄経 (近似)
-        let n = jd - 2451545.0
-        let sunLambdaRad = (280.460 + 0.9856474 * n + 1.915 * sin((357.528 + 0.9856003 * n) * .pi / 180.0)) * .pi / 180.0
-        var elongation = lambdaRad * 180 / .pi - sunLambdaRad * 180 / .pi
-        elongation = elongation.truncatingRemainder(dividingBy: 360.0)
-        if elongation < 0 { elongation += 360.0 }
+        let n = jd - AngleMath.j2000JulianDate
+        let sunG = AngleMath.toRadians(357.528 + 0.9856003 * n)
+        let sunLambdaRad = AngleMath.toRadians(280.460 + 0.9856474 * n + 1.915 * sin(sunG))
+        let elongation = AngleMath.normalizedDegrees(AngleMath.toDegrees(lambdaRad) - AngleMath.toDegrees(sunLambdaRad))
         let phase = elongation / 360.0
 
         return (ra, dec, phase)
+    }
+
+    /// 黄道座標 (黄経 λ・黄緯 β・黄道傾斜角 ε, いずれも rad) を赤道座標 (度) に変換する。
+    private static func eclipticToEquatorial(
+        lambda: Double,
+        beta: Double,
+        epsilon: Double
+    ) -> (ra: Double, dec: Double) {
+        let sinDec = sin(beta) * cos(epsilon) + cos(beta) * sin(epsilon) * sin(lambda)
+        let dec = AngleMath.toDegrees(asin(max(-1.0, min(1.0, sinDec))))
+        let raRad = atan2(sin(lambda) * cos(epsilon) - tan(beta) * sin(epsilon), cos(lambda))
+        return (AngleMath.normalizedDegrees(AngleMath.toDegrees(raRad)), dec)
     }
 
     // 指定した日付・場所で15分おきにイベントを計算
@@ -414,11 +419,11 @@ enum MilkyWayCalculator {
     ///   - b: 銀緯 (度)
     /// - Returns: (ra: 度, dec: 度)
     static func galacticToEquatorial(l: Double, b: Double) -> (ra: Double, dec: Double) {
-        let lRad   = l * .pi / 180
-        let bRad   = b * .pi / 180
-        let raGP   = 192.85948 * .pi / 180  // 北銀極の赤経
-        let decGP  =  27.12825 * .pi / 180  // 北銀極の赤緯
-        let lOmega =  32.93192 * .pi / 180  // 銀河赤道の昇交点銀経
+        let lRad   = AngleMath.toRadians(l)
+        let bRad   = AngleMath.toRadians(b)
+        let raGP   = AngleMath.toRadians(192.85948)  // 北銀極の赤経
+        let decGP  = AngleMath.toRadians(27.12825)   // 北銀極の赤緯
+        let lOmega = AngleMath.toRadians(32.93192)   // 銀河赤道の昇交点銀経
 
         let theta = lRad - lOmega
 
@@ -427,10 +432,8 @@ enum MilkyWayCalculator {
 
         let y =  cos(bRad) * cos(theta)
         let x = -cos(bRad) * sin(decGP) * sin(theta) + sin(bRad) * cos(decGP)
-        var ra = (raGP + atan2(y, x)) * 180 / .pi
-        ra = ra.truncatingRemainder(dividingBy: 360)
-        if ra < 0 { ra += 360 }
-        return (ra: ra, dec: dec * 180 / .pi)
+        let ra = AngleMath.normalizedDegrees(AngleMath.toDegrees(raGP + atan2(y, x)))
+        return (ra: ra, dec: AngleMath.toDegrees(dec))
     }
 
     // MARK: - Planet Positions (Meeus "Astronomical Algorithms", Table 31.a)
@@ -479,11 +482,8 @@ enum MilkyWayCalculator {
             L0: 49.95424423, LRate: 1222.49362201, H: -8.88),
     ]
 
-    private static func normDeg(_ x: Double) -> Double {
-        var r = x.truncatingRemainder(dividingBy: 360.0)
-        if r < 0 { r += 360.0 }
-        return r
-    }
+    /// 惑星の表示順（planetOrbits の並び順）。
+    private static let planetOrder: [String] = planetOrbits.map(\.name)
 
     /// ケプラー方程式を Newton 法で反復解する (M: 平均近点角 rad, e: 離心率)
     private static func solveKepler(M: Double, e: Double) -> Double {
@@ -499,10 +499,10 @@ enum MilkyWayCalculator {
     /// 地球の日心黄道座標 (AU, 黄道面 = xy 平面)
     private static func earthHelioXY(T: Double) -> (x: Double, y: Double) {
         let e  = 0.01671123 - 0.00004392 * T
-        let ωD = normDeg(102.93768193 + 0.32327364 * T)
-        let LD = normDeg(100.46457166 + 35999.37244981 * T)
-        let M  = normDeg(LD - ωD) * .pi / 180.0
-        let ω  = ωD * .pi / 180.0
+        let ωD = AngleMath.normalizedDegrees(102.93768193 + 0.32327364 * T)
+        let LD = AngleMath.normalizedDegrees(100.46457166 + 35999.37244981 * T)
+        let M  = AngleMath.toRadians(AngleMath.normalizedDegrees(LD - ωD))
+        let ω  = AngleMath.toRadians(ωD)
         let E  = solveKepler(M: M, e: e)
         let r  = 1.00000261 * (1.0 - e * cos(E))
         let nu = atan2(sqrt(max(0, 1.0 - e * e)) * sin(E), cos(E) - e)
@@ -516,16 +516,18 @@ enum MilkyWayCalculator {
     ///   - latitude: 観測地緯度 (度)
     ///   - lst: 地方恒星時 (度)
     static func planetPositions(jd: Double, latitude: Double, lst: Double) -> [PlanetPosition] {
-        let T     = (jd - 2451545.0) / 36525.0
+        let T     = (jd - AngleMath.j2000JulianDate) / 36525.0
         let earth = earthHelioXY(T: T)
-        let ε     = (23.439291 - 0.013004 * T) * .pi / 180.0
+        let ε     = AngleMath.toRadians(23.439291 - 0.013004 * T)
 
         return planetOrbits.compactMap { orbit in
             let e    = orbit.e0 + orbit.eRate * T
-            let i    = (orbit.i0 + orbit.iRate * T) * .pi / 180.0
-            let Ω    = normDeg(orbit.Ω0 + orbit.ΩRate * T) * .pi / 180.0
-            let ω    = normDeg(orbit.ω0 + orbit.ωRate * T) * .pi / 180.0
-            let M    = normDeg((orbit.L0 + orbit.LRate * T) - (orbit.ω0 + orbit.ωRate * T)) * .pi / 180.0
+            let i    = AngleMath.toRadians(orbit.i0 + orbit.iRate * T)
+            let Ω    = AngleMath.toRadians(AngleMath.normalizedDegrees(orbit.Ω0 + orbit.ΩRate * T))
+            let ω    = AngleMath.toRadians(AngleMath.normalizedDegrees(orbit.ω0 + orbit.ωRate * T))
+            let M    = AngleMath.toRadians(
+                AngleMath.normalizedDegrees((orbit.L0 + orbit.LRate * T) - (orbit.ω0 + orbit.ωRate * T))
+            )
             let E    = solveKepler(M: M, e: e)
             let r    = orbit.a * (1.0 - e * cos(E))
             let nu   = atan2(sqrt(max(0, 1.0 - e * e)) * sin(E), cos(E) - e)
@@ -545,9 +547,7 @@ enum MilkyWayCalculator {
             let βGeo = atan2(dz, sqrt(dx*dx + dy*dy))
 
             // 黄道 → 赤道変換
-            var ra = atan2(sin(λGeo)*cos(ε) - tan(βGeo)*sin(ε), cos(λGeo)) * 180.0 / .pi
-            if ra < 0 { ra += 360.0 }
-            let dec = asin(max(-1.0, min(1.0, sin(βGeo)*cos(ε) + cos(βGeo)*sin(ε)*sin(λGeo)))) * 180.0 / .pi
+            let (ra, dec) = eclipticToEquatorial(lambda: λGeo, beta: βGeo, epsilon: ε)
 
             let (alt, az) = altAz(ra: ra, dec: dec, latitude: latitude, lst: lst)
 
@@ -609,8 +609,7 @@ enum MilkyWayCalculator {
             )
         }
         .sorted {
-            let order = ["水星", "金星", "火星", "木星", "土星"]
-            return (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99)
+            (planetOrder.firstIndex(of: $0.name) ?? 99) < (planetOrder.firstIndex(of: $1.name) ?? 99)
         }
     }
 
@@ -619,9 +618,7 @@ enum MilkyWayCalculator {
         var delta = az1 - az0
         if delta >  180 { delta -= 360 }
         if delta < -180 { delta += 360 }
-        var result = az0 + frac * delta
-        result = result.truncatingRemainder(dividingBy: 360)
-        return result < 0 ? result + 360 : result
+        return AngleMath.normalizedDegrees(az0 + frac * delta)
     }
 
     /// 最初の地平線上昇交差点（負→正）の時刻と方位角を線形補間で返す。
