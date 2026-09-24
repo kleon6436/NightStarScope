@@ -5,6 +5,8 @@ import Foundation
 enum FormatterFactory {
     static func observationTimeZone(dateFormat: String, timeZone: TimeZone) -> DateFormatter {
         let formatter = DateFormatter()
+        // 固定書式はユーザーの 12/24 時間設定や数字体系に左右されないようにする。
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = dateFormat
         formatter.timeZone = timeZone
         return formatter
