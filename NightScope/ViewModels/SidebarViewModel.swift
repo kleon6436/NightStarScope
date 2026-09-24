@@ -131,32 +131,25 @@ final class SidebarViewModel: ObservableObject {
         // concrete 実装も @MainActor のため、upstream publisher は必ずメインスレッドで発火する。
         // receive(on: DispatchQueue.main) は不要。
         locationController.searchStatePublisher
-            .sink { [weak self] in self?.searchState = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$searchState)
 
         locationController.isLocatingPublisher
-            .sink { [weak self] in self?.isLocating = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$isLocating)
 
         locationController.locationErrorPublisher
-            .sink { [weak self] in self?.locationError = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$locationError)
 
         locationController.locationNamePublisher
-            .sink { [weak self] in self?.selectedLocationName = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$selectedLocationName)
 
         locationController.searchFocusTriggerPublisher
-            .sink { [weak self] in self?.searchFocusTrigger = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$searchFocusTrigger)
 
         locationController.currentLocationCenterTriggerPublisher
-            .sink { [weak self] in self?.currentLocationCenterTrigger = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$currentLocationCenterTrigger)
 
         locationController.selectedTimeZonePublisher
-            .sink { [weak self] in self?.selectedTimeZone = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$selectedTimeZone)
 
         locationController.selectedLocationPublisher
             .dropFirst()
@@ -167,25 +160,20 @@ final class SidebarViewModel: ObservableObject {
             .store(in: &cancellables)
 
         lightPollutionService.bortleClassPublisher
-            .sink { [weak self] in self?.lightPollutionBortleClass = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$lightPollutionBortleClass)
 
         lightPollutionService.isLoadingPublisher
-            .sink { [weak self] in self?.isLightPollutionLoading = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$isLightPollutionLoading)
 
         lightPollutionService.fetchFailedPublisher
-            .sink { [weak self] in self?.hasLightPollutionFetchFailed = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$hasLightPollutionFetchFailed)
 
         // FavoriteTonightScoreProvider も @MainActor なので receive(on:) は不要。
         tonightScoreProvider?.$scoresByFavoriteID
-            .sink { [weak self] in self?.favoriteTonightScores = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$favoriteTonightScores)
 
         tonightScoreProvider?.$isRefreshing
-            .sink { [weak self] in self?.isRefreshingFavoriteScores = $0 }
-            .store(in: &cancellables)
+            .assign(to: &$isRefreshingFavoriteScores)
     }
 
     func handleLocationSectionAppear(selectedCoordinate: CLLocationCoordinate2D) {
