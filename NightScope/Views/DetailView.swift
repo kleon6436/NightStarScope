@@ -535,7 +535,7 @@ private struct MacStarMapSheet: View {
         case .idle, .loading:
             .secondary
         case .available:
-            Color(red: 0.4, green: 1.0, blue: 0.7)
+            StarMapPalette.meteorAccent
         case .unavailable:
             .orange
         }
