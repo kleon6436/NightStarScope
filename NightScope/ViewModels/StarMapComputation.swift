@@ -4,8 +4,6 @@ import SwiftUI
 enum StarMapComputation {
     /// 1 回の描画に必要な計算結果のスナップショット。
     struct Snapshot: Sendable {
-        let lat: Double
-        let lst: Double
         let starPositions: [StarPosition]
         let sunAltitude: Double
         let moonAltitude: Double
@@ -139,8 +137,6 @@ enum StarMapComputation {
         }
 
         return Snapshot(
-            lat: latitude,
-            lst: localSiderealTime,
             starPositions: stars,
             sunAltitude: sunAltitude,
             moonAltitude: moonAltitude,

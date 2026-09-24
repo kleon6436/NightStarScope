@@ -77,10 +77,8 @@ final class StarMapViewModelTests: XCTestCase {
 
     private func makeStaticComputationDependency() -> StarMapComputationDependency {
         StarMapComputationDependency(
-            computeSnapshot: { latitude, _, _, localSiderealTime, _, _ in
+            computeSnapshot: { _, _, _, _, _, _ in
                 StarMapComputation.Snapshot(
-                    lat: latitude,
-                    lst: localSiderealTime,
                     starPositions: [],
                     sunAltitude: -20,
                     moonAltitude: -10,
