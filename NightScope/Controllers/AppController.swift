@@ -668,11 +668,14 @@ final class AppController: ObservableObject {
     ) -> [Date: StarGazingIndex] {
         var indexes: [Date: StarGazingIndex] = [:]
         // 辞書のキーは表示側が選択中のタイムゾーンで引くため、そのタイムゾーンの日付で作る。
-        // 呼び出し側は同じタイムゾーンで計算した夜だけを渡す。違うとキーが前後の日にずれる。
+        // 呼び出し側は同じタイムゾーンで計算した夜だけを渡す。違うとキーが前後の日にずれるので、その夜は指数を作らない。
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let referenceDate = now()
         for night in upcomingNights {
-            assert(night.timeZoneIdentifier == timeZone.identifier)
+            guard night.timeZoneIdentifier == timeZone.identifier else {
+                assertionFailure("予報の夜のタイムゾーン \(night.timeZoneIdentifier) がキーのタイムゾーン \(timeZone.identifier) と違う")
+                continue
+            }
             indexes[calendar.startOfDay(for: night.date)] = starGazingIndexBuilder.index(
                 for: night,
                 weatherByDate: weatherByDate,
