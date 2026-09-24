@@ -14,8 +14,7 @@ final class NightWeatherCardViewModel: ObservableObject {
         let storedValue = UserDefaults.standard.string(forKey: "windSpeedUnit") ?? WindSpeedUnit.kmh.rawValue
         self.windSpeedUnit = WindSpeedUnit(rawValue: storedValue) ?? .kmh
         // AppStorage 以外の経路で設定が変わっても、表示単位を即時に追従させる。
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .receive(on: DispatchQueue.main)
+        NotificationCenter.default.userDefaultsChangesOnMain()
             .sink { [weak self] _ in
                 self?.syncWindSpeedUnit()
             }

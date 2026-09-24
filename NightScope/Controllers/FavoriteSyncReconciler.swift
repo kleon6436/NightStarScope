@@ -10,6 +10,15 @@ enum AppSettingsKeys {
     static let iCloudSyncEnabled = "iCloudSyncEnabled"
 }
 
+extension NotificationCenter {
+    /// UserDefaults の変更通知をメインキューで配信する。通知は書き込んだスレッドで届くため、購読側の MainActor 処理の前でメインへ移す。
+    func userDefaultsChangesOnMain(object: UserDefaults? = nil) -> AnyPublisher<Notification, Never> {
+        publisher(for: UserDefaults.didChangeNotification, object: object)
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+}
+
 /// iCloud とこの端末のお気に入りの差分を扱う。
 /// iCloud モードでは、この端末にのみある地点のうち未送信かつ未観測のものを自動で iCloud に追加し、
 /// 残りの差分は設定画面から選んで追加できるようにする。local モードでは、iCloud にのみある地点のうち選んだものを取り込む。
@@ -75,8 +84,7 @@ final class FavoriteSyncReconciler: ObservableObject {
         initializeObservedForLegacyUserIfNeeded()
         // isPendingRestart はトグルを読む計算プロパティなので、トグルが変わったら画面に知らせる。
         // UserDefaults の変更通知は書き込んだスレッドで届くため、MainActor に隔離された map の前でメインへ移す。
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: localDefaults)
-            .receive(on: DispatchQueue.main)
+        NotificationCenter.default.userDefaultsChangesOnMain(object: localDefaults)
             .map { _ in toggleProvider() }
             .prepend(toggleProvider())
             .removeDuplicates()

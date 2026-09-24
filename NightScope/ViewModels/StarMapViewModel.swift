@@ -14,8 +14,7 @@ struct StarMapSettingsDependency {
             StarMapDisplaySettings.load()
         },
         // UserDefaults の変更通知は書き込んだスレッドで届くため、MainActor に隔離された map の前でメインへ移す。
-        changes: NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .receive(on: DispatchQueue.main)
+        changes: NotificationCenter.default.userDefaultsChangesOnMain()
             .map { _ in StarMapDisplaySettings.load() }
             .removeDuplicates()
             .eraseToAnyPublisher()
