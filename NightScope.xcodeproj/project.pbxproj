@@ -17,7 +17,7 @@
 		0C21A9833046DD44B1100A03 /* ComparisonControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A13 /* ComparisonControllerTests.swift */; };
 		12716A5CFA05D4A9733EB7C0 /* iOSForecastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE64AD88B8F4595D25E01FF /* iOSForecastView.swift */; };
 		14E29A763046C8DBB1100A01 /* ObservationMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A11 /* ObservationMode.swift */; };
-		14E29A763046C8DBB1100A02 /* StarGazingIndex+Mode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A12 /* StarGazingIndex+Mode.swift */; };
+		14E29A763046C8DBB1100A02 /* StarGazingIndexMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A12 /* StarGazingIndexMode.swift */; };
 		1A2B3C4D5E6F708192A3B4C5 /* iOSStarMapSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */; };
 		29624CDBDF973E033D5A20FC /* iOSMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E51B35725701CA2DB51488 /* iOSMapView.swift */; };
 		2F634825E4145753F51108E9 /* DetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F01 /* DetailViewModel.swift */; };
@@ -27,7 +27,7 @@
 		477B2E3CB5355CA1BA5757D3 /* ViewingWindowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F16 /* ViewingWindowsSection.swift */; };
 		4ADBD70F53B069798670D94D /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
 		AB3A00000000000000000002 /* AngleMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000001 /* AngleMath.swift */; };
-		AB3A00000000000000000008 /* NotificationCenter+UserDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000007 /* NotificationCenter+UserDefaults.swift */; };
+		AB3A00000000000000000008 /* NotificationCenterUserDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000007 /* NotificationCenterUserDefaults.swift */; };
 		AB3A00000000000000000005 /* AppSettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000004 /* AppSettingsKeys.swift */; };
 		4DE2663F89BB12E4C05EDFB8 /* StarMapTerrainCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5261CADE1879D741D7A7C8 /* StarMapTerrainCoordinator.swift */; };
 		4F871C5177B328F9DFC5EEAA /* FavoriteLocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA0C4060B1252A05AA86C03 /* FavoriteLocationStore.swift */; };
@@ -47,9 +47,9 @@
 		6ECB4F746F4502FCE2C97515 /* DarkTimeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F20 /* DarkTimeCard.swift */; };
 		6FC7FC5F38B1C25572A8CC78 /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F02 /* SidebarViewModel.swift */; };
 		7084008268A492409EA18561 /* MilkyWayCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F03 /* MilkyWayCalculator.swift */; };
-		AB3A00000000000000000047 /* MilkyWayCalculator+SolarLunar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */; };
-		AB3A0000000000000000004A /* MilkyWayCalculator+Planets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */; };
-		AB3A0000000000000000004D /* MilkyWayCalculator+GalacticCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */; };
+		AB3A00000000000000000047 /* MilkyWayCalculatorSolarLunar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000046 /* MilkyWayCalculatorSolarLunar.swift */; };
+		AB3A0000000000000000004A /* MilkyWayCalculatorPlanets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000049 /* MilkyWayCalculatorPlanets.swift */; };
+		AB3A0000000000000000004D /* MilkyWayCalculatorGalacticCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A0000000000000000004C /* MilkyWayCalculatorGalacticCenter.swift */; };
 		726077AD15C19C005AB769DB /* AstroModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F01 /* AstroModels.swift */; };
 		78BC796E939B65C3054D3651 /* FavoriteLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5FD175A6FD4FA2071B5F37 /* FavoriteLocation.swift */; };
 		78F344DDA7638AEE2C53BABF /* UIConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F19 /* UIConstants.swift */; };
@@ -73,9 +73,9 @@
 		A2A2D85F57CA69E8B6B666EB /* ViewingWindowsSectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F07 /* ViewingWindowsSectionViewModel.swift */; };
 		AA0000000000000000001B01 /* NightScopeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F01 /* NightScopeApp.swift */; };
 		AA0000000000000000001B03 /* MilkyWayCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F03 /* MilkyWayCalculator.swift */; };
-		AB3A00000000000000000048 /* MilkyWayCalculator+SolarLunar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */; };
-		AB3A0000000000000000004B /* MilkyWayCalculator+Planets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */; };
-		AB3A0000000000000000004E /* MilkyWayCalculator+GalacticCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */; };
+		AB3A00000000000000000048 /* MilkyWayCalculatorSolarLunar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000046 /* MilkyWayCalculatorSolarLunar.swift */; };
+		AB3A0000000000000000004B /* MilkyWayCalculatorPlanets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000049 /* MilkyWayCalculatorPlanets.swift */; };
+		AB3A0000000000000000004E /* MilkyWayCalculatorGalacticCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A0000000000000000004C /* MilkyWayCalculatorGalacticCenter.swift */; };
 		AA0000000000000000001B05 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F05 /* Assets.xcassets */; };
 		AA0000000000000000002B01 /* AstroModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F01 /* AstroModels.swift */; };
 		AA0000000000000000002B02 /* WeatherModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F02 /* WeatherModels.swift */; };
@@ -132,14 +132,14 @@
 		AA000000000000000000TP02 /* TonightPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TP01 /* TonightPresentation.swift */; };
 		AA000000000000000000TP03 /* TonightPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TP01 /* TonightPresentation.swift */; };
 		AA9B7CDA3046C922B1100A01 /* ObservationMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A11 /* ObservationMode.swift */; };
-		AA9B7CDA3046C922B1100A02 /* StarGazingIndex+Mode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A12 /* StarGazingIndex+Mode.swift */; };
+		AA9B7CDA3046C922B1100A02 /* StarGazingIndexMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A12 /* StarGazingIndexMode.swift */; };
 		AEF100000000000000000011 /* WeatherKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000001 /* WeatherKitService.swift */; };
 		AEF100000000000000000012 /* WeatherKitServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000002 /* WeatherKitServiceSupport.swift */; };
 		AEF100000000000000000021 /* WeatherKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000001 /* WeatherKitService.swift */; };
 		AEF100000000000000000022 /* WeatherKitServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000002 /* WeatherKitServiceSupport.swift */; };
 		B180E3FFB6E5E72D560A7E78 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
 		AB3A00000000000000000003 /* AngleMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000001 /* AngleMath.swift */; };
-		AB3A00000000000000000009 /* NotificationCenter+UserDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000007 /* NotificationCenter+UserDefaults.swift */; };
+		AB3A00000000000000000009 /* NotificationCenterUserDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000007 /* NotificationCenterUserDefaults.swift */; };
 		AB3A00000000000000000006 /* AppSettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000004 /* AppSettingsKeys.swift */; };
 		B66ECDD7AD401F013891BF8E /* StarGazingIndexCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F04 /* StarGazingIndexCardViewModel.swift */; };
 		B8EC0EB2971B109AA4BF3F43 /* SearchResultViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93053B7368EAC3C217DC7600 /* SearchResultViews.swift */; };
@@ -290,10 +290,10 @@
 		0C21A9833046DD44B1100A13 /* ComparisonControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonControllerTests.swift; sourceTree = "<group>"; };
 		0C46800E2414065BEED56530 /* DateFormatting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
 		AB3A00000000000000000001 /* AngleMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AngleMath.swift; sourceTree = "<group>"; };
-		AB3A00000000000000000007 /* NotificationCenter+UserDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NotificationCenter+UserDefaults.swift"; sourceTree = "<group>"; };
+		AB3A00000000000000000007 /* NotificationCenterUserDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterUserDefaults.swift; sourceTree = "<group>"; };
 		AB3A00000000000000000004 /* AppSettingsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsKeys.swift; sourceTree = "<group>"; };
 		14E29A763046C8DBB1100A11 /* ObservationMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationMode.swift; sourceTree = "<group>"; };
-		14E29A763046C8DBB1100A12 /* StarGazingIndex+Mode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarGazingIndex+Mode.swift"; sourceTree = "<group>"; };
+		14E29A763046C8DBB1100A12 /* StarGazingIndexMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarGazingIndexMode.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSStarMapSupport.swift; sourceTree = "<group>"; };
 		273AFE7A6097D1B3EF523D16 /* AppIcons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppIcons.swift; sourceTree = "<group>"; };
 		2844F23FF6044140250E5CA9 /* StarMapTimeSliderScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarMapTimeSliderScheduler.swift; sourceTree = "<group>"; };
@@ -321,9 +321,9 @@
 		A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoStateValidator.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F01 /* NightScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeApp.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F03 /* MilkyWayCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculator.swift; sourceTree = "<group>"; };
-		AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MilkyWayCalculator+SolarLunar.swift"; sourceTree = "<group>"; };
-		AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MilkyWayCalculator+Planets.swift"; sourceTree = "<group>"; };
-		AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MilkyWayCalculator+GalacticCenter.swift"; sourceTree = "<group>"; };
+		AB3A00000000000000000046 /* MilkyWayCalculatorSolarLunar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculatorSolarLunar.swift; sourceTree = "<group>"; };
+		AB3A00000000000000000049 /* MilkyWayCalculatorPlanets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculatorPlanets.swift; sourceTree = "<group>"; };
+		AB3A0000000000000000004C /* MilkyWayCalculatorGalacticCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculatorGalacticCenter.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F05 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA0000000000000000001F06 /* NightScope.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NightScope.entitlements; sourceTree = "<group>"; };
 		AA0000000000000000001F08 /* NightStarScope.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NightStarScope.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -565,7 +565,7 @@
 				AA0000000000000000002F02 /* WeatherModels.swift */,
 				AA0000000000000000002F03 /* StarGazingIndex.swift */,
 				14E29A763046C8DBB1100A11 /* ObservationMode.swift */,
-				14E29A763046C8DBB1100A12 /* StarGazingIndex+Mode.swift */,
+				14E29A763046C8DBB1100A12 /* StarGazingIndexMode.swift */,
 				0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */,
 				A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */,
 				AA0000000000000000002F21 /* TerrainProfile.swift */,
@@ -580,7 +580,7 @@
 				FE0000000000000000001005 /* StarMapSpatialIndex.swift */,
 				0C46800E2414065BEED56530 /* DateFormatting.swift */,
 				AB3A00000000000000000001 /* AngleMath.swift */,
-				AB3A00000000000000000007 /* NotificationCenter+UserDefaults.swift */,
+				AB3A00000000000000000007 /* NotificationCenterUserDefaults.swift */,
 				AB3A00000000000000000004 /* AppSettingsKeys.swift */,
 				6F6403836D9709EDC6051393 /* WeatherPresentation.swift */,
 				AA000000000000000000TP01 /* TonightPresentation.swift */,
@@ -592,9 +592,9 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000001F03 /* MilkyWayCalculator.swift */,
-				AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */,
-				AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */,
-				AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */,
+				AB3A00000000000000000046 /* MilkyWayCalculatorSolarLunar.swift */,
+				AB3A00000000000000000049 /* MilkyWayCalculatorPlanets.swift */,
+				AB3A0000000000000000004C /* MilkyWayCalculatorGalacticCenter.swift */,
 				AA0000000000000000002F04 /* AppController.swift */,
 				AB3A00000000000000000033 /* LocationRefreshFetcher.swift */,
 				AA0000000000000000002F26 /* AppRootDependencies.swift */,
@@ -910,16 +910,16 @@
 				7BA722D255FEC71D78109ED2 /* WeatherModels.swift in Sources */,
 				8A2E00716A7CF7F2FBDBA8C9 /* StarGazingIndex.swift in Sources */,
 				14E29A763046C8DBB1100A01 /* ObservationMode.swift in Sources */,
-				14E29A763046C8DBB1100A02 /* StarGazingIndex+Mode.swift in Sources */,
+				14E29A763046C8DBB1100A02 /* StarGazingIndexMode.swift in Sources */,
 				A1B2C3D4E5F60718293A4B01 /* GeoStateValidator.swift in Sources */,
 				6C1674E92F8E7B7500AF040A /* ObservationTimeZone.swift in Sources */,
 				8386FEB6D2C20C41B5B5B4F8 /* AppController.swift in Sources */,
 				AA0000000000000000003B09 /* AppRootDependencies.swift in Sources */,
 				AA0000000000000000003B10 /* WeatherServiceSupport.swift in Sources */,
 				7084008268A492409EA18561 /* MilkyWayCalculator.swift in Sources */,
-				AB3A00000000000000000047 /* MilkyWayCalculator+SolarLunar.swift in Sources */,
-				AB3A0000000000000000004A /* MilkyWayCalculator+Planets.swift in Sources */,
-				AB3A0000000000000000004D /* MilkyWayCalculator+GalacticCenter.swift in Sources */,
+				AB3A00000000000000000047 /* MilkyWayCalculatorSolarLunar.swift in Sources */,
+				AB3A0000000000000000004A /* MilkyWayCalculatorPlanets.swift in Sources */,
+				AB3A0000000000000000004D /* MilkyWayCalculatorGalacticCenter.swift in Sources */,
 				DDDBBCFA5705F923909101C5 /* NightCalculationService.swift in Sources */,
 				AEF100000000000000000021 /* WeatherKitService.swift in Sources */,
 				AEF100000000000000000022 /* WeatherKitServiceSupport.swift in Sources */,
@@ -986,7 +986,7 @@
 				8CFACF7563F0B8AD9197C80A /* GlassEffects.swift in Sources */,
 				4ADBD70F53B069798670D94D /* DateFormatting.swift in Sources */,
 				AB3A00000000000000000002 /* AngleMath.swift in Sources */,
-				AB3A00000000000000000008 /* NotificationCenter+UserDefaults.swift in Sources */,
+				AB3A00000000000000000008 /* NotificationCenterUserDefaults.swift in Sources */,
 				AB3A00000000000000000005 /* AppSettingsKeys.swift in Sources */,
 				40385D2B167E1A5D6A6BB31B /* StarMapTerrainCoordinator.swift in Sources */,
 				41110F14F7A80572A2BB3CAE /* StarMapTimeSliderScheduler.swift in Sources */,
@@ -1012,16 +1012,16 @@
 				6C18B7702F791309007949F3 /* SettingsView.swift in Sources */,
 				IC0000000000000000002006 /* FavoriteSyncImportView.swift in Sources */,
 				AA0000000000000000001B03 /* MilkyWayCalculator.swift in Sources */,
-				AB3A00000000000000000048 /* MilkyWayCalculator+SolarLunar.swift in Sources */,
-				AB3A0000000000000000004B /* MilkyWayCalculator+Planets.swift in Sources */,
-				AB3A0000000000000000004E /* MilkyWayCalculator+GalacticCenter.swift in Sources */,
+				AB3A00000000000000000048 /* MilkyWayCalculatorSolarLunar.swift in Sources */,
+				AB3A0000000000000000004B /* MilkyWayCalculatorPlanets.swift in Sources */,
+				AB3A0000000000000000004E /* MilkyWayCalculatorGalacticCenter.swift in Sources */,
 				AA0000000000000000002B01 /* AstroModels.swift in Sources */,
 				AA0000000000000000002B02 /* WeatherModels.swift in Sources */,
 				6CD4ED0F2F83B99000ECC17B /* MapTileOverlay.swift in Sources */,
 				F1A2B3C4D5E6F708192A3B02 /* MapKitViewSharedLogic.swift in Sources */,
 				AA0000000000000000002B03 /* StarGazingIndex.swift in Sources */,
 				AA9B7CDA3046C922B1100A01 /* ObservationMode.swift in Sources */,
-				AA9B7CDA3046C922B1100A02 /* StarGazingIndex+Mode.swift in Sources */,
+				AA9B7CDA3046C922B1100A02 /* StarGazingIndexMode.swift in Sources */,
 				A1B2C3D4E5F60718293A4B02 /* GeoStateValidator.swift in Sources */,
 				AA0000000000000000002B04 /* AppController.swift in Sources */,
 				AA0000000000000000002B26 /* AppRootDependencies.swift in Sources */,
@@ -1099,7 +1099,7 @@
 				CAE4078096E2E4A569611285 /* GlassEffects.swift in Sources */,
 				B180E3FFB6E5E72D560A7E78 /* DateFormatting.swift in Sources */,
 				AB3A00000000000000000003 /* AngleMath.swift in Sources */,
-				AB3A00000000000000000009 /* NotificationCenter+UserDefaults.swift in Sources */,
+				AB3A00000000000000000009 /* NotificationCenterUserDefaults.swift in Sources */,
 				AB3A00000000000000000006 /* AppSettingsKeys.swift in Sources */,
 				4DE2663F89BB12E4C05EDFB8 /* StarMapTerrainCoordinator.swift in Sources */,
 				EFA7CADAB8D33F51F264CE91 /* StarMapTimeSliderScheduler.swift in Sources */,
