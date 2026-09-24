@@ -460,7 +460,7 @@ private struct MacStarMapSheet: View {
             statusChip(
                 systemImage: "location.north.circle",
                 text: StarMapPresentation.azimuthName(for: viewModel.viewAzimuth)
-                    + String(format: " %.0f°", viewModel.viewAzimuth),
+                    + " " + AngleMath.degreesText(viewModel.viewAzimuth, fractionDigits: 0),
                 tint: .secondary
             )
 
