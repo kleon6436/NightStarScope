@@ -58,6 +58,10 @@ final class AppController: ObservableObject {
     private struct SelectedLocationContext {
         let coordinate: CLLocationCoordinate2D
         let timeZone: TimeZone
+
+        func matches(coordinate: CLLocationCoordinate2D, timeZoneIdentifier: String) -> Bool {
+            self.coordinate.isSameCoordinate(as: coordinate) && timeZone.identifier == timeZoneIdentifier
+        }
     }
 
     // MARK: - Dependencies
@@ -355,10 +359,6 @@ final class AppController: ObservableObject {
     }
 
     // MARK: - Private
-    private var selectedCoordinate: CLLocationCoordinate2D {
-        locationController.selectedLocation
-    }
-
     private var selectedTimeZone: TimeZone {
         locationController.selectedTimeZone
     }
@@ -413,7 +413,11 @@ final class AppController: ObservableObject {
 
     private func refreshExternalData(using context: SelectedLocationContext) async {
         await refreshWeather(using: context)
-        guard !Task.isCancelled, matchesCurrentLocationContext(context) else { return }
+        guard !Task.isCancelled,
+              selectedLocationContext.matches(
+                  coordinate: context.coordinate,
+                  timeZoneIdentifier: context.timeZone.identifier
+              ) else { return }
         await refreshLightPollution(using: context)
     }
 
@@ -572,8 +576,7 @@ final class AppController: ObservableObject {
 
     func locationRefreshDisposition(for request: LocationRefreshRequest) -> LocationRefreshDisposition {
         let context = selectedLocationContext
-        guard context.coordinate.isSameCoordinate(as: request.coordinate),
-              context.timeZone.identifier == request.timeZoneIdentifier else {
+        guard context.matches(coordinate: request.coordinate, timeZoneIdentifier: request.timeZoneIdentifier) else {
             return .discard
         }
 
@@ -683,28 +686,14 @@ final class AppController: ObservableObject {
     }
 
     private func hasCurrentNightSummaryForSelection() -> Bool {
-        hasNightSummary(matching: selectedDate, location: selectedCoordinate, timeZone: selectedTimeZone)
-    }
-
-    private func hasNightSummary(
-        matching date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) -> Bool {
         guard let nightSummary else { return false }
+        let context = selectedLocationContext
         return ObservationTimeZone.isDate(
             nightSummary.date,
-            inSameDayAs: date,
-            timeZone: timeZone
+            inSameDayAs: selectedDate,
+            timeZone: context.timeZone
         )
-            && nightSummary.location.isSameCoordinate(as: location)
-            && nightSummary.timeZoneIdentifier == timeZone.identifier
-    }
-
-    private func matchesCurrentLocationContext(_ context: SelectedLocationContext) -> Bool {
-        let currentContext = selectedLocationContext
-        return context.coordinate.isSameCoordinate(as: currentContext.coordinate)
-            && context.timeZone.identifier == currentContext.timeZone.identifier
+            && context.matches(coordinate: nightSummary.location, timeZoneIdentifier: nightSummary.timeZoneIdentifier)
     }
 
     private func recalculateCurrentNightIfNeeded() {
