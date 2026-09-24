@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 struct StarMapSettingsDependency {
     let currentSettings: () -> StarMapDisplaySettings
+    /// メインスレッドで配信すること。購読側では受け渡し先を指定しない。
     let changes: AnyPublisher<StarMapDisplaySettings, Never>
 
     static let live = StarMapSettingsDependency(
@@ -623,7 +624,7 @@ final class StarMapViewModel: ObservableObject {
     private func setupBindings() {
         appController.locationController.selectedLocationPublisher
             .dropFirst()
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.resyncAfterSelectionChange()
             }
@@ -632,14 +633,13 @@ final class StarMapViewModel: ObservableObject {
         appController.locationController.selectedTimeZonePublisher
             .dropFirst()
             .removeDuplicates { $0.identifier == $1.identifier }
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.resyncAfterSelectionChange()
             }
             .store(in: &cancellables)
 
         settingsDependency.changes
-            .receive(on: RunLoop.main)
             .sink { [weak self] settings in
                 self?.applyStarMapDisplaySettings(settings)
             }
@@ -647,7 +647,7 @@ final class StarMapViewModel: ObservableObject {
 
         appController.$selectedDate
             .dropFirst()
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.handleSelectedDateChanged()
             }
