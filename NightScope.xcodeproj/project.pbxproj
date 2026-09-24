@@ -47,6 +47,9 @@
 		6ECB4F746F4502FCE2C97515 /* DarkTimeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F20 /* DarkTimeCard.swift */; };
 		6FC7FC5F38B1C25572A8CC78 /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F02 /* SidebarViewModel.swift */; };
 		7084008268A492409EA18561 /* MilkyWayCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F03 /* MilkyWayCalculator.swift */; };
+		AB3A00000000000000000047 /* MilkyWayCalculator+SolarLunar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */; };
+		AB3A0000000000000000004A /* MilkyWayCalculator+Planets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */; };
+		AB3A0000000000000000004D /* MilkyWayCalculator+GalacticCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */; };
 		726077AD15C19C005AB769DB /* AstroModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F01 /* AstroModels.swift */; };
 		78BC796E939B65C3054D3651 /* FavoriteLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5FD175A6FD4FA2071B5F37 /* FavoriteLocation.swift */; };
 		78F344DDA7638AEE2C53BABF /* UIConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F19 /* UIConstants.swift */; };
@@ -70,6 +73,9 @@
 		A2A2D85F57CA69E8B6B666EB /* ViewingWindowsSectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F07 /* ViewingWindowsSectionViewModel.swift */; };
 		AA0000000000000000001B01 /* NightScopeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F01 /* NightScopeApp.swift */; };
 		AA0000000000000000001B03 /* MilkyWayCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F03 /* MilkyWayCalculator.swift */; };
+		AB3A00000000000000000048 /* MilkyWayCalculator+SolarLunar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */; };
+		AB3A0000000000000000004B /* MilkyWayCalculator+Planets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */; };
+		AB3A0000000000000000004E /* MilkyWayCalculator+GalacticCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */; };
 		AA0000000000000000001B05 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F05 /* Assets.xcassets */; };
 		AA0000000000000000002B01 /* AstroModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F01 /* AstroModels.swift */; };
 		AA0000000000000000002B02 /* WeatherModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F02 /* WeatherModels.swift */; };
@@ -315,6 +321,9 @@
 		A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoStateValidator.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F01 /* NightScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeApp.swift; sourceTree = "<group>"; };
 		AA0000000000000000001F03 /* MilkyWayCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculator.swift; sourceTree = "<group>"; };
+		AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MilkyWayCalculator+SolarLunar.swift"; sourceTree = "<group>"; };
+		AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MilkyWayCalculator+Planets.swift"; sourceTree = "<group>"; };
+		AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MilkyWayCalculator+GalacticCenter.swift"; sourceTree = "<group>"; };
 		AA0000000000000000001F05 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA0000000000000000001F06 /* NightScope.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NightScope.entitlements; sourceTree = "<group>"; };
 		AA0000000000000000001F08 /* NightStarScope.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NightStarScope.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -583,6 +592,9 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000001F03 /* MilkyWayCalculator.swift */,
+				AB3A00000000000000000046 /* MilkyWayCalculator+SolarLunar.swift */,
+				AB3A00000000000000000049 /* MilkyWayCalculator+Planets.swift */,
+				AB3A0000000000000000004C /* MilkyWayCalculator+GalacticCenter.swift */,
 				AA0000000000000000002F04 /* AppController.swift */,
 				AB3A00000000000000000033 /* LocationRefreshFetcher.swift */,
 				AA0000000000000000002F26 /* AppRootDependencies.swift */,
@@ -905,6 +917,9 @@
 				AA0000000000000000003B09 /* AppRootDependencies.swift in Sources */,
 				AA0000000000000000003B10 /* WeatherServiceSupport.swift in Sources */,
 				7084008268A492409EA18561 /* MilkyWayCalculator.swift in Sources */,
+				AB3A00000000000000000047 /* MilkyWayCalculator+SolarLunar.swift in Sources */,
+				AB3A0000000000000000004A /* MilkyWayCalculator+Planets.swift in Sources */,
+				AB3A0000000000000000004D /* MilkyWayCalculator+GalacticCenter.swift in Sources */,
 				DDDBBCFA5705F923909101C5 /* NightCalculationService.swift in Sources */,
 				AEF100000000000000000021 /* WeatherKitService.swift in Sources */,
 				AEF100000000000000000022 /* WeatherKitServiceSupport.swift in Sources */,
@@ -997,6 +1012,9 @@
 				6C18B7702F791309007949F3 /* SettingsView.swift in Sources */,
 				IC0000000000000000002006 /* FavoriteSyncImportView.swift in Sources */,
 				AA0000000000000000001B03 /* MilkyWayCalculator.swift in Sources */,
+				AB3A00000000000000000048 /* MilkyWayCalculator+SolarLunar.swift in Sources */,
+				AB3A0000000000000000004B /* MilkyWayCalculator+Planets.swift in Sources */,
+				AB3A0000000000000000004E /* MilkyWayCalculator+GalacticCenter.swift in Sources */,
 				AA0000000000000000002B01 /* AstroModels.swift in Sources */,
 				AA0000000000000000002B02 /* WeatherModels.swift in Sources */,
 				6CD4ED0F2F83B99000ECC17B /* MapTileOverlay.swift in Sources */,
