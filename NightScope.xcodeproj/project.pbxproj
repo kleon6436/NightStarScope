@@ -23,6 +23,7 @@
 		41110F14F7A80572A2BB3CAE /* StarMapTimeSliderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2844F23FF6044140250E5CA9 /* StarMapTimeSliderScheduler.swift */; };
 		477B2E3CB5355CA1BA5757D3 /* ViewingWindowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F16 /* ViewingWindowsSection.swift */; };
 		4ADBD70F53B069798670D94D /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
+		AB3A00000000000000000002 /* AngleMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000001 /* AngleMath.swift */; };
 		4DE2663F89BB12E4C05EDFB8 /* StarMapTerrainCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5261CADE1879D741D7A7C8 /* StarMapTerrainCoordinator.swift */; };
 		4F871C5177B328F9DFC5EEAA /* FavoriteLocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA0C4060B1252A05AA86C03 /* FavoriteLocationStore.swift */; };
 		54A5C1BEDE1E30CC826A7F87 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C18B76F2F791309007949F3 /* SettingsView.swift */; };
@@ -126,6 +127,7 @@
 		AEF100000000000000000021 /* WeatherKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000001 /* WeatherKitService.swift */; };
 		AEF100000000000000000022 /* WeatherKitServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000002 /* WeatherKitServiceSupport.swift */; };
 		B180E3FFB6E5E72D560A7E78 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
+		AB3A00000000000000000003 /* AngleMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3A00000000000000000001 /* AngleMath.swift */; };
 		B66ECDD7AD401F013891BF8E /* StarGazingIndexCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F04 /* StarGazingIndexCardViewModel.swift */; };
 		B8EC0EB2971B109AA4BF3F43 /* SearchResultViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93053B7368EAC3C217DC7600 /* SearchResultViews.swift */; };
 		BB0000000000000000002B21 /* StarCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000002F21 /* StarCatalog.swift */; };
@@ -264,6 +266,7 @@
 		0C21A9833046DD44B1100A12 /* ComparisonController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonController.swift; sourceTree = "<group>"; };
 		0C21A9833046DD44B1100A13 /* ComparisonControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonControllerTests.swift; sourceTree = "<group>"; };
 		0C46800E2414065BEED56530 /* DateFormatting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
+		AB3A00000000000000000001 /* AngleMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AngleMath.swift; sourceTree = "<group>"; };
 		14E29A763046C8DBB1100A11 /* ObservationMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationMode.swift; sourceTree = "<group>"; };
 		14E29A763046C8DBB1100A12 /* StarGazingIndex+Mode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StarGazingIndex+Mode.swift"; sourceTree = "<group>"; };
 		1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSStarMapSupport.swift; sourceTree = "<group>"; };
@@ -546,6 +549,7 @@
 				FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */,
 				FE0000000000000000001005 /* StarMapSpatialIndex.swift */,
 				0C46800E2414065BEED56530 /* DateFormatting.swift */,
+				AB3A00000000000000000001 /* AngleMath.swift */,
 				6F6403836D9709EDC6051393 /* WeatherPresentation.swift */,
 				AA000000000000000000TP01 /* TonightPresentation.swift */,
 			);
@@ -933,6 +937,7 @@
 				634114D282B4DCEEBA3C4F51 /* SearchResultViews.swift in Sources */,
 				8CFACF7563F0B8AD9197C80A /* GlassEffects.swift in Sources */,
 				4ADBD70F53B069798670D94D /* DateFormatting.swift in Sources */,
+				AB3A00000000000000000002 /* AngleMath.swift in Sources */,
 				40385D2B167E1A5D6A6BB31B /* StarMapTerrainCoordinator.swift in Sources */,
 				41110F14F7A80572A2BB3CAE /* StarMapTimeSliderScheduler.swift in Sources */,
 				F45572FA323BE71A06FD1CA2 /* WeatherPresentation.swift in Sources */,
@@ -1035,6 +1040,7 @@
 				B8EC0EB2971B109AA4BF3F43 /* SearchResultViews.swift in Sources */,
 				CAE4078096E2E4A569611285 /* GlassEffects.swift in Sources */,
 				B180E3FFB6E5E72D560A7E78 /* DateFormatting.swift in Sources */,
+				AB3A00000000000000000003 /* AngleMath.swift in Sources */,
 				4DE2663F89BB12E4C05EDFB8 /* StarMapTerrainCoordinator.swift in Sources */,
 				EFA7CADAB8D33F51F264CE91 /* StarMapTimeSliderScheduler.swift in Sources */,
 				BEBD75456602A2D8C5B7253E /* WeatherPresentation.swift in Sources */,
