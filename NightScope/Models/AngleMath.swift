@@ -21,11 +21,6 @@ enum AngleMath {
     static func toDegrees(_ radians: Double) -> Double {
         radians * 180.0 / .pi
     }
-
-    /// 角度（度）を度記号付きの表示文字列にする（例: "12.3°"）。
-    static func degreesText(_ degrees: Double, fractionDigits: Int = 1) -> String {
-        String(format: "%.\(fractionDigits)f°", degrees)
-    }
 }
 
 extension CLLocationCoordinate2D {

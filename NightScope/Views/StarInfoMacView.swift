@@ -23,7 +23,7 @@ struct StarInfoMacView: View {
 
             // 現在の位置
             infoRow(icon: "arrow.up.circle", label: L10n.tr("仰角"),
-                    value: AngleMath.degreesText(starPosition.altitude))
+                    value: DisplayFormat.degrees(starPosition.altitude))
             infoRow(icon: "arrow.clockwise.circle", label: L10n.tr("方位"),
                     value: azimuthText)
 
@@ -55,7 +55,7 @@ struct StarInfoMacView: View {
 
     private var azimuthText: String {
         let az = starPosition.azimuth
-        return StarMapPresentation.azimuthName(for: az) + " " + AngleMath.degreesText(az)
+        return StarMapPresentation.azimuthName(for: az) + " " + DisplayFormat.degrees(az)
     }
 
     /// 各項目を行単位で揃え、値を読み取りやすくする。

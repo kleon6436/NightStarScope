@@ -22,6 +22,15 @@ enum Placeholder {
     static let dash = "—"
 }
 
+// MARK: - Display Format
+
+enum DisplayFormat {
+    /// 角度（度）を度記号付きの表示文字列にする（例: "12.3°"）。
+    static func degrees(_ degrees: Double, fractionDigits: Int = 1) -> String {
+        String(format: "%.\(fractionDigits)f°", degrees)
+    }
+}
+
 // MARK: - Layout
 
 enum Layout {

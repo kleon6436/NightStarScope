@@ -203,7 +203,7 @@ private struct PlanetRow: View {
     }
 
     private var altitudeLabel: String {
-        AngleMath.degreesText(summary.peakAltitude)
+        DisplayFormat.degrees(summary.peakAltitude)
     }
 
     private var accessibilityDescription: String {
@@ -247,7 +247,7 @@ private struct PlanetDetailSheet: View {
                         value: summary.setTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash
                     )
                     infoRow(label: "没 方位", value: summary.setAzimuthLabel())
-                    infoRow(label: "最大高度", value: AngleMath.degreesText(summary.peakAltitude))
+                    infoRow(label: "最大高度", value: DisplayFormat.degrees(summary.peakAltitude))
                     infoRow(label: "等級",    value: String(format: "%.1f",   summary.magnitude))
                     infoRow(label: "観測難易度", value: summary.observationDifficulty.localizedLabel)
                 }

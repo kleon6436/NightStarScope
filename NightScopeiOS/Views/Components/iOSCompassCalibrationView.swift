@@ -105,7 +105,7 @@ struct iOSCompassCalibrationView: View {
         LabeledContent(L10n.tr("現在の方位角")) {
             Text(
                 motionController.isMotionActive
-                    ? AngleMath.degreesText(motionController.calibrationAzimuth)
+                    ? DisplayFormat.degrees(motionController.calibrationAzimuth)
                     : Placeholder.dash
             )
         }
