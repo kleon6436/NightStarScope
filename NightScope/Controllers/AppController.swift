@@ -65,22 +65,22 @@ final class AppController: ObservableObject {
     @Published var selectedDate: Date = Date() {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var nightSummary: NightSummary? {
+    var nightSummary: NightSummary? {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var upcomingNights: [NightSummary] = [] {
+    var upcomingNights: [NightSummary] = [] {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var starGazingIndex: StarGazingIndex? {
+    var starGazingIndex: StarGazingIndex? {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var upcomingIndexes: [Date: StarGazingIndex] = [:] {
+    var upcomingIndexes: [Date: StarGazingIndex] = [:] {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var isCalculating = false {
+    var isCalculating = false {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var isUpcomingLoading = false {
+    var isUpcomingLoading = false {
         didSet { publishObservationStateIfNeeded() }
     }
     @Published private(set) var observationState = ObservationState()
