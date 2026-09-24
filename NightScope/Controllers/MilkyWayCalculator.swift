@@ -561,7 +561,7 @@ enum MilkyWayCalculator {
     // MARK: - Planet Night Summaries
 
     /// 指定地点・日付における 5 惑星の 1 夜分可視情報を返す。
-    /// サンプリング範囲: 当日 18:00 〜 翌日 06:00（現地時刻）、10 分間隔 (73 サンプル)
+    /// サンプリング範囲: 当日 18:00 〜 翌日 06:00（現地時刻）、15 分間隔 (49 サンプル)
     static func planetNightSummaries(
         date: Date,
         location: CLLocationCoordinate2D,
@@ -575,7 +575,7 @@ enum MilkyWayCalculator {
             let nightEnd   = calendar.date(byAdding: .hour, value: 6,  to: nextDay)
         else { return [] }
 
-        let intervalSec: TimeInterval = 900  // 15 分
+        let intervalSec = Constants.sampleIntervalSeconds
         let sampleCount = Int(nightEnd.timeIntervalSince(nightStart) / intervalSec) + 1
 
         typealias Sample = (time: Date, alt: Double, az: Double, mag: Double)
