@@ -148,7 +148,7 @@ private struct PlanetRow: View {
             Text(symbol)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(date.map { $0.nightTimeString(timeZone: timeZone) } ?? "—")
+            Text(date.map { $0.nightTimeString(timeZone: timeZone) } ?? Placeholder.dash)
                 .font(.subheadline.monospacedDigit())
         }
         .frame(width: PlanetStyle.timeWidth, alignment: .leading)
@@ -207,9 +207,9 @@ private struct PlanetRow: View {
     }
 
     private var accessibilityDescription: String {
-        let rise    = summary.riseTime?.nightTimeString(timeZone: timeZone)    ?? "—"
-        let transit = summary.transitTime?.nightTimeString(timeZone: timeZone) ?? "—"
-        let set     = summary.setTime?.nightTimeString(timeZone: timeZone)     ?? "—"
+        let rise    = summary.riseTime?.nightTimeString(timeZone: timeZone)    ?? Placeholder.dash
+        let transit = summary.transitTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash
+        let set     = summary.setTime?.nightTimeString(timeZone: timeZone)     ?? Placeholder.dash
         let alt     = String(format: "%.1f", summary.peakAltitude)
         return L10n.format("%@、出 %@、南中 %@、没 %@、最大高度 %@度",
                            summary.localizedName, rise, transit, set, alt)
@@ -232,11 +232,11 @@ private struct PlanetDetailSheet: View {
                     .padding(.bottom, 8)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    infoRow(label: "出",      value: summary.riseTime?.nightTimeString(timeZone: timeZone) ?? "—")
+                    infoRow(label: "出",      value: summary.riseTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash)
                     infoRow(label: "出 方位", value: summary.riseAzimuthLabel())
-                    infoRow(label: "南中",    value: summary.transitTime?.nightTimeString(timeZone: timeZone) ?? "—")
+                    infoRow(label: "南中",    value: summary.transitTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash)
                     infoRow(label: "南中 方位", value: summary.transitAzimuthLabel())
-                    infoRow(label: "没",      value: summary.setTime?.nightTimeString(timeZone: timeZone) ?? "—")
+                    infoRow(label: "没",      value: summary.setTime?.nightTimeString(timeZone: timeZone) ?? Placeholder.dash)
                     infoRow(label: "没 方位", value: summary.setAzimuthLabel())
                     infoRow(label: "最大高度", value: AngleMath.degreesText(summary.peakAltitude))
                     infoRow(label: "等級",    value: String(format: "%.1f",   summary.magnitude))

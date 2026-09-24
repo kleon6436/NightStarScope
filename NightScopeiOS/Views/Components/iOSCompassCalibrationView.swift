@@ -106,7 +106,7 @@ struct iOSCompassCalibrationView: View {
             Text(
                 motionController.isMotionActive
                     ? AngleMath.degreesText(motionController.calibrationAzimuth)
-                    : "—"
+                    : Placeholder.dash
             )
         }
         Stepper(

@@ -138,7 +138,7 @@ struct iOSNightCardRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
             } else {
-                Text(Self.placeholderText)
+                Text(Placeholder.dash)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -170,7 +170,7 @@ struct iOSNightCardRow: View {
 
     private var trailingColumn: some View {
         VStack(alignment: .trailing, spacing: IOSDesignTokens.NightRow.tightLineSpacing) {
-            Text(presentation.darkStartText ?? Self.placeholderText)
+            Text(presentation.darkStartText ?? Placeholder.dash)
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -223,7 +223,4 @@ struct iOSNightCardRow: View {
         let base: Color = hour.precipitationMM > 0 ? .blue : .secondary
         return base.opacity(min(max(hour.cloudCoverPercent / 100, 0), 1))
     }
-
-    /// 値が無い欄の表記。
-    private static let placeholderText = "—"
 }

@@ -15,6 +15,13 @@ enum Spacing {
     static let lg: CGFloat = 32
 }
 
+// MARK: - Placeholder
+
+enum Placeholder {
+    /// 値が無い欄の表記。翻訳対象外のため `Text(verbatim:)` などで表示する。
+    static let dash = "—"
+}
+
 // MARK: - Layout
 
 enum Layout {

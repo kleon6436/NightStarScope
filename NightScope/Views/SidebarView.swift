@@ -609,7 +609,7 @@ private struct FavoriteRowButton: View {
             ProgressView()
                 .controlSize(.mini)
         } else {
-            Text(verbatim: "—")
+            Text(verbatim: Placeholder.dash)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

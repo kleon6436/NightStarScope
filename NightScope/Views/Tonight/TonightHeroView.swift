@@ -58,7 +58,7 @@ struct TonightHeroView: View {
     }
 
     private var scoreText: String {
-        guard let index else { return Metrics.placeholderScore }
+        guard let index else { return Placeholder.dash }
         return "\(index.score)"
     }
 
@@ -95,7 +95,6 @@ struct TonightHeroView: View {
 
     private enum Metrics {
         static let scoreFontSize: CGFloat = 88
-        static let placeholderScore = "—"
         static let primaryTextColor = Color.white
         static let secondaryTextColor = Color.white.opacity(0.72)
         static let chipBackgroundOpacity: Double = 0.18
