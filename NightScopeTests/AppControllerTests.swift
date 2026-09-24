@@ -43,6 +43,46 @@ final class AppControllerTests: XCTestCase {
             defer { lock.unlock() }
             return invokedDates.count
         }
+
+        var dates: [Date] {
+            lock.lock()
+            defer { lock.unlock() }
+            return invokedDates
+        }
+    }
+
+    /// 開かれるまで呼び出し元のスレッドを止める。計算の途中でキャンセルする順序をテストで固定するために使う。
+    final class CalculationGate: @unchecked Sendable {
+        private let condition = NSCondition()
+        private var isOpen = false
+        private var arrivalCount = 0
+
+        func wait() {
+            condition.lock()
+            arrivalCount += 1
+            condition.broadcast()
+            while !isOpen { condition.wait() }
+            condition.unlock()
+        }
+
+        /// 最初の呼び出しがゲートに着くまで待つ。
+        /// 協調スレッドプールはゲートで埋まりうるので、Task.sleep ではなくスレッドを止めて待つ。
+        func waitForFirstArrival(timeout: TimeInterval) -> Bool {
+            let deadline = Date().addingTimeInterval(timeout)
+            condition.lock()
+            defer { condition.unlock() }
+            while arrivalCount == 0 {
+                guard condition.wait(until: deadline) else { return arrivalCount > 0 }
+            }
+            return true
+        }
+
+        func open() {
+            condition.lock()
+            isOpen = true
+            condition.broadcast()
+            condition.unlock()
+        }
     }
 
     actor RequestedDaysNightCalculationService: NightCalculating {
@@ -911,9 +951,12 @@ final class AppControllerTests: XCTestCase {
 
     func test_NightCalculationService_calculateUpcomingNights_stopsAfterCancellation() async {
         let recorder = CalculationInvocationRecorder()
+        let gate = CalculationGate()
+        // 同時に計算中になれる夜は協調スレッドプールの幅までなので、それより十分多い日数にする。
+        let days = 100
         let service = NightCalculationService { date, location, _ in
             recorder.record(date)
-            Thread.sleep(forTimeInterval: 0.05)
+            gate.wait()
             return NightSummary(
                 date: date,
                 location: location,
@@ -925,21 +968,27 @@ final class AppControllerTests: XCTestCase {
         let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
         let baseDate = Calendar.current.startOfDay(for: Date())
 
-        let task = Task {
+        // テスト本体はゲート到着までメインスレッドを止めるので、計算はメインアクターの外で始める。
+        let task = Task.detached {
             await service.calculateUpcomingNights(
                 from: baseDate,
                 location: location,
                 timeZone: .current,
-                days: 20
+                days: days
             )
         }
 
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        // 計算中の夜がゲートで止まっている間にキャンセルし、その後でゲートを開く。
+        XCTAssertTrue(gate.waitForFirstArrival(timeout: 5.0))
         task.cancel()
+        gate.open()
         let summaries = await task.value
 
-        // With parallel execution all tasks may complete before cancel fires.
-        // The invariant that must hold: no invisible computation (recorder == returned).
-        XCTAssertEqual(recorder.count, summaries.count)
+        // キャンセル前に始まっていなかった夜は計算されない。
+        XCTAssertGreaterThan(recorder.count, 0)
+        XCTAssertLessThan(recorder.count, days)
+        // 返すのは実際に計算した夜だけ。
+        XCTAssertLessThanOrEqual(summaries.count, recorder.count)
+        XCTAssertTrue(Set(summaries.map(\.date)).isSubset(of: Set(recorder.dates)))
     }
 }
