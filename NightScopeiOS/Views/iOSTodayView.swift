@@ -195,8 +195,8 @@ struct iOSTodayView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(alignment: .top, spacing: Spacing.sm) {
-                VStack(alignment: .leading, spacing: Spacing.xs / 2) {
-                    HStack(spacing: Spacing.xs / 2) {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    HStack(spacing: Spacing.xxs) {
                         Image(systemName: AppIcons.Navigation.locationPin)
                             .font(.footnote)
                             .accessibilityHidden(true)
@@ -221,7 +221,7 @@ struct iOSTodayView: View {
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: Spacing.xs / 2) {
+                HStack(spacing: Spacing.xxs) {
                     calendarButton
                     settingsButton
                 }

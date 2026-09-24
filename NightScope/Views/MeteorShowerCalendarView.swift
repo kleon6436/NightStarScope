@@ -87,7 +87,7 @@ struct MeteorShowerCalendarView: View {
             .padding(.horizontal, Spacing.xs)
         }
         .frame(height: CalendarStyle.headerHeight)
-        .padding(.bottom, Spacing.xs / 2)
+        .padding(.bottom, Spacing.xxs)
     }
 
     private func monthLabels(width: CGFloat) -> some View {
@@ -125,7 +125,7 @@ struct MeteorShowerCalendarView: View {
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
-        .padding(.top, Spacing.xs / 2)
+        .padding(.top, Spacing.xxs)
         .padding(.horizontal, Spacing.xs)
     }
 

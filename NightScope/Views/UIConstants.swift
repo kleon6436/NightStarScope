@@ -3,6 +3,8 @@ import SwiftUI
 // MARK: - Spacing
 
 enum Spacing {
+    /// 4pt
+    static let xxs: CGFloat = 4
     /// 8pt
     static let xs: CGFloat = 8
     /// 16pt

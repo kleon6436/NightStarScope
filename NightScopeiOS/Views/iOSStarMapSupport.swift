@@ -47,7 +47,7 @@ struct iOSStarMapHeaderOverlay: View {
                 subtitleColor: .white.opacity(0.75),
                 horizontalPadding: Spacing.xs
             ) {
-                VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
                     HStack(spacing: Spacing.xs) {
                         Image(systemName: "sparkles")
                             .font(.subheadline)

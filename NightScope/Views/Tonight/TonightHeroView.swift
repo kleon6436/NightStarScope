@@ -69,7 +69,7 @@ struct TonightHeroView: View {
             .foregroundStyle(color)
             .lineLimit(1)
             .padding(.horizontal, Spacing.xs)
-            .padding(.vertical, Spacing.xs / 2)
+            .padding(.vertical, Spacing.xxs)
             .background(color.opacity(Metrics.chipBackgroundOpacity), in: Capsule())
             .overlay {
                 Capsule().strokeBorder(

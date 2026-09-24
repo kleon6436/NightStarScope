@@ -21,7 +21,7 @@ struct DarkTimeCard: View {
 
     private var compactBody: some View {
         MetricCard(icon: AppIcons.Observation.clock, title: "観測可能時間", tint: .green) {
-            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text(L10n.format("%.1f時間", summary.totalDarkHours))
                     .font(.title3.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
@@ -56,7 +56,7 @@ struct DarkTimeCard: View {
                         .lineLimit(1)
                         .panelTooltip(viewModel.displayText)
                     if !viewModel.isUnavailable {
-                        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs / 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: Spacing.xxs) {
                             Text("暗い時間")
                                 .font(.body)
                                 .foregroundStyle(.secondary)

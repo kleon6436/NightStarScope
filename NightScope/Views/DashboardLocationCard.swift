@@ -96,9 +96,9 @@ struct DashboardLocationCard: View {
     }
 
     private var dayStrip: some View {
-        let columns = Array(repeating: GridItem(.flexible(minimum: adaptiveMinimumCellWidth), spacing: Spacing.xs / 2), count: max(dates.count, 1))
+        let columns = Array(repeating: GridItem(.flexible(minimum: adaptiveMinimumCellWidth), spacing: Spacing.xxs), count: max(dates.count, 1))
 
-        return LazyVGrid(columns: columns, spacing: Spacing.xs / 2) {
+        return LazyVGrid(columns: columns, spacing: Spacing.xxs) {
             ForEach(Array(dates.enumerated()), id: \.offset) { _, date in
                 DashboardDayColumn(
                     location: location,

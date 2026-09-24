@@ -504,7 +504,7 @@ private struct MacStarMapSheet: View {
     }
 
     private func statusChip(systemImage: String, text: String, tint: Color) -> some View {
-        HStack(spacing: Spacing.xs / 2) {
+        HStack(spacing: Spacing.xxs) {
             Image(systemName: systemImage)
             Text(text)
         }

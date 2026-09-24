@@ -24,7 +24,7 @@ struct MoonPhaseCard: View {
 
     private var compactBody: some View {
         MetricCard(icon: summary.moonPhaseIcon, title: "月の状態", tint: .indigo) {
-            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text(summary.moonPhaseName)
                     .font(.title3.weight(.semibold))
                     .lineLimit(1)

@@ -19,7 +19,7 @@ struct MilkyWaySummaryCard: View {
 
     private var compactBody: some View {
         MetricCard(icon: AppIcons.Astronomy.sparkles, title: "天の川", tint: .indigo) {
-            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 if let window = bestWindow {
                     Text(viewModel.directionText(window))
                         .font(.title3.weight(.semibold))
