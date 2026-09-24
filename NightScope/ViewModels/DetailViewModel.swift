@@ -156,7 +156,7 @@ final class DetailViewModel: ObservableObject {
         appController.weatherService.isLoadingPublisher
             .assign(to: &$isWeatherLoading)
 
-        appController.lightPollutionService.$fetchFailed
+        appController.lightPollutionService.fetchFailedPublisher
             .assign(to: &$hasLightPollutionError)
 
         observationModePreference.$mode
