@@ -42,12 +42,9 @@ struct StarMapObservationTimeline {
             let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: location.longitude)
             let sun  = MilkyWayCalculator.sunRaDec(jd: jd)
             let moon = MilkyWayCalculator.moonRaDec(jd: jd)
-            let (sunAlt, _)  = MilkyWayCalculator.altAzFast(
-                ra: sun.ra,  dec: sun.dec,  cosLat: cosLat, sinLat: sinLat, lst: lst
-            )
-            let (moonAlt, _) = MilkyWayCalculator.altAzFast(
-                ra: moon.ra, dec: moon.dec, cosLat: cosLat, sinLat: sinLat, lst: lst
-            )
+            let observer = MilkyWayCalculator.HorizontalObserver(cosLat: cosLat, sinLat: sinLat, lst: lst)
+            let (sunAlt, _)  = observer.altAz(ra: sun.ra, dec: sun.dec)
+            let (moonAlt, _) = observer.altAz(ra: moon.ra, dec: moon.dec)
             return StarMapObservationConditionSample(
                 moonAltitude: moonAlt,
                 moonPhase: moon.phase,

@@ -78,6 +78,18 @@ enum MilkyWayCalculator {
         return (alt, az)
     }
 
+    /// 同じ緯度・地方恒星時で多数の天体を変換するため、altAzFast の観測者側の引数をまとめて持つ。
+    struct HorizontalObserver: Sendable {
+        let cosLat: Double
+        let sinLat: Double
+        let lst: Double
+
+        @inline(__always)
+        func altAz(ra: Double, dec: Double) -> (alt: Double, az: Double) {
+            MilkyWayCalculator.altAzFast(ra: ra, dec: dec, cosLat: cosLat, sinLat: sinLat, lst: lst)
+        }
+    }
+
     // 赤経・赤緯から高度を計算 (度)
     static func altitude(ra: Double, dec: Double, latitude: Double, lst: Double) -> Double {
         altAz(ra: ra, dec: dec, latitude: latitude, lst: lst).alt
@@ -261,19 +273,23 @@ enum MilkyWayCalculator {
         let observationDate = calendar.startOfDay(for: date)
         let samplingStart = calendar.date(byAdding: .hour, value: 12, to: observationDate)
             ?? observationDate.addingTimeInterval(12 * 60 * 60)
+        let latRad = AngleMath.toRadians(location.latitude)
+        let cosLat = cos(latRad)
+        let sinLat = sin(latRad)
 
         for minutes in stride(from: 0, to: 24 * 60, by: Constants.sampleIntervalMinutes) {
             let sampleDate = samplingStart.addingTimeInterval(Double(minutes) * 60)
             let jd = julianDate(from: sampleDate)
             let lst = localSiderealTime(jd: jd, longitude: location.longitude)
+            let observer = HorizontalObserver(cosLat: cosLat, sinLat: sinLat, lst: lst)
 
-            let (gcAlt, gcAz) = altAz(ra: gcRA, dec: gcDec, latitude: location.latitude, lst: lst)
+            let (gcAlt, gcAz) = observer.altAz(ra: gcRA, dec: gcDec)
 
             let sun = sunRaDec(jd: jd)
-            let sunAlt = altitude(ra: sun.ra, dec: sun.dec, latitude: location.latitude, lst: lst)
+            let sunAlt = observer.altAz(ra: sun.ra, dec: sun.dec).alt
 
             let moon = moonRaDec(jd: jd)
-            let moonAlt = altitude(ra: moon.ra, dec: moon.dec, latitude: location.latitude, lst: lst)
+            let moonAlt = observer.altAz(ra: moon.ra, dec: moon.dec).alt
 
             events.append(AstroEvent(
                 date: sampleDate,

@@ -31,8 +31,11 @@ enum StarMapComputation {
         starDisplayDensity: StarDisplayDensity
     ) -> Snapshot {
         let latRad = latitude * .pi / 180.0
-        let cosLat = cos(latRad)
-        let sinLat = sin(latRad)
+        let observer = MilkyWayCalculator.HorizontalObserver(
+            cosLat: cos(latRad),
+            sinLat: sin(latRad),
+            lst: localSiderealTime
+        )
 
         let catalog = StarCatalog.stars
         let magnitudeLimit = starDisplayDensity.maxMagnitude
@@ -43,13 +46,7 @@ enum StarMapComputation {
             let star = catalog[index]
             // 表示密度と地平線下のカットオフを満たす星だけを残す。
             guard star.magnitude <= magnitudeLimit else { continue }
-            let (altitude, azimuth) = MilkyWayCalculator.altAzFast(
-                ra: star.ra,
-                dec: star.dec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: localSiderealTime
-            )
+            let (altitude, azimuth) = observer.altAz(ra: star.ra, dec: star.dec)
             guard altitude > -3 else { continue }
             stars.append(
                 StarPosition(
@@ -62,47 +59,20 @@ enum StarMapComputation {
         }
 
         let sun = MilkyWayCalculator.sunRaDec(jd: julianDate)
-        let (sunAltitude, _) = MilkyWayCalculator.altAzFast(
-            ra: sun.ra,
-            dec: sun.dec,
-            cosLat: cosLat,
-            sinLat: sinLat,
-            lst: localSiderealTime
-        )
+        let (sunAltitude, _) = observer.altAz(ra: sun.ra, dec: sun.dec)
 
         let moon = MilkyWayCalculator.moonRaDec(jd: julianDate)
-        let (moonAltitude, moonAzimuth) = MilkyWayCalculator.altAzFast(
-            ra: moon.ra,
-            dec: moon.dec,
-            cosLat: cosLat,
-            sinLat: sinLat,
-            lst: localSiderealTime
-        )
+        let (moonAltitude, moonAzimuth) = observer.altAz(ra: moon.ra, dec: moon.dec)
 
-        let (galacticCenterAltitude, galacticCenterAzimuth) = MilkyWayCalculator.altAzFast(
+        let (galacticCenterAltitude, galacticCenterAzimuth) = observer.altAz(
             ra: MilkyWayCalculator.gcRA,
-            dec: MilkyWayCalculator.gcDec,
-            cosLat: cosLat,
-            sinLat: sinLat,
-            lst: localSiderealTime
+            dec: MilkyWayCalculator.gcDec
         )
 
         let constellationLines: [ConstellationLineAltAz] = ConstellationData.constellations.flatMap { entry in
             entry.segments.compactMap { segment in
-                let (startAltitude, startAzimuth) = MilkyWayCalculator.altAzFast(
-                    ra: segment.ra1,
-                    dec: segment.dec1,
-                    cosLat: cosLat,
-                    sinLat: sinLat,
-                    lst: localSiderealTime
-                )
-                let (endAltitude, endAzimuth) = MilkyWayCalculator.altAzFast(
-                    ra: segment.ra2,
-                    dec: segment.dec2,
-                    cosLat: cosLat,
-                    sinLat: sinLat,
-                    lst: localSiderealTime
-                )
+                let (startAltitude, startAzimuth) = observer.altAz(ra: segment.ra1, dec: segment.dec1)
+                let (endAltitude, endAzimuth) = observer.altAz(ra: segment.ra2, dec: segment.dec2)
                 guard startAltitude > -15 || endAltitude > -15 else { return nil }
                 return ConstellationLineAltAz(
                     startAlt: startAltitude,
@@ -114,25 +84,13 @@ enum StarMapComputation {
         }
 
         let constellationLabels: [ConstellationLabelAltAz] = ConstellationData.constellations.compactMap { entry in
-            let (altitude, azimuth) = MilkyWayCalculator.altAzFast(
-                ra: entry.centerRA,
-                dec: entry.centerDec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: localSiderealTime
-            )
+            let (altitude, azimuth) = observer.altAz(ra: entry.centerRA, dec: entry.centerDec)
             guard altitude > -5 else { return nil }
             return ConstellationLabelAltAz(alt: altitude, az: azimuth, name: entry.localizedName)
         }
 
         let meteorRadiants = activeMeteorShowers.map { shower in
-            let (altitude, azimuth) = MilkyWayCalculator.altAzFast(
-                ra: shower.radiantRA,
-                dec: shower.radiantDec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: localSiderealTime
-            )
+            let (altitude, azimuth) = observer.altAz(ra: shower.radiantRA, dec: shower.radiantDec)
             return (shower: shower, altitude: altitude, azimuth: azimuth)
         }
 
@@ -152,18 +110,12 @@ enum StarMapComputation {
                 lst: localSiderealTime
             ),
             meteorShowerRadiants: meteorRadiants,
-            milkyWayBandPoints: computeMilkyWayBandPoints(
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: localSiderealTime
-            )
+            milkyWayBandPoints: computeMilkyWayBandPoints(observer: observer)
         )
     }
 
     private static func computeMilkyWayBandPoints(
-        cosLat: Double,
-        sinLat: Double,
-        lst: Double
+        observer: MilkyWayCalculator.HorizontalObserver
     ) -> [MilkyWayBandPoint] {
         var result = [MilkyWayBandPoint]()
         let step: Double = 5
@@ -171,32 +123,14 @@ enum StarMapComputation {
         for longitude in stride(from: 0.0, to: 360.0, by: step) {
             // 銀河面が十分に見える区間だけを点列として残す。
             let equatorialCenter = MilkyWayCalculator.galacticToEquatorial(l: longitude, b: 0)
-            let (altitudeCenter, azimuthCenter) = MilkyWayCalculator.altAzFast(
-                ra: equatorialCenter.ra,
-                dec: equatorialCenter.dec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: lst
-            )
+            let (altitudeCenter, azimuthCenter) = observer.altAz(ra: equatorialCenter.ra, dec: equatorialCenter.dec)
             guard altitudeCenter > -5 else { continue }
 
             let bandWidth: Double = longitude > 270 || longitude < 90 ? 12 : 8
             let upper = MilkyWayCalculator.galacticToEquatorial(l: longitude, b: bandWidth)
             let lower = MilkyWayCalculator.galacticToEquatorial(l: longitude, b: -bandWidth)
-            let (upperAltitude, _) = MilkyWayCalculator.altAzFast(
-                ra: upper.ra,
-                dec: upper.dec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: lst
-            )
-            let (lowerAltitude, _) = MilkyWayCalculator.altAzFast(
-                ra: lower.ra,
-                dec: lower.dec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: lst
-            )
+            let (upperAltitude, _) = observer.altAz(ra: upper.ra, dec: upper.dec)
+            let (lowerAltitude, _) = observer.altAz(ra: lower.ra, dec: lower.dec)
 
             result.append(
                 MilkyWayBandPoint(
