@@ -572,7 +572,7 @@ final class AppController: ObservableObject {
 
     func locationRefreshDisposition(for request: LocationRefreshRequest) -> LocationRefreshDisposition {
         let context = selectedLocationContext
-        guard Self.coordinatesEqual(context.coordinate, request.coordinate),
+        guard context.coordinate.isSameCoordinate(as: request.coordinate),
               context.timeZone.identifier == request.timeZoneIdentifier else {
             return .discard
         }
@@ -698,13 +698,13 @@ final class AppController: ObservableObject {
             inSameDayAs: date,
             timeZone: timeZone
         )
-            && Self.coordinatesEqual(nightSummary.location, location)
+            && nightSummary.location.isSameCoordinate(as: location)
             && nightSummary.timeZoneIdentifier == timeZone.identifier
     }
 
     private func matchesCurrentLocationContext(_ context: SelectedLocationContext) -> Bool {
         let currentContext = selectedLocationContext
-        return Self.coordinatesEqual(context.coordinate, currentContext.coordinate)
+        return context.coordinate.isSameCoordinate(as: currentContext.coordinate)
             && context.timeZone.identifier == currentContext.timeZone.identifier
     }
 
@@ -712,13 +712,6 @@ final class AppController: ObservableObject {
         guard !isCalculating else { return }
         guard !hasCurrentNightSummaryForSelection() else { return }
         recalculate()
-    }
-
-    private static func coordinatesEqual(
-        _ lhs: CLLocationCoordinate2D,
-        _ rhs: CLLocationCoordinate2D
-    ) -> Bool {
-        lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
     }
 
     private func makeLocationRefreshRequest(

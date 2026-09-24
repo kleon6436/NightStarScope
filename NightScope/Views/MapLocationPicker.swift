@@ -152,7 +152,7 @@ struct MapLocationPicker: View, Equatable {
     var mapMaxHeight: CGFloat = Layout.mapMaxHeight
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        coordinatesEqual(lhs.selectedCoordinate, rhs.selectedCoordinate) &&
+        lhs.selectedCoordinate.isSameCoordinate(as: rhs.selectedCoordinate) &&
         lhs.syncState == rhs.syncState &&
         lhs.showLightPollution == rhs.showLightPollution &&
         lhs.isLocating == rhs.isLocating &&
@@ -160,10 +160,6 @@ struct MapLocationPicker: View, Equatable {
         lhs.viewingDirection == rhs.viewingDirection &&
         lhs.mapMinHeight == rhs.mapMinHeight &&
         lhs.mapMaxHeight == rhs.mapMaxHeight
-    }
-
-    private static func coordinatesEqual(_ lhs: CLLocationCoordinate2D, _ rhs: CLLocationCoordinate2D) -> Bool {
-        lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
     }
 
     var body: some View {

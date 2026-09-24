@@ -465,8 +465,7 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
             guard let self else { return }
             let details = await self.locationNameResolver.resolveDetails(for: coordinate)
             guard !Task.isCancelled else { return }
-            guard self.selectedLocation.latitude == coordinate.latitude,
-                  self.selectedLocation.longitude == coordinate.longitude else { return }
+            guard self.selectedLocation.isSameCoordinate(as: coordinate) else { return }
             let didChangeTimeZone = self.applyResolvedLocationDetails(
                 for: coordinate,
                 details: ResolvedLocationDetails(
