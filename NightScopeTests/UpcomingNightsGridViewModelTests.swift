@@ -5,10 +5,19 @@ import XCTest
 final class UpcomingNightsGridViewModelTests: XCTestCase {
     func test_displaysAllUpcomingNights() async {
         let mockCalc = MockNightCalculationService()
-        let nightWithWindow = makeNightSummary(date: Date(), withWindow: true)
-        let nightWithoutWindow = makeNightSummary(date: Date().addingTimeInterval(86_400), withWindow: false)
-        await mockCalc.enqueueUpcomingNights([nightWithWindow, nightWithoutWindow])
         let appController = AppController(calculationService: mockCalc)
+        let timeZoneIdentifier = appController.locationController.selectedTimeZone.identifier
+        let nightWithWindow = makeNightSummary(
+            date: Date(),
+            withWindow: true,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        let nightWithoutWindow = makeNightSummary(
+            date: Date().addingTimeInterval(86_400),
+            withWindow: false,
+            timeZoneIdentifier: timeZoneIdentifier
+        )
+        await mockCalc.enqueueUpcomingNights([nightWithWindow, nightWithoutWindow])
         let detailVM = DetailViewModel(appController: appController)
         let gridVM = UpcomingNightsGridViewModel(detailViewModel: detailVM)
 

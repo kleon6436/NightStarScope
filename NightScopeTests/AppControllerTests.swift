@@ -325,17 +325,17 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_recalculateUpcoming_buildsIndexesForAllNights() async {
-        let calendar = Calendar.current
+        let mockCalculationService = MockNightCalculationService()
+        let appController = AppController(calculationService: mockCalculationService)
+        let timeZone = appController.locationController.selectedTimeZone
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let baseDate = calendar.startOfDay(for: Date())
         let nextDate = calendar.date(byAdding: .day, value: 1, to: baseDate) ?? baseDate
-
-        let mockCalculationService = MockNightCalculationService()
         await mockCalculationService.enqueueUpcomingNights([
-            makeNightSummary(date: baseDate),
-            makeNightSummary(date: nextDate)
+            makeNightSummary(date: baseDate, timeZoneIdentifier: timeZone.identifier),
+            makeNightSummary(date: nextDate, timeZoneIdentifier: timeZone.identifier)
         ])
 
-        let appController = AppController(calculationService: mockCalculationService)
         appController.recalculateUpcoming()
 
         await waitUntil {
@@ -346,13 +346,12 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_weatherPublisherUpdate_recomputesUpcomingIndexes() async {
-        let baseDate = Calendar.current.startOfDay(for: Date())
-        let night = makeNightSummary(date: baseDate)
-
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
         let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
         let selectedTimeZone = appController.locationController.selectedTimeZone
+        let baseDate = ObservationTimeZone.startOfDay(for: Date(), timeZone: selectedTimeZone)
+        let night = makeNightSummary(date: baseDate, timeZoneIdentifier: selectedTimeZone.identifier)
 
         appController.upcomingNights = [night]
         appController.recomputeUpcomingIndexes()
