@@ -34,7 +34,7 @@ enum IOSDesignTokens {
         /// 月・流星群ステータスのアイコン寸法。caption の文字高に合わせる。
         static let statusIconSize: CGFloat = 11
         /// ステータスのアイコンと文字の間隔。
-        static let statusIconSpacing: CGFloat = Spacing.xs / 2
+        static let statusIconSpacing: CGFloat = Spacing.xxs
         /// 「現在」ボタンのガラスカプセルの高さ。
         static let nowButtonHeight: CGFloat = 28
         /// タップ領域の最小辺（HIG 44pt）。見た目より広い当たり判定を確保する。
@@ -45,7 +45,7 @@ enum IOSDesignTokens {
         static let datePickerPopoverWidth: CGFloat = 320
         static let datePickerPopoverHeight: CGFloat = 340
         /// ヒートバーと Slider の間隔。ひと続きの時間軸に見せるため詰める。
-        static let timelineSpacing: CGFloat = Spacing.xs / 2
+        static let timelineSpacing: CGFloat = Spacing.xxs
     }
 
     /// 予報タブの一覧レイアウト。
@@ -80,7 +80,7 @@ enum IOSDesignTokens {
         static let cardMinHeight: CGFloat = 54
         static let cardHorizontalPadding: CGFloat = Spacing.sm
         static let cardVerticalPadding: CGFloat = Spacing.xs
-        static let contentSpacing: CGFloat = Spacing.xs / 2
+        static let contentSpacing: CGFloat = Spacing.xxs
         /// 同じ列の中で行を詰めるときの極小間隔。
         static let tightLineSpacing: CGFloat = Spacing.xs / 4
         static let selectionBorderWidth: CGFloat = 2

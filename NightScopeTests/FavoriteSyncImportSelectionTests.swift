@@ -29,7 +29,7 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
         if !local.isEmpty {
             FavoriteLocationStore(userDefaults: defaults).save(local)
         }
-        defaults.set(iCloudSyncEnabled, forKey: "iCloudSyncEnabled")
+        defaults.set(iCloudSyncEnabled, forKey: AppSettingsKeys.iCloudSyncEnabled)
         defaults.set(legacyMigrated, forKey: FavoriteSyncReconciler.legacyMigratedKey)
         return Environment(
             defaults: defaults,
@@ -46,7 +46,7 @@ final class FavoriteSyncImportSelectionTests: XCTestCase {
             activeStore: activeStore,
             localDefaults: env.defaults,
             kvStore: env.kvStore,
-            toggleProvider: { env.defaults.bool(forKey: "iCloudSyncEnabled") }
+            toggleProvider: { env.defaults.bool(forKey: AppSettingsKeys.iCloudSyncEnabled) }
         )
     }
 

@@ -119,7 +119,7 @@ struct iOSForecastView: View {
             title: L10n.tr("9日予報"),
             horizontalPadding: Spacing.xs
         ) {
-            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: AppIcons.Navigation.locationPin)
                         .font(.subheadline)

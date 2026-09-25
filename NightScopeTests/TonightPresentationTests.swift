@@ -5,7 +5,7 @@ import CoreLocation
 // MARK: - Fixtures
 
 /// タイムゾーン依存の判定を検証するため、全フィクスチャを Asia/Tokyo 固定で組み立てる。
-private let tokyoTimeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
+private let tokyoTimeZone = TestTimeZones.tokyo
 
 private func jst(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {
     let calendar = ObservationTimeZone.gregorianCalendar(timeZone: tokyoTimeZone)
@@ -108,18 +108,6 @@ private func makeCoveringWeather(
     return DayWeatherSummary(date: date, nighttimeHours: hours)
 }
 
-private func makeIndex(score: Int) -> StarGazingIndex {
-    StarGazingIndex(
-        score: score,
-        milkyWayScore: 0,
-        constellationScore: 0,
-        weatherScore: 0,
-        lightPollutionScore: 0,
-        hasWeatherData: true,
-        hasLightPollutionData: true
-    )
-}
-
 // MARK: - NightVerdictPresentation
 
 final class TonightPresentationTests: XCTestCase {
@@ -130,7 +118,7 @@ final class TonightPresentationTests: XCTestCase {
         hasReliableWeather: Bool = false
     ) -> NightVerdictPresentation {
         NightVerdictPresentation(
-            index: score.map(makeIndex(score:)),
+            index: score.map { makeTestIndex(score: $0) },
             summary: summary,
             weather: weather,
             hasReliableWeather: hasReliableWeather
@@ -326,7 +314,7 @@ final class TonightPresentationTests: XCTestCase {
         let date = jst(2026, 8, day)
         return (
             makeTokyoNight(date: date),
-            score.map(makeIndex(score:)),
+            score.map { makeTestIndex(score: $0) },
             weather,
             isReliableWeather
         )
@@ -361,13 +349,13 @@ final class TonightPresentationTests: XCTestCase {
         let nights: [Night] = [
             (
                 makeTokyoNight(date: cloudyDate),
-                makeIndex(score: 70),
+                makeTestIndex(score: 70),
                 makeCoveringWeather(date: cloudyDate, cloudyHours: [20, 21, 22, 23]),
                 true
             ),
             (
                 makeTokyoNight(date: clearDate),
-                makeIndex(score: 70),
+                makeTestIndex(score: 70),
                 makeCoveringWeather(date: clearDate),
                 true
             )
@@ -393,7 +381,7 @@ final class TonightPresentationTests: XCTestCase {
 
         let reliable = try XCTUnwrap(
             BestNightPicker.pick(
-                nights: [(makeTokyoNight(date: date), makeIndex(score: 80), weather, true)],
+                nights: [(makeTokyoNight(date: date), makeTestIndex(score: 80), weather, true)],
                 referenceDate: referenceDate
             )
         )
@@ -401,7 +389,7 @@ final class TonightPresentationTests: XCTestCase {
 
         let unreliable = try XCTUnwrap(
             BestNightPicker.pick(
-                nights: [(makeTokyoNight(date: date), makeIndex(score: 80), weather, false)],
+                nights: [(makeTokyoNight(date: date), makeTestIndex(score: 80), weather, false)],
                 referenceDate: referenceDate
             )
         )

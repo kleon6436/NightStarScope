@@ -73,7 +73,7 @@ struct NightWeatherCard: View {
 
     @ViewBuilder
     private var weatherTextContent: some View {
-        VStack(alignment: .leading, spacing: style == .compact ? Spacing.xs / 2 : Spacing.xs) {
+        VStack(alignment: .leading, spacing: style == .compact ? Spacing.xxs : Spacing.xs) {
             if let weather, !isCoverageIncomplete {
                 Text(viewModel.weatherLabel(weather))
                     .font(titleFont)

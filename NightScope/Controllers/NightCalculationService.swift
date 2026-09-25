@@ -57,20 +57,22 @@ final class NightCalculationService: NightCalculating, Sendable {
     ) async -> [NightSummary] {
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let observationDate = calendar.startOfDay(for: date)
-        return await withTaskGroup(of: (Int, NightSummary).self) { group in
+        return await withTaskGroup(of: (Int, NightSummary)?.self) { group in
             for offset in 0..<days {
                 guard !Task.isCancelled else { break }
                 let targetDate = calendar.date(
                     byAdding: .day, value: offset, to: observationDate
                 ) ?? observationDate
                 group.addTask(priority: .background) { [summaryCalculator] in
-                    (offset, summaryCalculator(targetDate, location, timeZone))
+                    // キャンセル後にまだ始まっていない夜は計算しない。計算中の夜は同期処理のため最後まで走る。
+                    guard !Task.isCancelled else { return nil }
+                    return (offset, summaryCalculator(targetDate, location, timeZone))
                 }
             }
             var results: [(Int, NightSummary)] = []
             results.reserveCapacity(days)
             for await result in group {
-                results.append(result)
+                if let result { results.append(result) }
                 if Task.isCancelled { group.cancelAll(); break }
             }
             return results.sorted { $0.0 < $1.0 }.map(\.1)

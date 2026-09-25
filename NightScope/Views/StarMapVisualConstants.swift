@@ -35,6 +35,7 @@ enum StarMapPalette {
     static let canvasBackground = Color(red: 0.02, green: 0.04, blue: 0.12)
     static let groundFill = Color(red: 0.06, green: 0.04, blue: 0.02)
     static let meteorAccent = Color(red: 0.4, green: 1.0, blue: 0.7)
+    static let terrainAvailable = Color(red: 0.4, green: 1.0, blue: 0.7)
 
     // MARK: - Dynamic Sky Color
 

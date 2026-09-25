@@ -377,7 +377,7 @@ private struct SidebarBortleLabel: View {
                     .foregroundStyle(color(for: bortleClass))
                     .accessibilityLabel(L10n.format("光害レベル: Bortle %.0f", bortleClass))
             } else {
-                Text("--")
+                Text(verbatim: Placeholder.dash)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(L10n.tr("光害データなし"))
@@ -463,7 +463,7 @@ private struct SearchResultRowButton: View {
             LocationSearchResultContent(item: item)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Spacing.xs)
-                .padding(.vertical, Spacing.xs / 2)
+                .padding(.vertical, Spacing.xxs)
                 .contentShape(Rectangle())
                 .background(
                     isHighlighted ? Color.accentColor.opacity(0.2) :
@@ -564,7 +564,7 @@ private struct FavoriteRowButton: View {
                 scoreIndicator
             }
             .padding(.horizontal, Spacing.xs)
-            .padding(.vertical, Spacing.xs / 2)
+            .padding(.vertical, Spacing.xxs)
             .contentShape(Rectangle())
             .background(
                 isHovered ? Color.primary.opacity(0.08) : Color.clear,
@@ -609,7 +609,7 @@ private struct FavoriteRowButton: View {
             ProgressView()
                 .controlSize(.mini)
         } else {
-            Text(verbatim: "—")
+            Text(verbatim: Placeholder.dash)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

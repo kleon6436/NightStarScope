@@ -460,7 +460,7 @@ private struct MacStarMapSheet: View {
             statusChip(
                 systemImage: "location.north.circle",
                 text: StarMapPresentation.azimuthName(for: viewModel.viewAzimuth)
-                    + String(format: " %.0f°", viewModel.viewAzimuth),
+                    + " " + DisplayFormat.degrees(viewModel.viewAzimuth, fractionDigits: 0),
                 tint: .secondary
             )
 
@@ -504,7 +504,7 @@ private struct MacStarMapSheet: View {
     }
 
     private func statusChip(systemImage: String, text: String, tint: Color) -> some View {
-        HStack(spacing: Spacing.xs / 2) {
+        HStack(spacing: Spacing.xxs) {
             Image(systemName: systemImage)
             Text(text)
         }
@@ -535,7 +535,7 @@ private struct MacStarMapSheet: View {
         case .idle, .loading:
             .secondary
         case .available:
-            Color(red: 0.4, green: 1.0, blue: 0.7)
+            StarMapPalette.terrainAvailable
         case .unavailable:
             .orange
         }

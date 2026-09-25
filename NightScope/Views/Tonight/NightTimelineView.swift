@@ -194,7 +194,7 @@ struct NightTimelineView: View {
     private var legend: some View {
         if isAccessibilitySize {
             // 大きな文字では 1 行に収まらないので縦に並べ、折り返しも許す。
-            VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 ForEach(Array(legendTexts.enumerated()), id: \.offset) { _, text in
                     Text(text)
                 }

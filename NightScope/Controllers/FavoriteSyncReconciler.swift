@@ -69,8 +69,7 @@ final class FavoriteSyncReconciler: ObservableObject {
         initializeObservedForLegacyUserIfNeeded()
         // isPendingRestart はトグルを読む計算プロパティなので、トグルが変わったら画面に知らせる。
         // UserDefaults の変更通知は書き込んだスレッドで届くため、MainActor に隔離された map の前でメインへ移す。
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: localDefaults)
-            .receive(on: DispatchQueue.main)
+        NotificationCenter.default.userDefaultsChangesOnMain(object: localDefaults)
             .map { _ in toggleProvider() }
             .prepend(toggleProvider())
             .removeDuplicates()

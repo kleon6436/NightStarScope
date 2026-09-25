@@ -23,7 +23,7 @@ struct MetricCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            HStack(spacing: Spacing.xs / 2) {
+            HStack(spacing: Spacing.xxs) {
                 Image(systemName: icon)
                     .font(.system(size: MetricCardMetrics.iconSize))
                     .foregroundStyle(tint)

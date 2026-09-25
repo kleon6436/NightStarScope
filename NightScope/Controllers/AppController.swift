@@ -50,6 +50,10 @@ final class AppController: ObservableObject {
     private struct SelectedLocationContext {
         let coordinate: CLLocationCoordinate2D
         let timeZone: TimeZone
+
+        func matches(coordinate: CLLocationCoordinate2D, timeZoneIdentifier: String) -> Bool {
+            self.coordinate.isSameCoordinate(as: coordinate) && timeZone.identifier == timeZoneIdentifier
+        }
     }
 
     // MARK: - Dependencies
@@ -61,22 +65,22 @@ final class AppController: ObservableObject {
     @Published var selectedDate: Date = Date() {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var nightSummary: NightSummary? {
+    var nightSummary: NightSummary? {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var upcomingNights: [NightSummary] = [] {
+    var upcomingNights: [NightSummary] = [] {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var starGazingIndex: StarGazingIndex? {
+    var starGazingIndex: StarGazingIndex? {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var upcomingIndexes: [Date: StarGazingIndex] = [:] {
+    var upcomingIndexes: [Date: StarGazingIndex] = [:] {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var isCalculating = false {
+    var isCalculating = false {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published var isUpcomingLoading = false {
+    var isUpcomingLoading = false {
         didSet { publishObservationStateIfNeeded() }
     }
     @Published private(set) var observationState = ObservationState()
@@ -86,6 +90,10 @@ final class AppController: ObservableObject {
     /// iCloud への自動追加と、iCloud からの取り込みを担う。ストアと同じ寿命で、メイン画面と設定画面の両方から参照する。
     let favoriteSyncReconciler: FavoriteSyncReconciler
     let calculationService: NightCalculating
+    private let starGazingIndexBuilder: StarGazingIndexBuilder
+    private let locationRefreshFetcher: LocationRefreshFetcher
+    /// 星空指数の「今日」判定に使う現在時刻。テストでは固定値を注入する。
+    private let now: () -> Date
     private var calculationTask: Task<Void, Never>?
     private var upcomingTask: Task<Void, Never>?
     private var locationTask: Task<Void, Never>?
@@ -112,20 +120,27 @@ final class AppController: ObservableObject {
          calculationService: NightCalculating? = nil,
          favoriteDefaults: UserDefaults = .standard,
          kvStore: any UbiquitousKeyValueStoring = NSUbiquitousKeyValueStore.default,
-         notificationCenter: NotificationCenter = .default) {
+         notificationCenter: NotificationCenter = .default,
+         now: @escaping () -> Date = Date.init) {
         let initStart = ContinuousClock.now
         self.locationController = locationController ?? LocationController()
         self.weatherService = weatherService ?? WeatherKitService()
+        self.starGazingIndexBuilder = StarGazingIndexBuilder(weatherService: self.weatherService)
+        self.now = now
         self.lightPollutionService = lightPollutionService ?? LightPollutionService()
-        let favoriteStore = Self.makeFavoriteStore(defaults: favoriteDefaults, kvStore: kvStore, center: notificationCenter)
-        self.favoriteStore = favoriteStore
-        self.favoriteSyncReconciler = FavoriteSyncReconciler(
-            activeStore: favoriteStore,
-            localDefaults: favoriteDefaults,
+        let favorites = FavoritesComposition.make(
+            defaults: favoriteDefaults,
             kvStore: kvStore,
-            toggleProvider: { favoriteDefaults.bool(forKey: Self.iCloudSyncEnabledKey) }
+            center: notificationCenter
         )
+        self.favoriteStore = favorites.store
+        self.favoriteSyncReconciler = favorites.reconciler
         self.calculationService = calculationService ?? NightCalculationService()
+        self.locationRefreshFetcher = LocationRefreshFetcher(
+            calculationService: self.calculationService,
+            weatherService: self.weatherService,
+            lightPollutionService: self.lightPollutionService
+        )
         self.lastObservedTimeZone = self.locationController.selectedTimeZone
         self.selectedDate = ObservationTimeZone.startOfDay(
             for: Date(),
@@ -157,23 +172,6 @@ final class AppController: ObservableObject {
         upcomingTask?.cancel()
         locationTask?.cancel()
         externalDataTask?.cancel()
-    }
-
-    // MARK: - Private Factory
-
-    nonisolated private static let iCloudSyncEnabledKey = "iCloudSyncEnabled"
-
-    /// iCloud 同期設定に応じて適切な FavoriteLocationStore を生成する。
-    /// 自動移行はしない（KV を正とし、ローカルとの差分は FavoriteSyncReconciler が扱う）。
-    private static func makeFavoriteStore(
-        defaults: UserDefaults,
-        kvStore: any UbiquitousKeyValueStoring,
-        center: NotificationCenter
-    ) -> any FavoriteLocationStoring {
-        guard defaults.bool(forKey: iCloudSyncEnabledKey) else {
-            return FavoriteLocationStore(userDefaults: defaults)
-        }
-        return iCloudFavoriteLocationStore(kvStore: kvStore, fallbackDefaults: defaults, notificationCenter: center)
     }
 
     // MARK: - Startup Stage 1
@@ -304,7 +302,14 @@ final class AppController: ObservableObject {
                 location: context.coordinate,
                 timeZone: context.timeZone
             )
+            // 取り消されたときは、取り消した側が isCalculating を引き継いでいる。
             guard !Task.isCancelled else { return }
+            // 取り消されずに観測地だけ変わっていたら、結果を捨てて今の観測地で計算し直す。
+            // このタスクが isCalculating を下ろす役なので、ここで止めると読み込み中のまま残る。
+            guard isSelectedLocationContext(context) else {
+                recalculate()
+                return
+            }
             performObservationStateBatchUpdate {
                 nightSummary = summary
                 isCalculating = false
@@ -327,6 +332,12 @@ final class AppController: ObservableObject {
                 days: ForecastConfiguration.upcomingNightCount
             )
             guard !Task.isCancelled else { return }
+            // 観測地の変更直後は、場所変更タスクがこのタスクを取り消すより先に完了することがある。
+            // 結果は捨て、isUpcomingLoading を下ろす役ごと今の観測地の計算に引き継ぐ。
+            guard isSelectedLocationContext(context) else {
+                recalculateUpcoming(referenceDate: referenceDate)
+                return
+            }
             performObservationStateBatchUpdate {
                 upcomingNights = upcoming
                 recomputeUpcomingIndexes()
@@ -354,8 +365,10 @@ final class AppController: ObservableObject {
     /// 今後の夜ごとの星空指数一覧を最新の外部データから再構築します。
     func recomputeUpcomingIndexes() {
         let context = selectedLocationContext
+        // 観測地の変更直後は、旧タイムゾーンで計算した夜が場所変更タスクで消されるまで残っている。
+        // キーが前後の日にずれた指数を作らないよう、選択中のタイムゾーンの夜だけを使う。
         upcomingIndexes = makeUpcomingIndexes(
-            upcomingNights: upcomingNights,
+            upcomingNights: upcomingNights.filter { $0.timeZoneIdentifier == context.timeZone.identifier },
             weatherByDate: weatherService.weatherByDate,
             bortleClass: lightPollutionService.bortleClass,
             timeZone: context.timeZone
@@ -363,10 +376,6 @@ final class AppController: ObservableObject {
     }
 
     // MARK: - Private
-    private var selectedCoordinate: CLLocationCoordinate2D {
-        locationController.selectedLocation
-    }
-
     private var selectedTimeZone: TimeZone {
         locationController.selectedTimeZone
     }
@@ -375,6 +384,13 @@ final class AppController: ObservableObject {
         SelectedLocationContext(
             coordinate: locationController.selectedLocation,
             timeZone: locationController.selectedTimeZone
+        )
+    }
+
+    private func isSelectedLocationContext(_ context: SelectedLocationContext) -> Bool {
+        selectedLocationContext.matches(
+            coordinate: context.coordinate,
+            timeZoneIdentifier: context.timeZone.identifier
         )
     }
 
@@ -421,7 +437,11 @@ final class AppController: ObservableObject {
 
     private func refreshExternalData(using context: SelectedLocationContext) async {
         await refreshWeather(using: context)
-        guard !Task.isCancelled, matchesCurrentLocationContext(context) else { return }
+        guard !Task.isCancelled,
+              selectedLocationContext.matches(
+                  coordinate: context.coordinate,
+                  timeZoneIdentifier: context.timeZone.identifier
+              ) else { return }
         await refreshLightPollution(using: context)
     }
 
@@ -454,19 +474,33 @@ final class AppController: ObservableObject {
         let context = selectedLocationContext
         let timeZone = context.timeZone
         let request = prepareLocationRefreshRequest(context: context, timeZone: timeZone)
-        let refreshResults = await fetchLocationRefreshResults(for: request, timeZone: timeZone)
+        let refreshResults = await locationRefreshFetcher.fetch(for: request, timeZone: timeZone)
         guard !Task.isCancelled else { return }
         let disposition = locationRefreshDisposition(for: request)
-        guard disposition != .discard else { return }
+        guard disposition != .discard else {
+            // 取り消されずに観測地だけ変わっていた場合は、新しい場所変更タスクが来ない。
+            // 読み込み中の表示を残さないよう、今の観測地で取り直す。
+            scheduleLocationChangeHandling()
+            return
+        }
 
         applyLocationRefresh(
-            makeLocationRefreshPayload(
-                selectedDate: request.selectedDate,
-                context: context,
+            LocationRefreshPayload(
                 nightSummary: refreshResults.nightSummary,
                 upcomingNights: refreshResults.upcomingNights,
                 weatherResult: refreshResults.weatherResult,
-                lightPollutionResult: refreshResults.lightPollutionResult
+                lightPollutionResult: refreshResults.lightPollutionResult,
+                starGazingIndex: makeStarGazingIndex(
+                    nightSummary: refreshResults.nightSummary,
+                    weatherByDate: refreshResults.weatherResult.weatherByDate,
+                    bortleClass: refreshResults.lightPollutionResult.bortleClass
+                ),
+                upcomingIndexes: makeUpcomingIndexes(
+                    upcomingNights: refreshResults.upcomingNights,
+                    weatherByDate: refreshResults.weatherResult.weatherByDate,
+                    bortleClass: refreshResults.lightPollutionResult.bortleClass,
+                    timeZone: timeZone
+                )
             ),
             disposition: disposition
         )
@@ -486,44 +520,10 @@ final class AppController: ObservableObject {
             selectedDate = ObservationTimeZone.startOfDay(for: normalizedDate, timeZone: timeZone)
             prepareForLocationChange(using: context)
         }
-        return makeLocationRefreshRequest(selectedDate: selectedDate, context: context)
-    }
-
-    private func fetchLocationRefreshResults(
-        for request: LocationRefreshRequest,
-        timeZone: TimeZone
-    ) async -> (
-        nightSummary: NightSummary,
-        upcomingNights: [NightSummary],
-        weatherResult: WeatherFetchResult,
-        lightPollutionResult: LightPollutionService.FetchResult
-    ) {
-        async let summaryTask = calculationService.calculateNightSummary(
-            date: request.selectedDate,
-            location: request.coordinate,
-            timeZone: timeZone
-        )
-        async let upcomingTask = calculationService.calculateUpcomingNights(
-            from: ObservationTimeZone.startOfDay(for: Date(), timeZone: timeZone),
-            location: request.coordinate,
-            timeZone: timeZone,
-            days: ForecastConfiguration.upcomingNightCount
-        )
-        async let weatherTask = weatherService.fetchWeatherSnapshot(
-            latitude: request.coordinate.latitude,
-            longitude: request.coordinate.longitude,
-            timeZone: timeZone
-        )
-        async let lightPollutionTask = lightPollutionService.fetchSnapshot(
-            latitude: request.coordinate.latitude,
-            longitude: request.coordinate.longitude
-        )
-
-        return await (
-            nightSummary: summaryTask,
-            upcomingNights: upcomingTask,
-            weatherResult: weatherTask,
-            lightPollutionResult: lightPollutionTask
+        return LocationRefreshRequest(
+            selectedDate: selectedDate,
+            coordinate: context.coordinate,
+            timeZoneIdentifier: context.timeZone.identifier
         )
     }
 
@@ -562,7 +562,7 @@ final class AppController: ObservableObject {
                 .eraseToAnyPublisher()
         )
         externalDataPublisher
-            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .sink { [weak self] in
                 guard let self, !self.isApplyingLocationRefresh else { return }
                 self.recomputeAllIndexes()
@@ -572,8 +572,7 @@ final class AppController: ObservableObject {
 
     func locationRefreshDisposition(for request: LocationRefreshRequest) -> LocationRefreshDisposition {
         let context = selectedLocationContext
-        guard Self.coordinatesEqual(context.coordinate, request.coordinate),
-              context.timeZone.identifier == request.timeZoneIdentifier else {
+        guard context.matches(coordinate: request.coordinate, timeZoneIdentifier: request.timeZoneIdentifier) else {
             return .discard
         }
 
@@ -593,6 +592,8 @@ final class AppController: ObservableObject {
         _ payload: LocationRefreshPayload,
         disposition: LocationRefreshDisposition
     ) {
+        // 古い観測地のデータは何も反映しない。読み込み中フラグは取り直す側が下ろす。
+        guard disposition != .discard else { return }
         isApplyingLocationRefresh = true
         weatherService.applyFetchResult(payload.weatherResult)
         lightPollutionService.applyFetchResult(payload.lightPollutionResult)
@@ -651,15 +652,11 @@ final class AppController: ObservableObject {
         weatherByDate: [String: DayWeatherSummary],
         bortleClass: Double?
     ) -> StarGazingIndex {
-        let weather = weatherService.summary(
-            for: nightSummary.date,
-            from: weatherByDate,
-            timeZone: nightSummary.timeZone
-        )
-        return StarGazingIndex.compute(
-            nightSummary: nightSummary,
-            weather: weather,
-            bortleClass: bortleClass
+        starGazingIndexBuilder.index(
+            for: nightSummary,
+            weatherByDate: weatherByDate,
+            bortleClass: bortleClass,
+            referenceDate: now()
         )
     }
 
@@ -670,93 +667,40 @@ final class AppController: ObservableObject {
         timeZone: TimeZone
     ) -> [Date: StarGazingIndex] {
         var indexes: [Date: StarGazingIndex] = [:]
+        // 辞書のキーは表示側が選択中のタイムゾーンで引くため、そのタイムゾーンの日付で作る。
+        // 呼び出し側は同じタイムゾーンで計算した夜だけを渡す。違うとキーが前後の日にずれるので、その夜は指数を作らない。
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let referenceDate = now()
         for night in upcomingNights {
-            let weather = weatherService.summary(
-                for: night.date,
-                from: weatherByDate,
-                timeZone: timeZone
+            guard night.timeZoneIdentifier == timeZone.identifier else {
+                assertionFailure("予報の夜のタイムゾーン \(night.timeZoneIdentifier) がキーのタイムゾーン \(timeZone.identifier) と違う")
+                continue
+            }
+            indexes[calendar.startOfDay(for: night.date)] = starGazingIndexBuilder.index(
+                for: night,
+                weatherByDate: weatherByDate,
+                bortleClass: bortleClass,
+                referenceDate: referenceDate
             )
-            let idx = StarGazingIndex.compute(nightSummary: night, weather: weather, bortleClass: bortleClass)
-            indexes[calendar.startOfDay(for: night.date)] = idx
         }
         return indexes
     }
 
     private func hasCurrentNightSummaryForSelection() -> Bool {
-        hasNightSummary(matching: selectedDate, location: selectedCoordinate, timeZone: selectedTimeZone)
-    }
-
-    private func hasNightSummary(
-        matching date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) -> Bool {
         guard let nightSummary else { return false }
+        let context = selectedLocationContext
         return ObservationTimeZone.isDate(
             nightSummary.date,
-            inSameDayAs: date,
-            timeZone: timeZone
+            inSameDayAs: selectedDate,
+            timeZone: context.timeZone
         )
-            && Self.coordinatesEqual(nightSummary.location, location)
-            && nightSummary.timeZoneIdentifier == timeZone.identifier
-    }
-
-    private func matchesCurrentLocationContext(_ context: SelectedLocationContext) -> Bool {
-        let currentContext = selectedLocationContext
-        return Self.coordinatesEqual(context.coordinate, currentContext.coordinate)
-            && context.timeZone.identifier == currentContext.timeZone.identifier
+            && context.matches(coordinate: nightSummary.location, timeZoneIdentifier: nightSummary.timeZoneIdentifier)
     }
 
     private func recalculateCurrentNightIfNeeded() {
         guard !isCalculating else { return }
         guard !hasCurrentNightSummaryForSelection() else { return }
         recalculate()
-    }
-
-    private static func coordinatesEqual(
-        _ lhs: CLLocationCoordinate2D,
-        _ rhs: CLLocationCoordinate2D
-    ) -> Bool {
-        lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
-    }
-
-    private func makeLocationRefreshRequest(
-        selectedDate: Date,
-        context: SelectedLocationContext
-    ) -> LocationRefreshRequest {
-        LocationRefreshRequest(
-            selectedDate: selectedDate,
-            coordinate: context.coordinate,
-            timeZoneIdentifier: context.timeZone.identifier
-        )
-    }
-
-    private func makeLocationRefreshPayload(
-        selectedDate: Date,
-        context: SelectedLocationContext,
-        nightSummary: NightSummary,
-        upcomingNights: [NightSummary],
-        weatherResult: WeatherFetchResult,
-        lightPollutionResult: LightPollutionService.FetchResult
-    ) -> LocationRefreshPayload {
-        LocationRefreshPayload(
-            nightSummary: nightSummary,
-            upcomingNights: upcomingNights,
-            weatherResult: weatherResult,
-            lightPollutionResult: lightPollutionResult,
-            starGazingIndex: makeStarGazingIndex(
-                nightSummary: nightSummary,
-                weatherByDate: weatherResult.weatherByDate,
-                bortleClass: lightPollutionResult.bortleClass
-            ),
-            upcomingIndexes: makeUpcomingIndexes(
-                upcomingNights: upcomingNights,
-                weatherByDate: weatherResult.weatherByDate,
-                bortleClass: lightPollutionResult.bortleClass,
-                timeZone: context.timeZone
-            )
-        )
     }
 
     private func handleDashboardSelection(_ selection: DashboardSelection) {

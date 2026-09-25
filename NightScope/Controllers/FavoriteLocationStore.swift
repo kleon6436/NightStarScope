@@ -4,6 +4,17 @@ import Combine
 
 private let logger = Logger(subsystem: "com.nightscope", category: "FavoriteLocationStore")
 
+/// お気に入り一覧の JSON 変換（UserDefaults / iCloud KV の両実装で共有）。
+private enum FavoriteLocationCodec {
+    static func encode(_ favorites: [FavoriteLocation]) throws -> Data {
+        try JSONEncoder().encode(favorites)
+    }
+
+    static func decode(_ data: Data) throws -> [FavoriteLocation] {
+        try JSONDecoder().decode([FavoriteLocation].self, from: data)
+    }
+}
+
 /// 保存済み地点の永続化と読込を抽象化する。
 /// - Important: `locationsPublisher` の購読者は `receive(on: DispatchQueue.main)` で受け取ること。
 ///   `iCloudFavoriteLocationStore` は reconciler が加えた地点を削除反映の基準に入れるのをメインキューの次のターンまで遅らせ、
@@ -47,7 +58,7 @@ final class FavoriteLocationStore: ObservableObject, FavoriteLocationStoring, @u
     /// 保存済み地点を JSON で永続化する。
     func save(_ favorites: [FavoriteLocation]) {
         do {
-            let data = try JSONEncoder().encode(favorites)
+            let data = try FavoriteLocationCodec.encode(favorites)
             userDefaults.set(data, forKey: Self.storageKey)
             locations = favorites
         } catch {
@@ -59,7 +70,7 @@ final class FavoriteLocationStore: ObservableObject, FavoriteLocationStoring, @u
     static func loadFavorites(userDefaults: UserDefaults) -> [FavoriteLocation] {
         guard let data = userDefaults.data(forKey: storageKey) else { return [] }
         do {
-            return try JSONDecoder().decode([FavoriteLocation].self, from: data)
+            return try FavoriteLocationCodec.decode(data)
         } catch {
             logger.error("Failed to decode favorites: \(error)")
             return []
@@ -93,7 +104,7 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
 
     /// 一覧が KV の実用上限に収まるかを返す。収まらない一覧を save すると KV に書かれず fallback に回る。
     static func fitsInKVStore(_ favorites: [FavoriteLocation]) -> Bool {
-        guard let data = try? JSONEncoder().encode(favorites) else { return false }
+        guard let data = try? FavoriteLocationCodec.encode(favorites) else { return false }
         return data.count <= maxDataSize
     }
 
@@ -173,7 +184,7 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     /// 加えた地点はメインキューの次のターン（ViewModel への配信の後）で基準に入れ、その後の明示的な削除は通常どおり反映する。
     func save(_ favorites: [FavoriteLocation], advancingDeletionBaseline: Bool) {
         do {
-            let data = try JSONEncoder().encode(favorites)
+            let data = try FavoriteLocationCodec.encode(favorites)
             let added = favorites.subtracting(locations)
             if advancingDeletionBaseline {
                 reflectDeletionToLocal(newFavorites: favorites)
@@ -284,7 +295,7 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
 
     private func writeLocalFavorites(_ favorites: [FavoriteLocation]) {
         do {
-            let data = try JSONEncoder().encode(favorites)
+            let data = try FavoriteLocationCodec.encode(favorites)
             fallbackDefaults.set(data, forKey: FavoriteLocationStore.storageKey)
         } catch {
             iCloudLogger.error("Failed to encode local favorites: \(error)")
@@ -297,7 +308,7 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     static func loadFromKVStore(_ kvStore: any UbiquitousKeyValueStoring) -> [FavoriteLocation]? {
         guard let data = kvStore.data(forKey: iCloudKey) else { return nil }
         do {
-            return try JSONDecoder().decode([FavoriteLocation].self, from: data)
+            return try FavoriteLocationCodec.decode(data)
         } catch {
             iCloudLogger.error("Failed to decode favorites from iCloud KVStore: \(error)")
             return nil
@@ -307,7 +318,7 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     private static func loadFromFallback(_ defaults: UserDefaults) -> [FavoriteLocation] {
         guard let data = defaults.data(forKey: localFallbackKey) else { return [] }
         do {
-            return try JSONDecoder().decode([FavoriteLocation].self, from: data)
+            return try FavoriteLocationCodec.decode(data)
         } catch {
             iCloudLogger.error("Failed to decode favorites from fallback UserDefaults: \(error)")
             return []

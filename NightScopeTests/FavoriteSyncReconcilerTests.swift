@@ -113,7 +113,7 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         }
 
         func setICloudSyncEnabled(_ isEnabled: Bool) {
-            defaults.set(isEnabled, forKey: "iCloudSyncEnabled")
+            defaults.set(isEnabled, forKey: AppSettingsKeys.iCloudSyncEnabled)
         }
 
         func makeICloudStore() -> iCloudFavoriteLocationStore {
@@ -125,7 +125,7 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
                 activeStore: activeStore,
                 localDefaults: defaults,
                 kvStore: kvStore,
-                toggleProvider: { defaults.bool(forKey: "iCloudSyncEnabled") }
+                toggleProvider: { defaults.bool(forKey: AppSettingsKeys.iCloudSyncEnabled) }
             )
         }
     }
@@ -837,7 +837,7 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
             if writesOffMain {
                 await Task.detached {
                     XCTAssertFalse(Thread.isMainThread)
-                    defaults.set(false, forKey: "iCloudSyncEnabled")
+                    defaults.set(false, forKey: AppSettingsKeys.iCloudSyncEnabled)
                 }.value
             } else {
                 env.setICloudSyncEnabled(false)
@@ -847,23 +847,11 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
             XCTAssertEqual(changeCount, 1, "writesOffMain: \(writesOffMain)")
             XCTAssertTrue(reconciler.isPendingRestart)
 
-            defaults.set(false, forKey: "iCloudSyncEnabled")
+            defaults.set(false, forKey: AppSettingsKeys.iCloudSyncEnabled)
             defaults.set("unrelated", forKey: "FavoriteSyncReconcilerTests.unrelated")
             try await Task.sleep(nanoseconds: 100_000_000)
             XCTAssertEqual(changeCount, 1, "トグルの値が変わらない書き込みでは通知しない")
             withExtendedLifetime(cancellable) {}
         }
-    }
-}
-
-@MainActor
-private final class StubComparisonController: ComparisonControlling {
-    var matrix: ComparisonMatrix = .empty
-    var dayCount: Int = DashboardViewModel.dayCount
-
-    func refresh(referenceDate: Date, locations: [FavoriteLocation]?) async {}
-
-    func computeMatrix(referenceDate: Date, locations: [FavoriteLocation]?) async -> ComparisonMatrix {
-        matrix
     }
 }

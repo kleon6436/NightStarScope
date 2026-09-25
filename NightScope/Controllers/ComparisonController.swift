@@ -100,6 +100,7 @@ final class ComparisonController: ObservableObject {
         guard !locations.isEmpty else {
             return ComparisonMatrix(locations: [], dates: dates, cellsByID: [:])
         }
+        let indexBuilder = StarGazingIndexBuilder(weatherService: weatherService)
 
         for location in locations {
             guard !Task.isCancelled else { break }
@@ -135,13 +136,9 @@ final class ComparisonController: ObservableObject {
                 }
 
                 let night = nights[offset]
-                let weather = weatherService.summary(
-                    for: night.date,
-                    from: weatherResult.weatherByDate,
-                    timeZone: timeZone
-                )
-                let index = StarGazingIndex.compute(
-                    nightSummary: night,
+                let weather = indexBuilder.weather(for: night, from: weatherResult.weatherByDate)
+                let index = indexBuilder.index(
+                    for: night,
                     weather: weather,
                     bortleClass: bortleClass,
                     referenceDate: referenceDate

@@ -80,7 +80,7 @@ enum MapKitViewSharedLogic {
         }
 
         if let existing {
-            if !coordinatesEqual(existing.coordinate, coordinate) {
+            if !existing.coordinate.isSameCoordinate(as: coordinate) {
                 existing.coordinate = coordinate
             }
             return
@@ -188,10 +188,6 @@ enum MapKitViewSharedLogic {
             && abs(lhs.center.longitude - rhs.center.longitude) <= tolerance
             && abs(lhs.span.latitudeDelta - rhs.span.latitudeDelta) <= tolerance
             && abs(lhs.span.longitudeDelta - rhs.span.longitudeDelta) <= tolerance
-    }
-
-    private static func coordinatesEqual(_ lhs: CLLocationCoordinate2D, _ rhs: CLLocationCoordinate2D) -> Bool {
-        lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
     }
 
     // MARK: - Viewing Direction Overlay

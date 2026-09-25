@@ -8,7 +8,7 @@ import MapKit
 final class DashboardViewModelTests: XCTestCase {
     func test_reloadFavorites_initializesSelectionUpToMaxAndKeepsExisting() {
         let favorites = makeFavorites(count: 8)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController()
 
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
@@ -24,7 +24,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_toggleSelection_respectsMaxLimit() {
         let favorites = makeFavorites(count: 7)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController()
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -40,10 +40,10 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_existingFavoriteNear_returnsMatchingWithin100m() {
         let favorite = makeFavorite(name: "Tokyo")
-        let store = StubFavoriteStore(favorites: [favorite])
+        let store = InMemoryFavoriteStore(favorites: [favorite])
         let viewModel = DashboardViewModel(comparisonController: StubComparisonController(), favoriteStore: store)
 
-        let mapItem = makeMapItem(
+        let mapItem = makeTestMapItem(
             latitude: favorite.latitude + 0.0005,
             longitude: favorite.longitude + 0.0005,
             name: "Nearby"
@@ -54,10 +54,10 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_existingFavoriteNear_returnsNilBeyond100m() {
         let favorite = makeFavorite(name: "Tokyo")
-        let store = StubFavoriteStore(favorites: [favorite])
+        let store = InMemoryFavoriteStore(favorites: [favorite])
         let viewModel = DashboardViewModel(comparisonController: StubComparisonController(), favoriteStore: store)
 
-        let mapItem = makeMapItem(
+        let mapItem = makeTestMapItem(
             latitude: favorite.latitude + 0.002,
             longitude: favorite.longitude + 0.002,
             name: "Far"
@@ -67,7 +67,7 @@ final class DashboardViewModelTests: XCTestCase {
     }
 
     func test_registerAndSelect_newLocation_addsToFavoritesAndSelectedIDs() {
-        let store = StubFavoriteStore(favorites: [])
+        let store = InMemoryFavoriteStore(favorites: [])
         let controller = StubComparisonController()
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -90,7 +90,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_registerAndSelect_alreadyExisted_addsExistingIDToSelectedIDs_withoutNewFavorite() {
         let favorite = makeFavorite(name: "Existing")
-        let store = StubFavoriteStore(favorites: [favorite])
+        let store = InMemoryFavoriteStore(favorites: [favorite])
         let controller = StubComparisonController()
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
         viewModel.toggleSelection(favorite.id)
@@ -113,7 +113,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_registerAndSelect_atSelectionLimit_swapsOldestSelection() {
         let favorites = makeFavorites(count: 6)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController()
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -137,7 +137,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_registerAndSelect_triggersSingleRefresh() async {
         let favorites = makeFavorites(count: 6)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController(matrix: .empty)
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
         try? await Task.sleep(for: .milliseconds(100))
@@ -156,7 +156,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_undoLastSwap_restoresPreviousSelection() {
         let favorites = makeFavorites(count: 6)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController()
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -180,7 +180,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_undoLastSwap_restoresSwapsInLifoOrder() {
         let favorites = makeFavorites(count: 6)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController()
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -215,7 +215,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_removeFavorite_removesFromStoreAndPrunesSelectedIDs() async {
         let favorites = makeFavorites(count: 3)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController(matrix: .empty)
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -229,7 +229,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_selectionOrder_isMaintainedOnToggleSelection() {
         let favorites = makeFavorites(count: 3)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController()
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -261,7 +261,7 @@ final class DashboardViewModelTests: XCTestCase {
             ]
         )
         let controller = StubComparisonController(matrix: matrix)
-        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: StubFavoriteStore(favorites: favorites))
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: InMemoryFavoriteStore(favorites: favorites))
         await viewModel.refresh(referenceDate: date1)
 
         let sortedNames = viewModel.sortedSelectedLocations().map(\.name)
@@ -274,7 +274,7 @@ final class DashboardViewModelTests: XCTestCase {
             makeFavorite(name: "Aomori"),
             makeFavorite(name: "Osaka")
         ]
-        let viewModel = DashboardViewModel(comparisonController: StubComparisonController(), favoriteStore: StubFavoriteStore(favorites: favorites))
+        let viewModel = DashboardViewModel(comparisonController: StubComparisonController(), favoriteStore: InMemoryFavoriteStore(favorites: favorites))
         viewModel.sortKey = .name
 
         let sortedNames = viewModel.sortedSelectedLocations().map(\.name)
@@ -299,7 +299,7 @@ final class DashboardViewModelTests: XCTestCase {
             ]
         )
         let controller = StubComparisonController(matrix: matrix)
-        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: StubFavoriteStore(favorites: favorites))
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: InMemoryFavoriteStore(favorites: favorites))
         await viewModel.refresh(referenceDate: date1)
         viewModel.sortKey = .bestDate
 
@@ -324,7 +324,7 @@ final class DashboardViewModelTests: XCTestCase {
             ]
         )
         let controller = StubComparisonController(matrix: matrix)
-        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: StubFavoriteStore(favorites: favorites))
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: InMemoryFavoriteStore(favorites: favorites))
         await viewModel.refresh(referenceDate: date)
 
         XCTAssertEqual(viewModel.bestLocationID(for: date.addingTimeInterval(21_600)), favorites[1].id)
@@ -342,7 +342,7 @@ final class DashboardViewModelTests: XCTestCase {
             ]
         )
         let controller = StubComparisonController(matrix: matrix)
-        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: StubFavoriteStore(favorites: favorites))
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: InMemoryFavoriteStore(favorites: favorites))
         await viewModel.refresh(referenceDate: date)
 
         XCTAssertNil(viewModel.bestLocationID(for: date.addingTimeInterval(3_600)))
@@ -350,7 +350,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_refresh_callsControllerWithFilteredLocationsOnly() async {
         let favorites = makeFavorites(count: 3)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController(matrix: .empty)
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -362,7 +362,7 @@ final class DashboardViewModelTests: XCTestCase {
 
     func test_favoriteUpdates_pruneSelectionAndRefreshWhenSelectionRemains() async {
         let favorites = makeFavorites(count: 3)
-        let store = StubFavoriteStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let controller = StubComparisonController(matrix: .empty)
         let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
 
@@ -400,13 +400,6 @@ final class DashboardViewModelTests: XCTestCase {
         )
     }
 
-    private func makeMapItem(latitude: Double, longitude: Double, name: String) -> MKMapItem {
-        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
-        let item = MKMapItem(placemark: placemark)
-        item.name = name
-        return item
-    }
-
     private func makeMatrix(
         favorites: [FavoriteLocation],
         dates: [Date],
@@ -437,53 +430,5 @@ final class DashboardViewModelTests: XCTestCase {
             }
         }
         return ComparisonMatrix(locations: favorites, dates: dates, cellsByID: cellsByID)
-    }
-}
-
-@MainActor
-private final class StubComparisonController: ComparisonControlling {
-    var matrix: ComparisonMatrix
-    var dayCount: Int = DashboardViewModel.dayCount
-    private(set) var lastLocations: [FavoriteLocation]?
-    private(set) var refreshCalls: Int = 0
-    private(set) var computeMatrixCalls: Int = 0
-
-    init(matrix: ComparisonMatrix = .empty) {
-        self.matrix = matrix
-    }
-
-    func refresh(referenceDate: Date, locations: [FavoriteLocation]?) async {
-        refreshCalls += 1
-        lastLocations = locations
-    }
-
-    func computeMatrix(referenceDate: Date, locations: [FavoriteLocation]?) async -> ComparisonMatrix {
-        computeMatrixCalls += 1
-        lastLocations = locations
-        return matrix
-    }
-}
-
-private final class StubFavoriteStore: FavoriteLocationStoring, @unchecked Sendable {
-    var favorites: [FavoriteLocation] {
-        didSet { subject.send(favorites) }
-    }
-    private let subject: CurrentValueSubject<[FavoriteLocation], Never>
-
-    init(favorites: [FavoriteLocation] = []) {
-        self.favorites = favorites
-        self.subject = CurrentValueSubject(favorites)
-    }
-
-    func loadAll() -> [FavoriteLocation] {
-        favorites
-    }
-
-    var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> {
-        subject.eraseToAnyPublisher()
-    }
-
-    func save(_ favorites: [FavoriteLocation]) {
-        self.favorites = favorites
     }
 }

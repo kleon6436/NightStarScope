@@ -3,6 +3,8 @@ import SwiftUI
 // MARK: - Spacing
 
 enum Spacing {
+    /// 4pt
+    static let xxs: CGFloat = 4
     /// 8pt
     static let xs: CGFloat = 8
     /// 16pt
@@ -11,6 +13,22 @@ enum Spacing {
     static let md: CGFloat = 24
     /// 32pt
     static let lg: CGFloat = 32
+}
+
+// MARK: - Placeholder
+
+enum Placeholder {
+    /// 値が無い欄の表記。翻訳対象外のため `Text(verbatim:)` などで表示する。
+    static let dash = "—"
+}
+
+// MARK: - Display Format
+
+enum DisplayFormat {
+    /// 角度（度）を度記号付きの表示文字列にする（例: "12.3°"）。
+    static func degrees(_ degrees: Double, fractionDigits: Int = 1) -> String {
+        String(format: "%.\(fractionDigits)f°", degrees)
+    }
 }
 
 // MARK: - Layout

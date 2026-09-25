@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 struct StarMapSettingsDependency {
     let currentSettings: () -> StarMapDisplaySettings
+    /// メインスレッドで配信すること。購読側でも念のためメインで受け取る。
     let changes: AnyPublisher<StarMapDisplaySettings, Never>
 
     static let live = StarMapSettingsDependency(
@@ -14,8 +15,7 @@ struct StarMapSettingsDependency {
             StarMapDisplaySettings.load()
         },
         // UserDefaults の変更通知は書き込んだスレッドで届くため、MainActor に隔離された map の前でメインへ移す。
-        changes: NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .receive(on: DispatchQueue.main)
+        changes: NotificationCenter.default.userDefaultsChangesOnMain()
             .map { _ in StarMapDisplaySettings.load() }
             .removeDuplicates()
             .eraseToAnyPublisher()
@@ -50,331 +50,11 @@ struct StarMapComputationDependency: Sendable {
     )
 }
 
-/// 画面向きに応じたスクリーン座標系を表す。
-enum StarMapScreenOrientation: Sendable {
-    case portrait
-    case portraitUpsideDown
-    case landscapeLeft
-    case landscapeRight
-
-    fileprivate var isLandscape: Bool {
-        switch self {
-        case .landscapeLeft, .landscapeRight:
-            true
-        case .portrait, .portraitUpsideDown:
-            false
-        }
-    }
-
-    fileprivate var screenUpDeviceVector: (x: Double, y: Double, z: Double) {
-        switch self {
-        case .portrait:
-            (x: 0, y: 1, z: 0)
-        case .portraitUpsideDown:
-            (x: 0, y: -1, z: 0)
-        case .landscapeLeft:
-            (x: -1, y: 0, z: 0)
-        case .landscapeRight:
-            (x: 1, y: 0, z: 0)
-        }
-    }
-}
-
-/// カメラの画角から、描画上で見える水平視野角を求める。
-struct StarMapCameraFieldOfView: Equatable, Sendable {
-    let diagonalDegrees: Double
-    let sensorWidth: Int32
-    let sensorHeight: Int32
-
-    private var sensorAspectRatio: Double? {
-        guard sensorWidth > 0, sensorHeight > 0 else { return nil }
-        return Double(sensorWidth) / Double(sensorHeight)
-    }
-
-    private var landscapeHorizontalDegrees: Double? {
-        degreesForAxis(multiplier: sensorAspectRatio)
-    }
-
-    private var landscapeVerticalDegrees: Double? {
-        guard let sensorAspectRatio else { return nil }
-        return degreesForAxis(multiplier: 1.0 / sensorAspectRatio)
-    }
-
-    func visibleHorizontalDegrees(
-        viewportSize: CGSize,
-        screenOrientation: StarMapScreenOrientation
-    ) -> Double? {
-        guard viewportSize.width > 0, viewportSize.height > 0 else { return nil }
-        guard let sensorAspectRatio,
-              let landscapeHorizontalDegrees,
-              let landscapeVerticalDegrees else {
-            return nil
-        }
-
-        let viewportAspectRatio = viewportSize.width / viewportSize.height
-        let contentAspectRatio = screenOrientation.isLandscape
-            ? sensorAspectRatio
-            : 1.0 / sensorAspectRatio
-        let contentHorizontalDegrees = screenOrientation.isLandscape
-            ? landscapeHorizontalDegrees
-            : landscapeVerticalDegrees
-        let contentVerticalDegrees = screenOrientation.isLandscape
-            ? landscapeVerticalDegrees
-            : landscapeHorizontalDegrees
-
-        if viewportAspectRatio >= contentAspectRatio {
-            return contentHorizontalDegrees
-        }
-
-        let visibleHalfHorizontalRadians = atan(
-            tan(contentVerticalDegrees * .pi / 360) * viewportAspectRatio
-        )
-        return visibleHalfHorizontalRadians * 360 / .pi
-    }
-
-    private func degreesForAxis(multiplier: Double?) -> Double? {
-        guard let multiplier else { return nil }
-        let halfDiagonalRadians = diagonalDegrees * .pi / 360
-        let base = tan(halfDiagonalRadians) / sqrt(multiplier * multiplier + 1)
-        return atan(multiplier * base) * 360 / .pi
-    }
-}
-
-/// カメラセッションを維持すべきかを表す状態。
-struct StarMapCameraSessionState: Equatable, Sendable {
-    let isGyroMode: Bool
-    let isBackgroundEnabled: Bool
-    let isAuthorized: Bool
-    let hasCameraHardware: Bool
-    let isSceneActive: Bool
-
-    var shouldKeepPreviewAttached: Bool {
-        isGyroMode && isAuthorized && hasCameraHardware
-    }
-
-    var isCameraBackgroundVisible: Bool {
-        isGyroMode && isBackgroundEnabled && isAuthorized && hasCameraHardware
-    }
-
-    var shouldRunSession: Bool {
-        isSceneActive && isCameraBackgroundVisible
-    }
-}
-
-/// プレビューの向きを画面向きへ合わせるための回転角。
-enum StarMapCameraPreviewRotation {
-    static func fallbackAngle(for screenOrientation: StarMapScreenOrientation) -> CGFloat {
-        switch screenOrientation {
-        case .portrait:
-            90
-        case .portraitUpsideDown:
-            270
-        case .landscapeLeft:
-            180
-        case .landscapeRight:
-            0
-        }
-    }
-}
-
-/// カメラ有効/無効の切り替え順を識別する世代番号付き状態。
-struct StarMapCameraSessionActivationState: Sendable {
-    private(set) var generation: UInt = 0
-    private(set) var isActive = false
-
-    @discardableResult
-    mutating func update(isActive: Bool) -> UInt {
-        generation &+= 1
-        self.isActive = isActive
-        return generation
-    }
-
-    func matches(generation: UInt, isActive: Bool) -> Bool {
-        self.generation == generation && self.isActive == isActive
-    }
-}
-
 /// 1 時刻ぶんの観測条件を記録する。
 struct StarMapObservationConditionSample: Equatable {
     let moonAltitude: Double
     let moonPhase: Double
     let sunAltitude: Double
-}
-
-/// Core Motion の回転行列を、描画用の east-north-up 座標へ変換する。
-struct StarMapMotionMatrix {
-    let m11: Double
-    let m12: Double
-    let m13: Double
-    let m21: Double
-    let m22: Double
-    let m23: Double
-    let m31: Double
-    let m32: Double
-    let m33: Double
-
-    fileprivate func referenceVector(forDeviceVectorX x: Double, y: Double, z: Double) -> (east: Double, north: Double, up: Double) {
-        // Core Motion の xTrueNorth / xMagneticNorth 系は基準座標が north-west-up なので、
-        // 画面描画で使う east-north-up に変換してから扱う。
-        let north = (m11 * x) + (m21 * y) + (m31 * z)
-        let west = (m12 * x) + (m22 * y) + (m32 * z)
-
-        return (
-            east: -west,
-            north: north,
-            up: (m13 * x) + (m23 * y) + (m33 * z)
-        )
-    }
-
-    fileprivate func referenceVector(forDeviceVector vector: (x: Double, y: Double, z: Double)) -> (east: Double, north: Double, up: Double) {
-        referenceVector(forDeviceVectorX: vector.x, y: vector.y, z: vector.z)
-    }
-}
-
-/// 方位・仰角・ロールを表す、カメラ姿勢の正規化済み表現。
-struct StarMapMotionPose: Equatable {
-    let azimuth: Double
-    let altitude: Double
-    let roll: Double
-
-    init(azimuth: Double, altitude: Double, roll: Double = 0) {
-        self.azimuth = Self.normalizedAzimuth(azimuth)
-        self.altitude = Self.clampedAltitude(altitude)
-        self.roll = Self.normalizedRoll(roll)
-    }
-
-    static func make(
-        rotationMatrix: StarMapMotionMatrix,
-        screenOrientation: StarMapScreenOrientation = .portrait
-    ) -> Self {
-        let lookingVector = rotationMatrix.referenceVector(forDeviceVectorX: 0, y: 0, z: -1)
-        let screenUpVector = rotationMatrix.referenceVector(forDeviceVector: screenOrientation.screenUpDeviceVector)
-        let azimuth = normalizedAzimuth(atan2(lookingVector.east, lookingVector.north) * 180 / .pi)
-        let altitude = atan2(
-            lookingVector.up,
-            hypot(lookingVector.east, lookingVector.north)
-        ) * 180 / .pi
-        let azimuthRadians = azimuth * .pi / 180
-        let forward = normalizedVector(lookingVector)
-        let right = (
-            east: cos(azimuthRadians),
-            north: -sin(azimuthRadians),
-            up: 0.0
-        )
-        let defaultUp = normalizedVector(cross(right, forward))
-        let projectedScreenUp = normalizedVector(projectedOntoPlane(screenUpVector, normal: forward))
-        let roll = atan2(
-            dot(projectedScreenUp, right),
-            dot(projectedScreenUp, defaultUp)
-        ) * 180 / .pi
-
-        return Self(azimuth: azimuth, altitude: altitude, roll: roll)
-    }
-
-    static func smoothed(previous: Self?, next: Self) -> Self {
-        guard let previous else { return next }
-
-        let azimuthDelta = wrappedAzimuthDelta(from: previous.azimuth, to: next.azimuth)
-        let altitudeDelta = next.altitude - previous.altitude
-        let rollDelta = wrappedSignedAngleDelta(from: previous.roll, to: next.roll)
-        let azimuthFactor = smoothingFactor(for: abs(azimuthDelta), threshold: 12, base: 0.18, boosted: 0.34)
-        let altitudeFactor = smoothingFactor(for: abs(altitudeDelta), threshold: 10, base: 0.18, boosted: 0.30)
-        let rollFactor = smoothingFactor(for: abs(rollDelta), threshold: 15, base: 0.20, boosted: 0.36)
-
-        return Self(
-            azimuth: previous.azimuth + (azimuthDelta * azimuthFactor),
-            altitude: previous.altitude + (altitudeDelta * altitudeFactor),
-            roll: previous.roll + (rollDelta * rollFactor)
-        )
-    }
-
-    static func normalizedAzimuth(_ azimuth: Double) -> Double {
-        let normalized = azimuth.truncatingRemainder(dividingBy: 360)
-        return normalized >= 0 ? normalized : normalized + 360
-    }
-
-    static func normalizedRoll(_ roll: Double) -> Double {
-        let normalized = normalizedAzimuth(roll)
-        return normalized > 180 ? normalized - 360 : normalized
-    }
-
-    private static func clampedAltitude(_ altitude: Double) -> Double {
-        clamp(altitude, min: -10, max: 90)
-    }
-
-    private static func clamp(_ value: Double, min minimum: Double, max maximum: Double) -> Double {
-        Swift.min(Swift.max(value, minimum), maximum)
-    }
-
-    private static func smoothingFactor(
-        for deltaMagnitude: Double,
-        threshold: Double,
-        base: Double,
-        boosted: Double
-    ) -> Double {
-        deltaMagnitude >= threshold ? boosted : base
-    }
-
-    private static func wrappedAzimuthDelta(from source: Double, to target: Double) -> Double {
-        let rawDelta = normalizedAzimuth(target) - normalizedAzimuth(source)
-
-        if rawDelta > 180 {
-            return rawDelta - 360
-        }
-        if rawDelta < -180 {
-            return rawDelta + 360
-        }
-
-        return rawDelta
-    }
-
-    private static func wrappedSignedAngleDelta(from source: Double, to target: Double) -> Double {
-        normalizedRoll(target - source)
-    }
-
-    private static func normalizedVector(
-        _ vector: (east: Double, north: Double, up: Double)
-    ) -> (east: Double, north: Double, up: Double) {
-        let length = sqrt(vector.east * vector.east + vector.north * vector.north + vector.up * vector.up)
-        guard length > 1e-10 else {
-            return (east: 0, north: 0, up: 1)
-        }
-        return (
-            east: vector.east / length,
-            north: vector.north / length,
-            up: vector.up / length
-        )
-    }
-
-    private static func projectedOntoPlane(
-        _ vector: (east: Double, north: Double, up: Double),
-        normal: (east: Double, north: Double, up: Double)
-    ) -> (east: Double, north: Double, up: Double) {
-        let projection = dot(vector, normal)
-        return (
-            east: vector.east - normal.east * projection,
-            north: vector.north - normal.north * projection,
-            up: vector.up - normal.up * projection
-        )
-    }
-
-    private static func cross(
-        _ lhs: (east: Double, north: Double, up: Double),
-        _ rhs: (east: Double, north: Double, up: Double)
-    ) -> (east: Double, north: Double, up: Double) {
-        (
-            east: lhs.north * rhs.up - lhs.up * rhs.north,
-            north: lhs.up * rhs.east - lhs.east * rhs.up,
-            up: lhs.east * rhs.north - lhs.north * rhs.east
-        )
-    }
-
-    private static func dot(
-        _ lhs: (east: Double, north: Double, up: Double),
-        _ rhs: (east: Double, north: Double, up: Double)
-    ) -> Double {
-        lhs.east * rhs.east + lhs.north * rhs.north + lhs.up * rhs.up
-    }
 }
 
 // MARK: - ViewModel
@@ -503,11 +183,6 @@ final class StarMapViewModel: ObservableObject {
 
     // MARK: - Calculation
 
-    /// 現在の観測地緯度 (度)
-    private(set) var latitude: Double = 35.0
-    /// 現在の地方恒星時 (度)
-    private(set) var currentLST: Double = 0.0
-
     /// 進行中の計算タスク (新しい update() 呼び出しでキャンセルする)
     private var updateTask: Task<Void, Never>?
     /// trailing-edge debounce 用タスク
@@ -629,23 +304,23 @@ final class StarMapViewModel: ObservableObject {
     private func setupBindings() {
         appController.locationController.selectedLocationPublisher
             .dropFirst()
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.handleSelectedLocationChanged()
+                self?.resyncAfterSelectionChange()
             }
             .store(in: &cancellables)
 
         appController.locationController.selectedTimeZonePublisher
             .dropFirst()
             .removeDuplicates { $0.identifier == $1.identifier }
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.handleSelectedTimeZoneChanged()
+                self?.resyncAfterSelectionChange()
             }
             .store(in: &cancellables)
 
         settingsDependency.changes
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] settings in
                 self?.applyStarMapDisplaySettings(settings)
             }
@@ -653,7 +328,7 @@ final class StarMapViewModel: ObservableObject {
 
         appController.$selectedDate
             .dropFirst()
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.handleSelectedDateChanged()
             }
@@ -742,8 +417,6 @@ final class StarMapViewModel: ObservableObject {
     }
 
     private func apply(_ snapshot: StarMapComputation.Snapshot) {
-        latitude = snapshot.lat
-        currentLST = snapshot.lst
         starPositions = snapshot.starPositions
         sunAltitude = snapshot.sunAltitude
         moonAltitude = snapshot.moonAltitude
@@ -879,15 +552,13 @@ final class StarMapViewModel: ObservableObject {
             timeSliderScheduler.schedulePendingCommit(date: updatedDate) { [weak self] date in
                 self?.setDisplayDate(
                     date,
-                    skipNightRange: true,
-                    skipTimeSliderSync: true
+                    mode: .preserveNightRangeAndSlider
                 )
             }
         } else {
             setDisplayDate(
                 updatedDate,
-                skipNightRange: true,
-                skipTimeSliderSync: true
+                mode: .preserveNightRangeAndSlider
             )
         }
     }
@@ -939,8 +610,7 @@ final class StarMapViewModel: ObservableObject {
         timeSliderScheduler.flushPendingCommit { [weak self] date in
             self?.setDisplayDate(
                 date,
-                skipNightRange: true,
-                skipTimeSliderSync: true
+                mode: .preserveNightRangeAndSlider
             )
         }
     }
@@ -952,8 +622,7 @@ final class StarMapViewModel: ObservableObject {
             timeSliderScheduler.flushPendingCommit { [weak self] date in
                 self?.setDisplayDate(
                     date,
-                    skipNightRange: true,
-                    skipTimeSliderSync: true
+                    mode: .preserveNightRangeAndSlider
                 )
             }
         }
@@ -961,14 +630,6 @@ final class StarMapViewModel: ObservableObject {
 
     private var currentMinUpdateInterval: TimeInterval {
         isTimeSliderScrubbing ? Self.minScrubbingUpdateInterval : Self.minUpdateInterval
-    }
-
-    private func handleSelectedTimeZoneChanged() {
-        resyncAfterSelectionChange()
-    }
-
-    private func handleSelectedLocationChanged() {
-        resyncAfterSelectionChange()
     }
 
     private func handleSelectedDateChanged() {
@@ -998,13 +659,8 @@ final class StarMapViewModel: ObservableObject {
         syncWithSelectedDate(referenceDate: displayDate)
     }
 
-    private func setDisplayDate(
-        _ date: Date,
-        skipNightRange: Bool = false,
-        skipTimeSliderSync: Bool = false
-    ) {
-        displayDateUpdateMode =
-            (skipNightRange || skipTimeSliderSync) ? .preserveNightRangeAndSlider : .standard
+    private func setDisplayDate(_ date: Date, mode: DisplayDateUpdateMode) {
+        displayDateUpdateMode = mode
         displayDate = date
     }
 

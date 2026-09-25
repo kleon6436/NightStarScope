@@ -96,9 +96,9 @@ struct DashboardLocationCard: View {
     }
 
     private var dayStrip: some View {
-        let columns = Array(repeating: GridItem(.flexible(minimum: adaptiveMinimumCellWidth), spacing: Spacing.xs / 2), count: max(dates.count, 1))
+        let columns = Array(repeating: GridItem(.flexible(minimum: adaptiveMinimumCellWidth), spacing: Spacing.xxs), count: max(dates.count, 1))
 
-        return LazyVGrid(columns: columns, spacing: Spacing.xs / 2) {
+        return LazyVGrid(columns: columns, spacing: Spacing.xxs) {
             ForEach(Array(dates.enumerated()), id: \.offset) { _, date in
                 DashboardDayColumn(
                     location: location,
@@ -116,7 +116,7 @@ struct DashboardLocationCard: View {
         if let summary = firstNightSummary, !summary.darkRangeText.isEmpty {
             windowText = summary.darkRangeText
         } else {
-            windowText = L10n.tr("—")
+            windowText = Placeholder.dash
         }
 
         return VStack(alignment: .leading, spacing: 2) {
@@ -215,7 +215,7 @@ private struct DashboardDayColumn: View {
     }
 
     private var scoreText: String {
-        guard let score = cell?.index?.score else { return L10n.tr("—") }
+        guard let score = cell?.index?.score else { return Placeholder.dash }
         return "\(score)"
     }
 
@@ -227,7 +227,7 @@ private struct DashboardDayColumn: View {
     }
 
     private var moonText: String {
-        guard let summary = cell?.nightSummary else { return L10n.tr("—") }
+        guard let summary = cell?.nightSummary else { return Placeholder.dash }
         let illumination = Int(round(((1 - cos(summary.moonPhaseAtMidnight * 2 * .pi)) / 2) * 100))
         return L10n.percent(Double(illumination))
     }

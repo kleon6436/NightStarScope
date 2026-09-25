@@ -32,16 +32,134 @@ final class AppControllerTests: XCTestCase {
         private let lock = NSLock()
         private var invokedDates: [Date] = []
 
-        func record(_ date: Date) {
+        /// 記録後の呼び出し回数を返す。
+        @discardableResult
+        func record(_ date: Date) -> Int {
             lock.lock()
+            defer { lock.unlock() }
             invokedDates.append(date)
-            lock.unlock()
+            return invokedDates.count
         }
 
         var count: Int {
             lock.lock()
             defer { lock.unlock() }
             return invokedDates.count
+        }
+
+        var dates: [Date] {
+            lock.lock()
+            defer { lock.unlock() }
+            return invokedDates
+        }
+    }
+
+    /// 計算の途中から外側のタスクを取り消すための入れ物。スレッドを止めずに取り消しの順序を固定する。
+    final class TaskCancellationBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var task: Task<[NightSummary], Never>?
+
+        func set(_ task: Task<[NightSummary], Never>) {
+            lock.lock()
+            self.task = task
+            lock.unlock()
+        }
+
+        func cancel() {
+            lock.lock()
+            let task = task
+            lock.unlock()
+            task?.cancel()
+        }
+    }
+
+    /// ジョブを 1 本のキューで順に実行するタスクエグゼキュータ。
+    /// タスクグループが子タスクをすべて登録し終えてから、最初の子タスクが走る順序を固定するために使う。
+    final class SerialTaskExecutor: TaskExecutor, @unchecked Sendable {
+        private let queue = DispatchQueue(label: "AppControllerTests.SerialTaskExecutor")
+
+        func enqueue(_ job: consuming ExecutorJob) {
+            let job = UnownedJob(job)
+            queue.async {
+                job.runSynchronously(on: self.asUnownedTaskExecutor())
+            }
+        }
+    }
+
+    /// 呼ばれた計算を再開するまで保留するサービス。スレッドは止めず、continuation で待たせる。
+    final class ControlledNightCalculationService: NightCalculating, @unchecked Sendable {
+        struct Request {
+            let date: Date
+            let location: CLLocationCoordinate2D
+            let timeZone: TimeZone
+        }
+
+        private let lock = NSLock()
+        private var pendingSummaries: [(Request, CheckedContinuation<NightSummary, Never>)] = []
+        private var pendingUpcoming: [(Request, CheckedContinuation<[NightSummary], Never>)] = []
+
+        var pendingSummaryRequests: [Request] {
+            lock.lock()
+            defer { lock.unlock() }
+            return pendingSummaries.map(\.0)
+        }
+
+        var pendingUpcomingRequests: [Request] {
+            lock.lock()
+            defer { lock.unlock() }
+            return pendingUpcoming.map(\.0)
+        }
+
+        func calculateNightSummary(
+            date: Date,
+            location: CLLocationCoordinate2D,
+            timeZone: TimeZone
+        ) async -> NightSummary {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                pendingSummaries.append((Request(date: date, location: location, timeZone: timeZone), continuation))
+                lock.unlock()
+            }
+        }
+
+        func calculateUpcomingNights(
+            from date: Date,
+            location: CLLocationCoordinate2D,
+            timeZone: TimeZone,
+            days: Int
+        ) async -> [NightSummary] {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                pendingUpcoming.append((Request(date: date, location: location, timeZone: timeZone), continuation))
+                lock.unlock()
+            }
+        }
+
+        /// 保留中の計算をすべて、依頼された観測地・タイムゾーンの結果で再開する。
+        func resumeAll() {
+            lock.lock()
+            let summaries = pendingSummaries
+            let upcoming = pendingUpcoming
+            pendingSummaries = []
+            pendingUpcoming = []
+            lock.unlock()
+            for (request, continuation) in summaries {
+                continuation.resume(returning: Self.makeNightSummary(for: request))
+            }
+            for (request, continuation) in upcoming {
+                continuation.resume(returning: [Self.makeNightSummary(for: request)])
+            }
+        }
+
+        private static func makeNightSummary(for request: Request) -> NightSummary {
+            NightSummary(
+                date: ObservationTimeZone.startOfDay(for: request.date, timeZone: request.timeZone),
+                location: request.location,
+                events: [],
+                viewingWindows: [],
+                moonPhaseAtMidnight: 0,
+                timeZoneIdentifier: request.timeZone.identifier
+            )
         }
     }
 
@@ -285,17 +403,17 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_recalculateUpcoming_buildsIndexesForAllNights() async {
-        let calendar = Calendar.current
+        let mockCalculationService = MockNightCalculationService()
+        let appController = AppController(calculationService: mockCalculationService)
+        let timeZone = appController.locationController.selectedTimeZone
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let baseDate = calendar.startOfDay(for: Date())
         let nextDate = calendar.date(byAdding: .day, value: 1, to: baseDate) ?? baseDate
-
-        let mockCalculationService = MockNightCalculationService()
         await mockCalculationService.enqueueUpcomingNights([
-            makeNightSummary(date: baseDate),
-            makeNightSummary(date: nextDate)
+            makeNightSummary(date: baseDate, timeZoneIdentifier: timeZone.identifier),
+            makeNightSummary(date: nextDate, timeZoneIdentifier: timeZone.identifier)
         ])
 
-        let appController = AppController(calculationService: mockCalculationService)
         appController.recalculateUpcoming()
 
         await waitUntil {
@@ -306,13 +424,12 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_weatherPublisherUpdate_recomputesUpcomingIndexes() async {
-        let baseDate = Calendar.current.startOfDay(for: Date())
-        let night = makeNightSummary(date: baseDate)
-
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
         let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
         let selectedTimeZone = appController.locationController.selectedTimeZone
+        let baseDate = ObservationTimeZone.startOfDay(for: Date(), timeZone: selectedTimeZone)
+        let night = makeNightSummary(date: baseDate, timeZoneIdentifier: selectedTimeZone.identifier)
 
         appController.upcomingNights = [night]
         appController.recomputeUpcomingIndexes()
@@ -342,7 +459,7 @@ final class AppControllerTests: XCTestCase {
     func test_locationChange_keepsNineUpcomingNights() async {
         let tokyo = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
         let losAngeles = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
-        let tokyoTimeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyoTimeZone = TestTimeZones.tokyo
         let losAngelesTimeZone = TimeZone(identifier: "America/Los_Angeles")!
         let storage = InMemoryLocationStorage()
         storage.latitude = tokyo.latitude
@@ -394,7 +511,7 @@ final class AppControllerTests: XCTestCase {
 
     func test_makeStarGazingIndex_usesProvidedWeatherSnapshotAndTimeZone() {
         let appController = AppController(calculationService: MockNightCalculationService())
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -437,8 +554,8 @@ final class AppControllerTests: XCTestCase {
             minute: 30
         ))!
         let nextDate = baseDate.addingTimeInterval(86_400)
-        let firstNight = makeNightSummary(date: baseDate)
-        let secondNight = makeNightSummary(date: nextDate)
+        let firstNight = makeNightSummary(date: baseDate, timeZoneIdentifier: losAngeles.identifier)
+        let secondNight = makeNightSummary(date: nextDate, timeZoneIdentifier: losAngeles.identifier)
         let firstWeather = makeWeatherSummary(date: baseDate)
         let secondWeather = makeWeatherSummary(date: nextDate)
         let snapshot = [
@@ -455,6 +572,257 @@ final class AppControllerTests: XCTestCase {
 
         XCTAssertEqual(indexes.count, 2)
         XCTAssertTrue(indexes.values.allSatisfy(\.hasWeatherData))
+    }
+
+    func test_makeStarGazingIndex_usesInjectedNowForPartialWeatherCoverage() {
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: losAngeles
+        )
+        let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: losAngeles)
+        let sameNight = AppController(
+            calculationService: MockNightCalculationService(),
+            now: { dayStart.addingTimeInterval(22 * 3600) }
+        )
+        let laterDay = AppController(
+            calculationService: MockNightCalculationService(),
+            now: { dayStart.addingTimeInterval(3 * 86_400) }
+        )
+        let snapshot = [sameNight.weatherService.dateKey(dayStart, timeZone: losAngeles): weather]
+
+        let todayIndex = sameNight.makeStarGazingIndex(nightSummary: night, weatherByDate: snapshot, bortleClass: 4)
+        let pastIndex = laterDay.makeStarGazingIndex(nightSummary: night, weatherByDate: snapshot, bortleClass: 4)
+
+        XCTAssertTrue(todayIndex.hasWeatherData)
+        XCTAssertFalse(pastIndex.hasWeatherData)
+    }
+
+    func test_makeUpcomingIndexes_usesInjectedNowForPartialWeatherCoverage() {
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: losAngeles
+        )
+        let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: losAngeles)
+        let appController = AppController(
+            calculationService: MockNightCalculationService(),
+            now: { dayStart.addingTimeInterval(22 * 3600) }
+        )
+        let snapshot = [appController.weatherService.dateKey(dayStart, timeZone: losAngeles): weather]
+
+        let indexes = appController.makeUpcomingIndexes(
+            upcomingNights: [night],
+            weatherByDate: snapshot,
+            bortleClass: 4,
+            timeZone: losAngeles
+        )
+
+        XCTAssertEqual(indexes[dayStart]?.hasWeatherData, true)
+    }
+
+    func test_makeUpcomingIndexes_whenNightTimeZoneMatchesKeyTimeZone_keysByNightDate() {
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let appController = AppController(calculationService: MockNightCalculationService())
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: losAngeles
+        )
+        let night = makeNightSummary(date: dayStart, timeZoneIdentifier: losAngeles.identifier)
+        let snapshot = [
+            appController.weatherService.dateKey(dayStart, timeZone: losAngeles): makeWeatherSummary(date: dayStart)
+        ]
+
+        let indexes = appController.makeUpcomingIndexes(
+            upcomingNights: [night],
+            weatherByDate: snapshot,
+            bortleClass: 4,
+            timeZone: losAngeles
+        )
+
+        XCTAssertEqual(Array(indexes.keys), [dayStart])
+        XCTAssertEqual(indexes[dayStart]?.hasWeatherData, true)
+    }
+
+    func test_recomputeUpcomingIndexes_skipsNightsFromOtherTimeZone() {
+        let appController = AppController(calculationService: MockNightCalculationService())
+        let selectedTimeZone = appController.locationController.selectedTimeZone
+        let otherTimeZone = selectedTimeZone.identifier == TestTimeZones.tokyo.identifier
+            ? TimeZone(identifier: "America/Los_Angeles")!
+            : TestTimeZones.tokyo
+        let dayStart = ObservationTimeZone.startOfDay(
+            for: Date(timeIntervalSince1970: 1_710_000_000),
+            timeZone: selectedTimeZone
+        )
+        let nextDayStart = ObservationTimeZone.startOfDay(
+            for: dayStart.addingTimeInterval(36 * 3600),
+            timeZone: otherTimeZone
+        )
+
+        appController.upcomingNights = [
+            makeNightSummary(date: dayStart, timeZoneIdentifier: selectedTimeZone.identifier),
+            makeNightSummary(date: nextDayStart, timeZoneIdentifier: otherTimeZone.identifier)
+        ]
+        appController.recomputeUpcomingIndexes()
+
+        XCTAssertEqual(Array(appController.upcomingIndexes.keys), [dayStart])
+    }
+
+    /// タイムゾーンが変わった直後、場所変更タスクが走る前に指数を作り直しても、旧タイムゾーンの夜から指数を作らない。
+    func test_recomputeUpcomingIndexes_afterTimeZoneChangeBeforeLocationTaskRuns_producesNoShiftedIndexes() {
+        let tokyo = TestTimeZones.tokyo
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 35.6762
+        storage.longitude = 139.6503
+        storage.name = "東京"
+        storage.timeZoneIdentifier = tokyo.identifier
+        let locationController = LocationController(
+            storage: storage,
+            searchService: NoopLocationSearchService(),
+            locationNameResolver: FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "ロサンゼルス", timeZoneIdentifier: losAngeles.identifier)
+            )
+        )
+        let appController = AppController(
+            locationController: locationController,
+            calculationService: MockNightCalculationService()
+        )
+        let tokyoCalendar = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
+        let firstNight = tokyoCalendar.startOfDay(for: Date(timeIntervalSince1970: 1_710_000_000))
+        let secondNight = tokyoCalendar.date(byAdding: .day, value: 1, to: firstNight)!
+        appController.upcomingNights = [
+            makeNightSummary(date: firstNight, timeZoneIdentifier: tokyo.identifier),
+            makeNightSummary(date: secondNight, timeZoneIdentifier: tokyo.identifier)
+        ]
+        appController.recomputeUpcomingIndexes()
+        XCTAssertEqual(Set(appController.upcomingIndexes.keys), [firstNight, secondNight])
+
+        locationController.selectCoordinate(CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437))
+        XCTAssertEqual(locationController.selectedTimeZone.identifier, losAngeles.identifier)
+        // 場所変更タスクより先に、天気の更新などで指数の再計算が走った場合を再現する。
+        appController.recomputeUpcomingIndexes()
+
+        XCTAssertTrue(appController.upcomingIndexes.isEmpty)
+    }
+
+    private func makeTokyoLocationController() -> LocationController {
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 35.6762
+        storage.longitude = 139.6503
+        storage.name = "東京"
+        storage.timeZoneIdentifier = TestTimeZones.tokyo.identifier
+        return LocationController(
+            storage: storage,
+            searchService: NoopLocationSearchService(),
+            locationNameResolver: FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "選択した地点", timeZoneIdentifier: nil)
+            )
+        )
+    }
+
+    /// 取り消されずに観測地だけが変わった計算は、結果を捨てて今の観測地で計算し直す。
+    /// 場所変更タスクを経ずに観測地が変わる経路を作るため、selectedLocation を直接書き換える。
+    func test_recalculateUpcoming_whenLocationChangesBeforeCompletion_discardsResultAndRestarts() async {
+        let locationController = makeTokyoLocationController()
+        let service = ControlledNightCalculationService()
+        defer { service.resumeAll() }
+        let appController = AppController(locationController: locationController, calculationService: service)
+        let tokyo = locationController.selectedLocation
+        let nearTokyo = CLLocationCoordinate2D(latitude: 36.6762, longitude: 140.6503)
+
+        appController.recalculateUpcoming()
+        await waitUntil { service.pendingUpcomingRequests.count == 1 }
+        locationController.selectedLocation = nearTokyo
+        service.resumeAll()
+
+        await waitUntil {
+            service.pendingUpcomingRequests.first?.location.isSameCoordinate(as: nearTokyo) == true
+        }
+        XCTAssertTrue(appController.upcomingNights.isEmpty)
+        XCTAssertTrue(appController.upcomingIndexes.isEmpty)
+        XCTAssertTrue(appController.isUpcomingLoading)
+
+        service.resumeAll()
+        await waitUntil { !appController.isUpcomingLoading }
+        XCTAssertEqual(appController.upcomingNights.count, 1)
+        XCTAssertTrue(appController.upcomingNights.allSatisfy { $0.location.isSameCoordinate(as: nearTokyo) })
+        XCTAssertFalse(appController.upcomingNights.contains { $0.location.isSameCoordinate(as: tokyo) })
+    }
+
+    func test_recalculate_whenLocationChangesBeforeCompletion_discardsResultAndRestarts() async {
+        let locationController = makeTokyoLocationController()
+        let service = ControlledNightCalculationService()
+        defer { service.resumeAll() }
+        let appController = AppController(locationController: locationController, calculationService: service)
+        let nearTokyo = CLLocationCoordinate2D(latitude: 36.6762, longitude: 140.6503)
+
+        appController.recalculate()
+        await waitUntil { service.pendingSummaryRequests.count == 1 }
+        locationController.selectedLocation = nearTokyo
+        service.resumeAll()
+
+        await waitUntil {
+            service.pendingSummaryRequests.first?.location.isSameCoordinate(as: nearTokyo) == true
+        }
+        XCTAssertNil(appController.nightSummary)
+        XCTAssertTrue(appController.isCalculating)
+
+        service.resumeAll()
+        await waitUntil { !appController.isCalculating }
+        XCTAssertEqual(appController.nightSummary?.location.isSameCoordinate(as: nearTokyo), true)
+    }
+
+    /// A→B の場所変更の取得中に、場所変更タスクを経ずに C へ変わっても、読み込み中のまま残らない。
+    func test_locationChange_supersededWithoutLocationUpdate_refreshesCurrentLocationAndClearsLoading() async {
+        let locationController = makeTokyoLocationController()
+        let service = ControlledNightCalculationService()
+        defer { service.resumeAll() }
+        let appController = AppController(locationController: locationController, calculationService: service)
+        let losAngeles = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
+        let sanDiego = CLLocationCoordinate2D(latitude: 32.7157, longitude: -117.1611)
+
+        locationController.selectCoordinate(losAngeles)
+        await waitUntil {
+            service.pendingSummaryRequests.count == 1 && service.pendingUpcomingRequests.count == 1
+        }
+        XCTAssertTrue(appController.isCalculating)
+        XCTAssertTrue(appController.isUpcomingLoading)
+
+        locationController.selectedLocation = sanDiego
+        service.resumeAll()
+        await waitUntil {
+            service.pendingSummaryRequests.first?.location.isSameCoordinate(as: sanDiego) == true
+                && service.pendingUpcomingRequests.first?.location.isSameCoordinate(as: sanDiego) == true
+        }
+        service.resumeAll()
+
+        await waitUntil { !appController.isCalculating && !appController.isUpcomingLoading }
+        XCTAssertEqual(appController.nightSummary?.location.isSameCoordinate(as: sanDiego), true)
+        XCTAssertTrue(appController.upcomingNights.allSatisfy { $0.location.isSameCoordinate(as: sanDiego) })
+        XCTAssertEqual(appController.upcomingIndexes.count, appController.upcomingNights.count)
+    }
+
+    /// A→B→C と続けて観測地を選んでも、最後の観測地の結果で読み込み中が解除される。
+    func test_locationChange_twiceInARow_appliesLastLocationAndClearsLoading() async {
+        let locationController = makeTokyoLocationController()
+        let service = ControlledNightCalculationService()
+        defer { service.resumeAll() }
+        let appController = AppController(locationController: locationController, calculationService: service)
+        let losAngeles = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
+        let newYork = CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060)
+
+        locationController.selectCoordinate(losAngeles)
+        await waitUntil { service.pendingSummaryRequests.count == 1 }
+        locationController.selectCoordinate(newYork)
+        await waitUntil { service.pendingSummaryRequests.count == 2 && service.pendingUpcomingRequests.count == 2 }
+        service.resumeAll()
+
+        await waitUntil { !appController.isCalculating && !appController.isUpcomingLoading }
+        XCTAssertEqual(locationController.selectedTimeZone.identifier, "America/New_York")
+        XCTAssertEqual(appController.nightSummary?.location.isSameCoordinate(as: newYork), true)
+        XCTAssertEqual(appController.nightSummary?.timeZoneIdentifier, "America/New_York")
+        XCTAssertTrue(appController.upcomingNights.allSatisfy { $0.location.isSameCoordinate(as: newYork) })
     }
 
     func test_recomputeStarGazingIndex_usesNightSummaryDateWhileSelectionIsChanging() {
@@ -503,7 +871,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_handleSceneDidBecomeActive_advancesSelectedDateWhenTrackingTodayAcrossDayBoundary() async {
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let storage = InMemoryLocationStorage()
         storage.timeZoneIdentifier = tokyo.identifier
         let locationController = LocationController(
@@ -550,7 +918,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_handleSceneDidBecomeActive_preservesCustomSelectedDateAcrossDayBoundary() async {
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let storage = InMemoryLocationStorage()
         storage.timeZoneIdentifier = tokyo.identifier
         let locationController = LocationController(
@@ -760,7 +1128,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_selectedDate_preservesCalendarDayWhenTimeZoneChanges() async {
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         let storage = InMemoryLocationStorage()
         storage.latitude = 35.6762
@@ -814,9 +1182,13 @@ final class AppControllerTests: XCTestCase {
 
     func test_NightCalculationService_calculateUpcomingNights_stopsAfterCancellation() async {
         let recorder = CalculationInvocationRecorder()
+        let cancellation = TaskCancellationBox()
+        let days = 20
         let service = NightCalculationService { date, location, _ in
-            recorder.record(date)
-            Thread.sleep(forTimeInterval: 0.05)
+            // 最初の夜の計算中に外側のタスクを取り消す。以降の夜は始まる前に取り消しを見るはず。
+            if recorder.record(date) == 1 {
+                cancellation.cancel()
+            }
             return NightSummary(
                 date: date,
                 location: location,
@@ -827,78 +1199,30 @@ final class AppControllerTests: XCTestCase {
         }
         let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
         let baseDate = Calendar.current.startOfDay(for: Date())
+        // 直列のエグゼキュータで動かすと、全日数の子タスクを登録し終えてから最初の子タスクが走る。
+        // 取り消しは登録後に起きるので、登録済みでまだ始まっていない夜の扱いだけを確かめられる。
+        let executor = SerialTaskExecutor()
+        // タスクを入れ物に入れてから計算を始める。先に計算が始まると取り消せない。
+        let (start, startContinuation) = AsyncStream<Void>.makeStream()
 
-        let task = Task {
-            await service.calculateUpcomingNights(
+        let task = Task.detached(executorPreference: executor) {
+            for await _ in start { break }
+            return await service.calculateUpcomingNights(
                 from: baseDate,
                 location: location,
                 timeZone: .current,
-                days: 20
+                days: days
             )
         }
-
-        try? await Task.sleep(nanoseconds: 120_000_000)
-        task.cancel()
+        cancellation.set(task)
+        startContinuation.yield()
+        startContinuation.finish()
         let summaries = await task.value
 
-        // With parallel execution all tasks may complete before cancel fires.
-        // The invariant that must hold: no invisible computation (recorder == returned).
-        XCTAssertEqual(recorder.count, summaries.count)
-    }
-}
-
-actor MockNightCalculationService: NightCalculating {
-    private var nightSummaryResponses: [(summary: NightSummary, delayNanoseconds: UInt64)] = []
-    private var upcomingResponses: [(summaries: [NightSummary], delayNanoseconds: UInt64)] = []
-    private var nightSummaryCallCount = 0
-    private var upcomingCallCount = 0
-
-    func enqueueNightSummary(_ summary: NightSummary, delayMilliseconds: UInt64 = 0) {
-        nightSummaryResponses.append((summary, delayMilliseconds * 1_000_000))
-    }
-
-    func enqueueUpcomingNights(_ summaries: [NightSummary], delayMilliseconds: UInt64 = 0) {
-        upcomingResponses.append((summaries, delayMilliseconds * 1_000_000))
-    }
-
-    func calculateNightSummary(
-        date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) async -> NightSummary {
-        nightSummaryCallCount += 1
-        guard !nightSummaryResponses.isEmpty else {
-            return .placeholder
-        }
-        let response = nightSummaryResponses.removeFirst()
-        if response.delayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: response.delayNanoseconds)
-        }
-        return response.summary
-    }
-
-    func calculateUpcomingNights(
-        from date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone,
-        days: Int
-    ) async -> [NightSummary] {
-        upcomingCallCount += 1
-        guard !upcomingResponses.isEmpty else {
-            return []
-        }
-        let response = upcomingResponses.removeFirst()
-        if response.delayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: response.delayNanoseconds)
-        }
-        return response.summaries
-    }
-
-    func getNightSummaryCallCount() -> Int {
-        nightSummaryCallCount
-    }
-
-    func getUpcomingCallCount() -> Int {
-        upcomingCallCount
+        // 取り消した時点で計算中だった最初の夜だけが計算される。
+        XCTAssertEqual(recorder.count, 1)
+        // 返すのは実際に計算した夜だけ。
+        XCTAssertLessThanOrEqual(summaries.count, recorder.count)
+        XCTAssertTrue(Set(summaries.map(\.date)).isSubset(of: Set(recorder.dates)))
     }
 }

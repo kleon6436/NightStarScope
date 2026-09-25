@@ -16,6 +16,30 @@ func makeTestMapItem(latitude: Double, longitude: Double, name: String? = nil) -
     return item
 }
 
+enum TestTimeZones {
+    static let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+}
+
+func makeTestIndex(
+    score: Int = 75,
+    milkyWayScore: Int = 0,
+    constellationScore: Int = 0,
+    weatherScore: Int = 0,
+    lightPollutionScore: Int = 0,
+    hasWeatherData: Bool = true,
+    hasLightPollutionData: Bool = true
+) -> StarGazingIndex {
+    StarGazingIndex(
+        score: score,
+        milkyWayScore: milkyWayScore,
+        constellationScore: constellationScore,
+        weatherScore: weatherScore,
+        lightPollutionScore: lightPollutionScore,
+        hasWeatherData: hasWeatherData,
+        hasLightPollutionData: hasLightPollutionData
+    )
+}
+
 func makeHourlyWeather(
     cloudCover: Double = 10,
     weatherCode: Int = 0,
@@ -48,7 +72,8 @@ func makeDayWeatherSummary(
 func makeNightSummary(
     date: Date = Date(),
     withWindow: Bool = true,
-    moonPhase: Double = 0.12
+    moonPhase: Double = 0.12,
+    timeZoneIdentifier: String = TimeZone.current.identifier
 ) -> NightSummary {
     let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
     let eventDate = Calendar.current.date(byAdding: .hour, value: 21, to: date) ?? date
@@ -74,8 +99,50 @@ func makeNightSummary(
         location: location,
         events: [event],
         viewingWindows: windows,
-        moonPhaseAtMidnight: moonPhase
+        moonPhaseAtMidnight: moonPhase,
+        timeZoneIdentifier: timeZoneIdentifier
     )
+}
+
+/// 暗時間が 21 時台と 23 時台の2時間ある夜と、21 時台だけを覆う天気を返す。
+/// 天気が暗時間の一部しか覆わないため、`referenceDate` が同じ日のときだけ天気が評価に使われる。
+func makePartiallyCoveredNight(
+    dayStart: Date,
+    timeZone: TimeZone
+) -> (night: NightSummary, weather: DayWeatherSummary) {
+    let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+    let events = [21, 23].map { hour in
+        AstroEvent(
+            date: calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart,
+            galacticCenterAltitude: 28,
+            galacticCenterAzimuth: 190,
+            sunAltitude: -22,
+            moonAltitude: -8,
+            moonPhase: 0.12
+        )
+    }
+    let night = NightSummary(
+        date: dayStart,
+        location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+        events: events,
+        viewingWindows: [],
+        moonPhaseAtMidnight: 0.12,
+        timeZoneIdentifier: timeZone.identifier
+    )
+    let coveredHour = HourlyWeather(
+        date: events[0].date,
+        temperatureCelsius: 15,
+        cloudCoverPercent: 10,
+        precipitationMM: 0,
+        windSpeedKmh: 5,
+        humidityPercent: 40,
+        dewpointCelsius: 2,
+        weatherCode: 0,
+        visibilityMeters: 20_000,
+        windGustsKmh: nil,
+        windSpeedKmh500hpa: nil
+    )
+    return (night, DayWeatherSummary(date: dayStart, nighttimeHours: [coveredHour]))
 }
 
 @MainActor
@@ -226,5 +293,113 @@ final class MockLightPollutionService: LightPollutionProviding {
 
     func fetchBortle(latitude: Double, longitude: Double) async throws -> Double {
         bortleByCoordinate[String(format: "%.4f,%.4f", latitude, longitude)] ?? 4.0
+    }
+}
+
+@MainActor
+final class StubComparisonController: ComparisonControlling {
+    var matrix: ComparisonMatrix
+    var dayCount: Int = DashboardViewModel.dayCount
+    private(set) var lastLocations: [FavoriteLocation]?
+    private(set) var refreshCalls: Int = 0
+    private(set) var computeMatrixCalls: Int = 0
+
+    init(matrix: ComparisonMatrix = .empty) {
+        self.matrix = matrix
+    }
+
+    func refresh(referenceDate: Date, locations: [FavoriteLocation]?) async {
+        refreshCalls += 1
+        lastLocations = locations
+    }
+
+    func computeMatrix(referenceDate: Date, locations: [FavoriteLocation]?) async -> ComparisonMatrix {
+        computeMatrixCalls += 1
+        lastLocations = locations
+        return matrix
+    }
+}
+
+/// メモリ上に一覧を持つ FavoriteLocationStoring。save() した内容は favorites と saved に反映される。
+final class InMemoryFavoriteStore: FavoriteLocationStoring, @unchecked Sendable {
+    var favorites: [FavoriteLocation] {
+        didSet { subject.send(favorites) }
+    }
+    /// 最後に save() で渡された一覧。save() が呼ばれていなければ空。
+    private(set) var saved: [FavoriteLocation] = []
+    private let subject: CurrentValueSubject<[FavoriteLocation], Never>
+
+    init(favorites: [FavoriteLocation] = []) {
+        self.favorites = favorites
+        self.subject = CurrentValueSubject(favorites)
+    }
+
+    func loadAll() -> [FavoriteLocation] {
+        favorites
+    }
+
+    var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> {
+        subject.eraseToAnyPublisher()
+    }
+
+    func save(_ favorites: [FavoriteLocation]) {
+        saved = favorites
+        self.favorites = favorites
+    }
+}
+
+actor MockNightCalculationService: NightCalculating {
+    private var nightSummaryResponses: [(summary: NightSummary, delayNanoseconds: UInt64)] = []
+    private var upcomingResponses: [(summaries: [NightSummary], delayNanoseconds: UInt64)] = []
+    private var nightSummaryCallCount = 0
+    private var upcomingCallCount = 0
+
+    func enqueueNightSummary(_ summary: NightSummary, delayMilliseconds: UInt64 = 0) {
+        nightSummaryResponses.append((summary, delayMilliseconds * 1_000_000))
+    }
+
+    func enqueueUpcomingNights(_ summaries: [NightSummary], delayMilliseconds: UInt64 = 0) {
+        upcomingResponses.append((summaries, delayMilliseconds * 1_000_000))
+    }
+
+    func calculateNightSummary(
+        date: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) async -> NightSummary {
+        nightSummaryCallCount += 1
+        guard !nightSummaryResponses.isEmpty else {
+            return .placeholder
+        }
+        let response = nightSummaryResponses.removeFirst()
+        if response.delayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: response.delayNanoseconds)
+        }
+        return response.summary
+    }
+
+    func calculateUpcomingNights(
+        from date: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone,
+        days: Int
+    ) async -> [NightSummary] {
+        upcomingCallCount += 1
+        guard !upcomingResponses.isEmpty else {
+            return []
+        }
+        let response = upcomingResponses.removeFirst()
+        if response.delayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: response.delayNanoseconds)
+        }
+        return response.summaries
+    }
+
+    func getNightSummaryCallCount() -> Int {
+        nightSummaryCallCount
+    }
+
+    func getUpcomingCallCount() -> Int {
+        upcomingCallCount
     }
 }

@@ -10,8 +10,8 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
     func test_refreshIfNeeded_skipsFavoritesWithFreshCache() async {
         let favorite = makeFavorite(name: "Tokyo", latitude: 35.0, longitude: 135.0)
         let weatherService = MockTonightWeatherService()
-        let calculationService = MockTonightCalculationService()
-        await calculationService.enqueue([makeNightSummary(date: baseDate, withWindow: true)])
+        let calculationService = MockNightCalculationService()
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
         weatherService.register(favorite: favorite, dates: [baseDate])
 
         var now = baseDate
@@ -32,7 +32,7 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         XCTAssertEqual(weatherService.fetchCount, 1)
 
         // TTL を超えると再計算される。
-        await calculationService.enqueue([makeNightSummary(date: baseDate, withWindow: true)])
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
         now = baseDate.addingTimeInterval(FavoriteTonightScoreProvider.cacheLifetime + 1)
         await provider.refreshIfNeeded(favorites: [favorite])
         XCTAssertEqual(weatherService.fetchCount, 2)
@@ -43,10 +43,10 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
             makeFavorite(name: "Loc\(offset)", latitude: 30.0 + Double(offset), longitude: 135.0)
         }
         let weatherService = MockTonightWeatherService()
-        let calculationService = MockTonightCalculationService()
+        let calculationService = MockNightCalculationService()
         for favorite in favorites {
             weatherService.register(favorite: favorite, dates: [baseDate])
-            await calculationService.enqueue([makeNightSummary(date: baseDate, withWindow: true)])
+            await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
         }
 
         let provider = FavoriteTonightScoreProvider(
@@ -71,10 +71,10 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         let succeeding = makeFavorite(name: "Succeeding", latitude: 36.0, longitude: 136.0)
         let weatherService = MockTonightWeatherService()
         weatherService.register(favorite: succeeding, dates: [baseDate])
-        let calculationService = MockTonightCalculationService()
+        let calculationService = MockNightCalculationService()
         // 1 件目は夜間サマリーが得られず失敗扱いになる。
-        await calculationService.enqueue([])
-        await calculationService.enqueue([makeNightSummary(date: baseDate, withWindow: true)])
+        await calculationService.enqueueUpcomingNights([])
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
 
         let provider = FavoriteTonightScoreProvider(
             weatherService: weatherService,
@@ -183,31 +183,5 @@ private final class MockTonightWeatherService: WeatherProviding {
 
     private func locationKey(latitude: Double, longitude: Double, timeZone: TimeZone) -> String {
         String(format: "%.4f,%.4f|%@", latitude, longitude, timeZone.identifier)
-    }
-}
-
-private actor MockTonightCalculationService: NightCalculating {
-    private var upcomingResponses: [[NightSummary]] = []
-
-    func enqueue(_ summaries: [NightSummary]) {
-        upcomingResponses.append(summaries)
-    }
-
-    func calculateNightSummary(
-        date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) async -> NightSummary {
-        .placeholder
-    }
-
-    func calculateUpcomingNights(
-        from date: Date,
-        location: CLLocationCoordinate2D,
-        timeZone: TimeZone,
-        days: Int
-    ) async -> [NightSummary] {
-        guard !upcomingResponses.isEmpty else { return [] }
-        return upcomingResponses.removeFirst()
     }
 }

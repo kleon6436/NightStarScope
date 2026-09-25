@@ -8,16 +8,20 @@ final class ComparisonControllerTests: XCTestCase {
     func test_refresh_buildsCellsForFavoriteLocations() async {
         let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
         let favorite = FavoriteLocation(name: "Tokyo", latitude: 35.6762, longitude: 139.6503, timeZoneIdentifier: "Asia/Tokyo")
-        let store = MockFavoriteLocationStore(favorites: [favorite])
+        let store = InMemoryFavoriteStore(favorites: [favorite])
         let weatherService = MockComparisonWeatherService()
-        let lightPollutionService = MockComparisonLightPollutionService(bortleByCoordinate: ["35.6762,139.6503": 3.0])
+        let lightPollutionService = MockLightPollutionService(bortleByCoordinate: ["35.6762,139.6503": 3.0])
         let calculationService = MockNightCalculationService()
-        let night1 = makeNightSummary(date: baseDate, withWindow: true)
-        let night2 = makeNightSummary(date: baseDate.addingTimeInterval(86_400), withWindow: true)
+        let night1 = makeNightSummary(date: baseDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
+        let night2 = makeNightSummary(
+            date: baseDate.addingTimeInterval(86_400),
+            withWindow: true,
+            timeZoneIdentifier: "Asia/Tokyo"
+        )
         await calculationService.enqueueUpcomingNights([night1, night2])
         weatherService.resultByLocationKey["35.6762,139.6503|Asia/Tokyo"] = weatherService.makeResult(
             dates: [night1.date, night2.date],
-            timeZone: TimeZone(identifier: "Asia/Tokyo")!
+            timeZone: TestTimeZones.tokyo
         )
 
         let controller = ComparisonController(
@@ -41,17 +45,17 @@ final class ComparisonControllerTests: XCTestCase {
             FavoriteLocation(name: "Dark", latitude: 35.0, longitude: 135.0, timeZoneIdentifier: "Asia/Tokyo"),
             FavoriteLocation(name: "Bright", latitude: 34.0, longitude: 135.0, timeZoneIdentifier: "Asia/Tokyo")
         ]
-        let store = MockFavoriteLocationStore(favorites: favorites)
+        let store = InMemoryFavoriteStore(favorites: favorites)
         let weatherService = MockComparisonWeatherService()
-        let lightPollutionService = MockComparisonLightPollutionService(
+        let lightPollutionService = MockLightPollutionService(
             bortleByCoordinate: ["35.0000,135.0000": 3.0, "34.0000,135.0000": 7.0]
         )
         let calculationService = MockNightCalculationService()
-        let darkNight = makeNightSummary(date: baseDate, withWindow: true)
-        let brightNight = makeNightSummary(date: baseDate, withWindow: true)
+        let darkNight = makeNightSummary(date: baseDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
+        let brightNight = makeNightSummary(date: baseDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
         await calculationService.enqueueUpcomingNights([darkNight])
         await calculationService.enqueueUpcomingNights([brightNight])
-        let tz = TimeZone(identifier: "Asia/Tokyo")!
+        let tz = TestTimeZones.tokyo
         weatherService.resultByLocationKey["35.0000,135.0000|Asia/Tokyo"] = weatherService.makeResult(dates: [darkNight.date], timeZone: tz)
         weatherService.resultByLocationKey["34.0000,135.0000|Asia/Tokyo"] = weatherService.makeResult(dates: [brightNight.date], timeZone: tz)
 
@@ -67,11 +71,46 @@ final class ComparisonControllerTests: XCTestCase {
         XCTAssertEqual(controller.bestCell(for: controller.matrix.dates[0])?.locationID, favorites[0].id)
     }
 
+    func test_refresh_usesReferenceDateForPartialWeatherCoverage() async {
+        let tokyo = TestTimeZones.tokyo
+        let dayStart = ObservationTimeZone.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000), timeZone: tokyo)
+        let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: tokyo)
+
+        func refreshedIndex(referenceDate: Date) async -> StarGazingIndex? {
+            let favorite = FavoriteLocation(name: "Tokyo", latitude: 35.6762, longitude: 139.6503, timeZoneIdentifier: "Asia/Tokyo")
+            let weatherService = MockComparisonWeatherService()
+            weatherService.resultByLocationKey["35.6762,139.6503|Asia/Tokyo"] = WeatherFetchResult(
+                weatherByDate: [weatherService.dateKey(dayStart, timeZone: tokyo): weather],
+                errorMessage: nil,
+                lastModifiedDate: nil,
+                locationKey: "",
+                timeZoneIdentifier: tokyo.identifier
+            )
+            let calculationService = MockNightCalculationService()
+            await calculationService.enqueueUpcomingNights([night])
+            let controller = ComparisonController(
+                favoriteStore: InMemoryFavoriteStore(favorites: [favorite]),
+                weatherService: weatherService,
+                lightPollutionService: MockLightPollutionService(bortleByCoordinate: ["35.6762,139.6503": 3.0]),
+                calculationService: calculationService
+            )
+            controller.dayCount = 1
+            await controller.refresh(referenceDate: referenceDate)
+            return controller.cell(for: favorite.id, date: controller.matrix.dates[0])?.index
+        }
+
+        let todayIndex = await refreshedIndex(referenceDate: dayStart.addingTimeInterval(22 * 3600))
+        let laterIndex = await refreshedIndex(referenceDate: dayStart.addingTimeInterval(3 * 86_400))
+
+        XCTAssertEqual(todayIndex?.hasWeatherData, true)
+        XCTAssertEqual(laterIndex?.hasWeatherData, false)
+    }
+
     func test_refresh_withNoFavorites_keepsMatrixEmpty() async {
         let controller = ComparisonController(
-            favoriteStore: MockFavoriteLocationStore(favorites: []),
+            favoriteStore: InMemoryFavoriteStore(favorites: []),
             weatherService: MockComparisonWeatherService(),
-            lightPollutionService: MockComparisonLightPollutionService(bortleByCoordinate: [:]),
+            lightPollutionService: MockLightPollutionService(bortleByCoordinate: [:]),
             calculationService: MockNightCalculationService()
         )
 
@@ -80,17 +119,6 @@ final class ComparisonControllerTests: XCTestCase {
         XCTAssertTrue(controller.matrix.locations.isEmpty)
         XCTAssertTrue(controller.matrix.cellsByID.isEmpty)
     }
-}
-
-private final class MockFavoriteLocationStore: FavoriteLocationStoring {
-    private let favorites: [FavoriteLocation]
-
-    init(favorites: [FavoriteLocation]) {
-        self.favorites = favorites
-    }
-
-    func loadAll() -> [FavoriteLocation] { favorites }
-    func save(_ favorites: [FavoriteLocation]) {}
 }
 
 @MainActor
@@ -164,27 +192,5 @@ private final class MockComparisonWeatherService: WeatherProviding {
             locationKey: "",
             timeZoneIdentifier: timeZone.identifier
         )
-    }
-}
-
-@MainActor
-private final class MockComparisonLightPollutionService: LightPollutionProviding {
-    @Published var bortleClass: Double?
-    @Published var isLoading = false
-    @Published var fetchFailed = false
-    private let bortleByCoordinate: [String: Double]
-
-    init(bortleByCoordinate: [String: Double]) {
-        self.bortleByCoordinate = bortleByCoordinate
-    }
-
-    var bortleClassPublisher: Published<Double?>.Publisher { $bortleClass }
-    var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
-    var fetchFailedPublisher: Published<Bool>.Publisher { $fetchFailed }
-
-    func fetch(latitude: Double, longitude: Double) async {}
-
-    func fetchBortle(latitude: Double, longitude: Double) async throws -> Double {
-        bortleByCoordinate[String(format: "%.4f,%.4f", latitude, longitude)] ?? 4.0
     }
 }

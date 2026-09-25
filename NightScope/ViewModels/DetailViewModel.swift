@@ -156,7 +156,7 @@ final class DetailViewModel: ObservableObject {
         appController.weatherService.isLoadingPublisher
             .assign(to: &$isWeatherLoading)
 
-        appController.lightPollutionService.$fetchFailed
+        appController.lightPollutionService.fetchFailedPublisher
             .assign(to: &$hasLightPollutionError)
 
         observationModePreference.$mode
@@ -248,9 +248,7 @@ final class DetailViewModel: ObservableObject {
         }
 
         let selectedCoordinate = appController.locationController.selectedLocation
-        let isSameLocation =
-            displayedSummary.location.latitude == selectedCoordinate.latitude
-            && displayedSummary.location.longitude == selectedCoordinate.longitude
+        let isSameLocation = displayedSummary.location.isSameCoordinate(as: selectedCoordinate)
         let isSameTimeZone = displayedSummary.timeZoneIdentifier == selectedTimeZone.identifier
         let isRefreshingDifferentDay = !ObservationTimeZone.isDate(
             displayedSummary.date,

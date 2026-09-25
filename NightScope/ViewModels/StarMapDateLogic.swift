@@ -117,17 +117,6 @@ enum StarMapDateLogic {
         )
     }
 
-    /// 分単位の時刻を、指定日の Date として組み立てる。
-    static func date(bySettingClockMinutes minutes: Double, on date: Date, timeZone: TimeZone) -> Date? {
-        let normalizedMinutes = ((Int(minutes.rounded()) % 1_440) + 1_440) % 1_440
-        return ObservationTimeZone.gregorianCalendar(timeZone: timeZone).date(
-            bySettingHour: normalizedMinutes / 60,
-            minute: normalizedMinutes % 60,
-            second: 0,
-            of: date
-        )
-    }
-
     /// 夜間スライダーの観測日をまたぐ時刻補正を加味して Date を返す。
     static func date(
         bySettingClockMinutes minutes: Double,

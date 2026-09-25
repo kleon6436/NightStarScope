@@ -77,10 +77,8 @@ final class StarMapViewModelTests: XCTestCase {
 
     private func makeStaticComputationDependency() -> StarMapComputationDependency {
         StarMapComputationDependency(
-            computeSnapshot: { latitude, _, _, localSiderealTime, _, _ in
+            computeSnapshot: { _, _, _, _, _, _ in
                 StarMapComputation.Snapshot(
-                    lat: latitude,
-                    lst: localSiderealTime,
                     starPositions: [],
                     sunAltitude: -20,
                     moonAltitude: -10,
@@ -1337,7 +1335,7 @@ final class StarMapViewModelTests: XCTestCase {
             calculationService: MockNightCalculationService()
         )
         let viewModel = StarMapViewModel(appController: appController)
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         let tokyoCalendar = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
         var utcCalendar = Calendar(identifier: .gregorian)
@@ -1378,7 +1376,7 @@ final class StarMapViewModelTests: XCTestCase {
     func test_StarMapViewModel_setObservationDate_preservesDisplayedNightTime() {
         let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
 
         let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12))!
@@ -1514,7 +1512,7 @@ final class StarMapViewModelTests: XCTestCase {
             calculationService: calculationService
         )
         let viewModel = StarMapViewModel(appController: appController)
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let tokyo = TestTimeZones.tokyo
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
         let nextDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 13))!
 

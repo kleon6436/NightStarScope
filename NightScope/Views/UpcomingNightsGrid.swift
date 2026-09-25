@@ -77,7 +77,7 @@ struct UpcomingNightsGrid: View {
     }
 
     private func tableBody(nights: [NightSummary]) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.xs / 2) {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
             headerRow
             LazyVStack(alignment: .leading, spacing: TableMetrics.rowSpacing) {
                 ForEach(Array(nights.enumerated()), id: \.offset) { offset, night in
@@ -135,7 +135,7 @@ struct UpcomingNightsGrid: View {
             weatherCell(presentation: presentation, weather: weather)
             moonCell(night: night)
             indexCell(index: index)
-            Text(presentation.darkStartText ?? TableMetrics.emptyValue)
+            Text(presentation.darkStartText ?? Placeholder.dash)
                 .frame(width: LayoutMacOS.forecastDarkColumn, alignment: .leading)
             Text(viewModel.milkyWayPeakText(night: night))
                 .frame(width: LayoutMacOS.forecastMilkyWayColumn, alignment: .leading)
@@ -169,7 +169,7 @@ struct UpcomingNightsGrid: View {
     }
 
     private func dateCell(presentation: ForecastCardPresentation) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs / 2) {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.xxs) {
             Text(presentation.shortDateLabel)
             if let relative = presentation.relativeNightLabel {
                 Text(relative)
@@ -184,19 +184,19 @@ struct UpcomingNightsGrid: View {
         presentation: ForecastCardPresentation,
         weather: DayWeatherSummary?
     ) -> some View {
-        HStack(spacing: Spacing.xs / 2) {
+        HStack(spacing: Spacing.xxs) {
             Image(systemName: weather?.weatherIconName ?? "questionmark.circle")
                 .foregroundStyle(
                     weather.map { viewModel.weatherIconColor(code: $0.representativeWeatherCode) } ?? .secondary
                 )
                 .accessibilityHidden(true)
-            Text(presentation.weatherDetailText ?? TableMetrics.emptyValue)
+            Text(presentation.weatherDetailText ?? Placeholder.dash)
         }
         .frame(width: LayoutMacOS.forecastWeatherColumn, alignment: .leading)
     }
 
     private func moonCell(night: NightSummary) -> some View {
-        HStack(spacing: Spacing.xs / 2) {
+        HStack(spacing: Spacing.xxs) {
             Image(systemName: night.moonPhaseIcon)
                 .foregroundStyle(Color.indigo)
                 .accessibilityHidden(true)
@@ -211,7 +211,7 @@ struct UpcomingNightsGrid: View {
     }
 
     private func indexCell(index: StarGazingIndex?) -> some View {
-        HStack(spacing: Spacing.xs / 2) {
+        HStack(spacing: Spacing.xxs) {
             tierSquares(index: index)
             if let index {
                 Text(index.label)
@@ -254,7 +254,6 @@ struct UpcomingNightsGrid: View {
         static let tierSquareSize: CGFloat = 9
         static let tierSquareSpacing: CGFloat = 3
         static let tierSquareRadius: CGFloat = 2
-        static let emptyValue = "—"
 
         /// 固定列 + 可変列の最小幅 + 列間スペース + 行の左右パディング。
         static let minimumWidth: CGFloat =

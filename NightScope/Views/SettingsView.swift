@@ -3,7 +3,7 @@ import SwiftUI
 /// アプリ全体の表示設定とデータソース情報をまとめる設定画面。
 struct SettingsView: View {
     @AppStorage("windSpeedUnit") private var windSpeedUnit: String = WindSpeedUnit.kmh.rawValue
-    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
+    @AppStorage(AppSettingsKeys.iCloudSyncEnabled) private var iCloudSyncEnabled: Bool = false
     @ObservedObject private var observationModePreference: ObservationModePreference
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
     @State private var isFavoriteImportPresented = false
