@@ -54,6 +54,7 @@
 		8CFACF7563F0B8AD9197C80A /* GlassEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFE412EE29186D5CBF59B71A /* GlassEffects.swift */; };
 		8D0F53D829623A40DC05AB4F /* StarMapCelestialRenderers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BC3005AA60FCA34272A85CA /* StarMapCelestialRenderers.swift */; };
 		91F8C0F8D6AA500B2E697662 /* iOSTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C88010FC1657FBB75579A3E /* iOSTodayView.swift */; };
+		996860BB4AD413DF7FCD5BC5 /* MacScrollWheelZoomModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19061EF9979D0D74C3E3B5C2 /* MacScrollWheelZoomModifier.swift */; };
 		A0F100000000000000000002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000001 /* Localization.swift */; };
 		A0F100000000000000000003 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000001 /* Localization.swift */; };
 		A0F100000000000000000005 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A0F100000000000000000004 /* Localizable.xcstrings */; };
@@ -290,6 +291,7 @@
 		0C46800E2414065BEED56530 /* DateFormatting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
 		14E29A763046C8DBB1100A11 /* ObservationMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationMode.swift; sourceTree = "<group>"; };
 		14E29A763046C8DBB1100A12 /* StarGazingIndexMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarGazingIndexMode.swift; sourceTree = "<group>"; };
+		19061EF9979D0D74C3E3B5C2 /* MacScrollWheelZoomModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacScrollWheelZoomModifier.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSStarMapSupport.swift; sourceTree = "<group>"; };
 		273AFE7A6097D1B3EF523D16 /* AppIcons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppIcons.swift; sourceTree = "<group>"; };
 		2844F23FF6044140250E5CA9 /* StarMapTimeSliderScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarMapTimeSliderScheduler.swift; sourceTree = "<group>"; };
@@ -516,6 +518,7 @@
 				AA0000000000000000002F17 /* UpcomingNightsGrid.swift */,
 				AA0000000000000000002F13 /* ObservationModeMenu.swift */,
 				49D29ECC147ED54DD9F02540 /* LayoutMacOS.swift */,
+				19061EF9979D0D74C3E3B5C2 /* MacScrollWheelZoomModifier.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -1157,6 +1160,7 @@
 				583A0AA2970A947069C16B9B /* AppFocusedValues.swift in Sources */,
 				D0055AB0CA6D40D6F762A0D7 /* LayoutMacOS.swift in Sources */,
 				4AD3654937530A1F221A60D3 /* PlatformAdaptive.swift in Sources */,
+				996860BB4AD413DF7FCD5BC5 /* MacScrollWheelZoomModifier.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

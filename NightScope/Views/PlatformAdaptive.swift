@@ -89,3 +89,19 @@ private struct HoverTooltipOrTapSheetModifier<Tooltip: View, Sheet: View>: ViewM
         #endif
     }
 }
+
+// MARK: - Scroll Wheel Zoom
+
+extension View {
+    /// macOS ではポインタがビュー上にある間のスクロールホイール量を `onScroll` に渡す。iOS では何もしない。
+    func scrollWheelZoom(
+        isEnabled: Bool,
+        onScroll: @escaping (_ deltaY: Double, _ preciseScrolling: Bool) -> Void
+    ) -> some View {
+        #if os(macOS)
+        modifier(MacScrollWheelZoomModifier(isEnabled: isEnabled, onScroll: onScroll))
+        #else
+        self
+        #endif
+    }
+}

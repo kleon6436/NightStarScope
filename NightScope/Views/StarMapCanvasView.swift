@@ -1,9 +1,4 @@
 import SwiftUI
-#if os(macOS)
-import AppKit
-#elseif os(iOS)
-import UIKit
-#endif
 
 // MARK: - StarMapCanvasView
 
@@ -94,11 +89,6 @@ struct StarMapCanvasView: View {
     // キーボードフォーカス
     @FocusState private var isFocused: Bool
 
-#if os(macOS)
-    @State private var scrollWheelMonitor: Any?
-    @State private var isPointerOverCanvas = false
-#endif
-
     // MARK: Body
 
     var body: some View {
@@ -134,18 +124,17 @@ struct StarMapCanvasView: View {
             .onAppear {
                 viewModel.activatePresentationIfNeeded()
                 onCanvasAppear(size)
-#if os(macOS)
-                installMacScrollWheelMonitor()
-#endif
             }
-            .onDisappear {
-#if os(macOS)
-                removeMacScrollWheelMonitor()
-#endif
+            .scrollWheelZoom(isEnabled: allowsManualFOVAdjustment) { deltaY, preciseScrolling in
+                let updatedFOV = Self.zoomedFOV(
+                    currentFOV: viewModel.fov,
+                    scrollDeltaY: deltaY,
+                    preciseScrolling: preciseScrolling
+                )
+                if updatedFOV != viewModel.fov {
+                    viewModel.fov = updatedFOV
+                }
             }
-#if os(macOS)
-            .onHover { isPointerOverCanvas = $0 }
-#endif
             .onChange(of: size) { _, newSize in
                 onCanvasAppear(newSize)
             }
@@ -638,36 +627,6 @@ struct StarMapCanvasView: View {
                 viewModel.fov = StarMapLayout.clampedFOV(viewModel.fov / value)
             }
     }
-
-#if os(macOS)
-    private func installMacScrollWheelMonitor() {
-        guard scrollWheelMonitor == nil else { return }
-        scrollWheelMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { event in
-            handleMacScrollWheel(event)
-        }
-    }
-
-    private func removeMacScrollWheelMonitor() {
-        guard let scrollWheelMonitor else { return }
-        NSEvent.removeMonitor(scrollWheelMonitor)
-        self.scrollWheelMonitor = nil
-    }
-
-    private func handleMacScrollWheel(_ event: NSEvent) -> NSEvent? {
-        guard isPointerOverCanvas, allowsManualFOVAdjustment else {
-            return event
-        }
-        let updatedFOV = Self.zoomedFOV(
-            currentFOV: viewModel.fov,
-            scrollDeltaY: event.scrollingDeltaY,
-            preciseScrolling: event.hasPreciseScrollingDeltas
-        )
-        if updatedFOV != viewModel.fov {
-            viewModel.fov = updatedFOV
-        }
-        return nil
-    }
-#endif
 
     private func onCanvasAppear(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
