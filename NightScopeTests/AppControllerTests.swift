@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 import CoreLocation
 import MapKit
 @testable import NightScope
@@ -1225,4 +1226,226 @@ final class AppControllerTests: XCTestCase {
         XCTAssertLessThanOrEqual(summaries.count, recorder.count)
         XCTAssertTrue(Set(summaries.map(\.date)).isSubset(of: Set(recorder.dates)))
     }
+}
+
+// MARK: - 前景復帰・定期更新での外部データ再取得
+
+@MainActor
+final class AppControllerForegroundRefreshTests: XCTestCase {
+    private final class Clock {
+        var now = Date(timeIntervalSince1970: 1_790_000_000)
+    }
+
+    /// 待機を外から再開できる sleep の代役。
+    private final class ManualSleeper {
+        private(set) var requestedDelays: [TimeInterval] = []
+        private var continuations: [CheckedContinuation<Void, Error>] = []
+
+        func sleep(_ delay: TimeInterval) async throws {
+            requestedDelays.append(delay)
+            try await withCheckedThrowingContinuation { continuations.append($0) }
+        }
+
+        func resumeFirst() {
+            guard !continuations.isEmpty else { return }
+            continuations.removeFirst().resume()
+        }
+
+        func cancelAll() {
+            let pending = continuations
+            continuations.removeAll()
+            pending.forEach { $0.resume(throwing: CancellationError()) }
+        }
+    }
+
+    func test_sceneActivation_withinInterval_doesNotRefetchWeather() async {
+        let clock = Clock()
+        let weather = CountingWeatherService()
+        let appController = makeAppController(weather: weather, clock: clock)
+
+        appController.onStart(referenceDate: clock.now)
+        await waitUntil { weather.fetchCount == 1 }
+
+        clock.now = clock.now.addingTimeInterval(AppController.automaticRefreshInterval - 60)
+        appController.handleSceneDidBecomeActive(referenceDate: clock.now)
+        await settle()
+
+        XCTAssertEqual(weather.fetchCount, 1, "30 分以内の前景復帰では取り直さない")
+    }
+
+    func test_sceneActivation_afterInterval_refetchesWeather() async {
+        let clock = Clock()
+        let weather = CountingWeatherService()
+        let appController = makeAppController(weather: weather, clock: clock)
+
+        appController.onStart(referenceDate: clock.now)
+        await waitUntil { weather.fetchCount == 1 }
+
+        clock.now = clock.now.addingTimeInterval(AppController.automaticRefreshInterval)
+        appController.handleSceneDidBecomeActive(referenceDate: clock.now)
+
+        await waitUntil { weather.fetchCount == 2 }
+        XCTAssertEqual(weather.fetchCount, 2)
+    }
+
+    func test_sceneActivation_afterFailedFetch_refetchesWithinInterval() async {
+        let clock = Clock()
+        let weather = CountingWeatherService()
+        weather.errorMessageAfterFetch = "オフライン"
+        let appController = makeAppController(weather: weather, clock: clock)
+
+        appController.onStart(referenceDate: clock.now)
+        await waitUntil { weather.fetchCount == 1 && weather.errorMessage != nil }
+
+        weather.errorMessageAfterFetch = nil
+        clock.now = clock.now.addingTimeInterval(60)
+        appController.handleSceneDidBecomeActive(referenceDate: clock.now)
+
+        await waitUntil { weather.fetchCount == 2 }
+        XCTAssertEqual(weather.fetchCount, 2, "取得失敗の直後は 30 分以内でも取り直す")
+    }
+
+    func test_manualRefresh_isNotThrottled() async {
+        let clock = Clock()
+        let weather = CountingWeatherService()
+        let appController = makeAppController(weather: weather, clock: clock)
+
+        appController.onStart(referenceDate: clock.now)
+        await waitUntil { weather.fetchCount == 1 }
+
+        appController.refreshExternalDataInBackground()
+
+        await waitUntil { weather.fetchCount == 2 }
+        XCTAssertEqual(weather.fetchCount, 2, "利用者の明示的な更新は間引かない")
+    }
+
+    func test_foregroundRefresh_refetchesEachInterval_untilStopped() async {
+        let clock = Clock()
+        let weather = CountingWeatherService()
+        let sleeper = ManualSleeper()
+        let appController = makeAppController(weather: weather, clock: clock, sleeper: sleeper)
+
+        appController.onStart(referenceDate: clock.now)
+        await waitUntil { weather.fetchCount == 1 }
+
+        appController.startForegroundRefresh()
+        appController.startForegroundRefresh()  // 二重開始でもループは 1 本
+        await waitUntil { sleeper.requestedDelays.count == 1 }
+        XCTAssertEqual(sleeper.requestedDelays, [AppController.automaticRefreshInterval])
+
+        clock.now = clock.now.addingTimeInterval(AppController.automaticRefreshInterval)
+        sleeper.resumeFirst()
+        await waitUntil { weather.fetchCount == 2 && sleeper.requestedDelays.count == 2 }
+
+        appController.stopForegroundRefresh()
+        sleeper.cancelAll()
+        clock.now = clock.now.addingTimeInterval(AppController.automaticRefreshInterval)
+        await settle()
+
+        XCTAssertEqual(weather.fetchCount, 2, "停止後は取り直さない")
+        XCTAssertEqual(sleeper.requestedDelays.count, 2)
+    }
+
+    // MARK: - Helpers
+
+    private func makeAppController(
+        weather: CountingWeatherService,
+        clock: Clock,
+        sleeper: ManualSleeper? = nil
+    ) -> AppController {
+        let tokyo = TestTimeZones.tokyo
+        let storage = AppControllerTests.InMemoryLocationStorage()
+        storage.latitude = 35.6
+        storage.longitude = 139.7
+        storage.timeZoneIdentifier = tokyo.identifier
+        let locationController = LocationController(
+            storage: storage,
+            searchService: AppControllerTests.NoopLocationSearchService(),
+            locationNameResolver: AppControllerTests.FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "東京", timeZoneIdentifier: tokyo.identifier)
+            )
+        )
+        return AppController(
+            locationController: locationController,
+            weatherService: weather,
+            calculationService: MockNightCalculationService(),
+            now: { clock.now },
+            foregroundRefreshSleep: { delay in
+                if let sleeper {
+                    try await sleeper.sleep(delay)
+                } else {
+                    try await Task.sleep(for: .seconds(delay))
+                }
+            }
+        )
+    }
+
+    /// 非同期で走る更新タスクに実行機会を与える。
+    private func settle() async {
+        for _ in 0..<20 { await Task.yield() }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+    }
+
+    private func waitUntil(
+        timeout: TimeInterval = 1.0,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("条件を満たすまでにタイムアウトしました", file: file, line: line)
+    }
+}
+
+/// `fetchWeather` の呼び出し回数だけを数える天気サービス。
+@MainActor
+private final class CountingWeatherService: WeatherProviding {
+    @Published var weatherByDate: [String: DayWeatherSummary] = [:]
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    @Published var currentTemperatureCelsius: Double?
+
+    private(set) var fetchCount = 0
+    /// 取得後に設定するエラー文言。nil なら取得成功として扱う。
+    var errorMessageAfterFetch: String?
+
+    var weatherByDatePublisher: Published<[String: DayWeatherSummary]>.Publisher { $weatherByDate }
+    var isLoadingPublisher: AnyPublisher<Bool, Never> { $isLoading.eraseToAnyPublisher() }
+    var errorMessagePublisher: AnyPublisher<String?, Never> { $errorMessage.eraseToAnyPublisher() }
+    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { $currentTemperatureCelsius.eraseToAnyPublisher() }
+
+    func fetchWeather(latitude: Double, longitude: Double, timeZone: TimeZone) async {
+        fetchCount += 1
+        errorMessage = errorMessageAfterFetch
+    }
+
+    func summary(for date: Date) -> DayWeatherSummary? { nil }
+
+    func fetchWeatherSnapshot(latitude: Double, longitude: Double, timeZone: TimeZone) async -> WeatherFetchResult {
+        WeatherFetchResult(
+            weatherByDate: [:],
+            errorMessage: nil,
+            lastModifiedDate: nil,
+            locationKey: "",
+            timeZoneIdentifier: timeZone.identifier
+        )
+    }
+
+    func applyFetchResult(_ result: WeatherFetchResult) {}
+
+    func summary(for date: Date, from weatherByDate: [String: DayWeatherSummary], timeZone: TimeZone) -> DayWeatherSummary? {
+        nil
+    }
+
+    func isForecastOutOfRange(for date: Date, in weatherByDate: [String: DayWeatherSummary], timeZone: TimeZone) -> Bool {
+        false
+    }
+
+    func dateKey(_ date: Date, timeZone: TimeZone) -> String { "" }
+
+    func prepareForLocationChange(latitude: Double, longitude: Double, timeZone: TimeZone) {}
 }

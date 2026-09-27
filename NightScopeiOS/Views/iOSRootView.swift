@@ -55,6 +55,7 @@ struct iOSRootView: View {
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
                 hasHandledCurrentActiveState = false
+                rootStore.appController.stopForegroundRefresh()
                 return
             }
             handleActiveSceneIfNeeded()
@@ -71,6 +72,7 @@ struct iOSRootView: View {
         guard !hasHandledCurrentActiveState else { return }
         hasHandledCurrentActiveState = true
         rootStore.appController.handleSceneDidBecomeActive()
+        rootStore.appController.startForegroundRefresh()
     }
 }
 

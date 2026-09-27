@@ -6,6 +6,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var rootStore: AppRootStore
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @Environment(\.scenePhase) private var scenePhase
 
     @MainActor
     init(dependencies: AppRootDependencies? = nil) {
@@ -44,6 +45,19 @@ struct ContentView: View {
         .frame(minWidth: LayoutMacOS.windowMinWidth, minHeight: LayoutMacOS.windowMinHeight)
         .onAppear {
             rootStore.appController.onStart()
+            // 起動時点ですでに前面なら onChange が来ないため、ここで定期更新を始める
+            if scenePhase == .active {
+                rootStore.appController.startForegroundRefresh()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // 前面に戻ったら日付と天気を追従させ、前面にある間は定期更新を回す
+            if newPhase == .active {
+                rootStore.appController.handleSceneDidBecomeActive()
+                rootStore.appController.startForegroundRefresh()
+            } else {
+                rootStore.appController.stopForegroundRefresh()
+            }
         }
         .focusedValue(\.selectedDate, selectedDateBinding)
         .focusedValue(\.observationTimeZone, rootStore.detailViewModel.selectedTimeZone)

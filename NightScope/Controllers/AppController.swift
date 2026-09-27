@@ -98,6 +98,12 @@ final class AppController: ObservableObject {
     private var upcomingTask: Task<Void, Never>?
     private var locationTask: Task<Void, Never>?
     private var externalDataTask: Task<Void, Never>?
+    /// 前面にある間、一定間隔で外部データを取り直すタスク
+    private var foregroundRefreshTask: Task<Void, Never>?
+    /// 定期更新の待機処理（テストで差し替える）
+    private let foregroundRefreshSleep: (TimeInterval) async throws -> Void
+    /// 最後に外部データを取り直した時刻と観測地。自動更新の間引きに使う。
+    private var lastExternalRefresh: (date: Date, context: SelectedLocationContext)?
     private var cancellables: Set<AnyCancellable> = []
     private var dashboardCommandBridgeCancellable: AnyCancellable?
     private var dashboardSelectionDateHandler: ((Date) -> Void)?
@@ -121,12 +127,16 @@ final class AppController: ObservableObject {
          favoriteDefaults: UserDefaults = .standard,
          kvStore: any UbiquitousKeyValueStoring = NSUbiquitousKeyValueStore.default,
          notificationCenter: NotificationCenter = .default,
-         now: @escaping () -> Date = Date.init) {
+         now: @escaping () -> Date = Date.init,
+         foregroundRefreshSleep: @escaping (TimeInterval) async throws -> Void = {
+             try await Task.sleep(for: .seconds($0))
+         }) {
         let initStart = ContinuousClock.now
         self.locationController = locationController ?? LocationController()
         self.weatherService = weatherService ?? WeatherKitService()
         self.starGazingIndexBuilder = StarGazingIndexBuilder(weatherService: self.weatherService)
         self.now = now
+        self.foregroundRefreshSleep = foregroundRefreshSleep
         self.lightPollutionService = lightPollutionService ?? LightPollutionService()
         let favorites = FavoritesComposition.make(
             defaults: favoriteDefaults,
@@ -222,9 +232,49 @@ final class AppController: ObservableObject {
         }
 
         recalculateUpcoming(referenceDate: referenceDate)
-        if refreshExternalData {
+        if refreshExternalData && shouldAutomaticallyRefreshExternalData() {
             refreshExternalDataInBackground()
         }
+    }
+
+    // MARK: - Foreground Refresh
+
+    /// 自動更新（前景復帰・定期更新）で外部データを取り直す最短間隔。
+    /// WeatherKit の呼び出しを抑えつつ、現在気温の表示上限（90 分）より前に入れ替える。
+    static let automaticRefreshInterval: TimeInterval = 30 * 60
+
+    /// 前面にある間、`automaticRefreshInterval` ごとに前景復帰と同じ更新を行う。
+    /// ウィンドウを開いたままでは前景復帰が起きず、日付切り替えや天気の再取得が止まるため。
+    func startForegroundRefresh() {
+        guard foregroundRefreshTask == nil else { return }
+        // sleep を先に取り出し、待機中に自身を保持しない
+        let sleep = foregroundRefreshSleep
+        foregroundRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await sleep(Self.automaticRefreshInterval)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, let self else { return }
+                self.handleSceneDidBecomeActive(referenceDate: self.now())
+            }
+        }
+    }
+
+    /// 前面から外れたら定期更新を止める。
+    func stopForegroundRefresh() {
+        foregroundRefreshTask?.cancel()
+        foregroundRefreshTask = nil
+    }
+
+    /// 同じ観測地を `automaticRefreshInterval` 以内に取り直していれば自動更新を見送る。
+    /// 直前の天気取得が失敗していれば、回線復帰後の前景復帰ですぐ取り直せるよう間引かない。
+    private func shouldAutomaticallyRefreshExternalData() -> Bool {
+        guard weatherService.errorMessage == nil else { return true }
+        guard let lastExternalRefresh,
+              isSelectedLocationContext(lastExternalRefresh.context) else { return true }
+        return now().timeIntervalSince(lastExternalRefresh.date) >= Self.automaticRefreshInterval
     }
 
     // MARK: - Startup Stage 2
@@ -268,6 +318,7 @@ final class AppController: ObservableObject {
     func refreshExternalDataInBackground() {
         externalDataTask?.cancel()
         let context = selectedLocationContext
+        lastExternalRefresh = (now(), context)
         externalDataTask = Task { [weak self] in
             guard let self else { return }
             await self.refreshExternalData(using: context)
@@ -595,6 +646,7 @@ final class AppController: ObservableObject {
         // 古い観測地のデータは何も反映しない。読み込み中フラグは取り直す側が下ろす。
         guard disposition != .discard else { return }
         isApplyingLocationRefresh = true
+        lastExternalRefresh = (now(), selectedLocationContext)
         weatherService.applyFetchResult(payload.weatherResult)
         lightPollutionService.applyFetchResult(payload.lightPollutionResult)
         performObservationStateBatchUpdate {
