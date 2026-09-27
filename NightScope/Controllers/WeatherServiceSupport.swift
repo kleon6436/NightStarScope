@@ -11,6 +11,10 @@ struct WeatherFetchResult {
     let lastModifiedDate: Date?
     let locationKey: String
     let timeZoneIdentifier: String
+    /// 取得時点の現在気温（℃）。取得失敗時は nil。
+    var currentTemperatureCelsius: Double? = nil
+    /// 現在気温の観測時刻（`CurrentWeather.date`）。
+    var currentObservedAt: Date? = nil
 }
 
 /// 天気データ取得の失敗理由を利用者向け文言へ変換する。
@@ -46,6 +50,9 @@ protocol WeatherProviding: AnyObject, ObservableObject, Sendable {
     var isLoadingPublisher: AnyPublisher<Bool, Never> { get }
     var errorMessage: String? { get }
     var errorMessagePublisher: AnyPublisher<String?, Never> { get }
+    /// 観測地の現在気温（℃）。未取得・古すぎる場合は nil。
+    var currentTemperatureCelsius: Double? { get }
+    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { get }
 
     func fetchWeather(latitude: Double, longitude: Double, timeZone: TimeZone) async
     func summary(for date: Date) -> DayWeatherSummary?

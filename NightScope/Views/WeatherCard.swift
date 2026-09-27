@@ -82,7 +82,7 @@ struct NightWeatherCard: View {
                     .font(detailFont.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                Text(viewModel.formatWindSpeed(weather.avgWindSpeed))
+                Text(viewModel.formatWindAndTemperature(wind: weather.avgWindSpeed, weather: weather))
                     .font(detailFont)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

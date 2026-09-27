@@ -61,6 +61,10 @@ final class DetailViewModel: ObservableObject {
     @Published private(set) var selectedTimeZone: TimeZone
     @Published private(set) var isCurrentWeatherForecastOutOfRange = false
     @Published private(set) var isCurrentWeatherCoverageIncomplete = false
+    /// ヘッダーに添える観測地の現在気温（例: `18°`）。未取得・古い場合は nil。
+    @Published private(set) var currentTemperatureText: String?
+    /// 現在気温の読み上げ文。`currentTemperatureText` と同時に更新する。
+    @Published private(set) var currentTemperatureAccessibilityLabel: String?
 
     private let appController: AppController
     private let observationModePreference: ObservationModePreference
@@ -155,6 +159,15 @@ final class DetailViewModel: ObservableObject {
 
         appController.weatherService.isLoadingPublisher
             .assign(to: &$isWeatherLoading)
+
+        appController.weatherService.currentTemperaturePublisher
+            .sink { [weak self] celsius in
+                self?.currentTemperatureAccessibilityLabel = celsius.map {
+                    L10n.format("現在の気温 %@", TemperatureFormat.spoken($0))
+                }
+                self?.currentTemperatureText = celsius.map { TemperatureFormat.short($0) }
+            }
+            .store(in: &cancellables)
 
         appController.lightPollutionService.fetchFailedPublisher
             .assign(to: &$hasLightPollutionError)

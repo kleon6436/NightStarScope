@@ -191,6 +191,10 @@ struct UpcomingNightsGrid: View {
                 )
                 .accessibilityHidden(true)
             Text(presentation.weatherDetailText ?? Placeholder.dash)
+            if let temperatureText = presentation.temperatureRangeText {
+                Text(temperatureText)
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(width: LayoutMacOS.forecastWeatherColumn, alignment: .leading)
     }

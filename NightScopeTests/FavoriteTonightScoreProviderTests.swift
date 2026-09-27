@@ -108,6 +108,7 @@ private final class MockTonightWeatherService: WeatherProviding {
     @Published var weatherByDate: [String: DayWeatherSummary] = [:]
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var currentTemperatureCelsius: Double?
 
     private(set) var fetchCount = 0
     private var resultByLocationKey: [String: WeatherFetchResult] = [:]
@@ -115,6 +116,7 @@ private final class MockTonightWeatherService: WeatherProviding {
     var weatherByDatePublisher: Published<[String: DayWeatherSummary]>.Publisher { $weatherByDate }
     var isLoadingPublisher: AnyPublisher<Bool, Never> { $isLoading.eraseToAnyPublisher() }
     var errorMessagePublisher: AnyPublisher<String?, Never> { $errorMessage.eraseToAnyPublisher() }
+    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { $currentTemperatureCelsius.eraseToAnyPublisher() }
 
     func register(favorite: FavoriteLocation, dates: [Date]) {
         let timeZone = TimeZone(identifier: favorite.timeZoneIdentifier) ?? .current

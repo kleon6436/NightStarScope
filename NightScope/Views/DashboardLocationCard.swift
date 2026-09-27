@@ -232,9 +232,14 @@ private struct DashboardDayColumn: View {
         return L10n.percent(Double(illumination))
     }
 
+    /// 夜間最低気温（例: `6°`）。天気データのないセルでは nil。
+    private var lowTemperatureText: String? {
+        guard let low = cell?.weather?.nightTemperatureRange?.lowerBound else { return nil }
+        return TemperatureFormat.short(low)
+    }
+
     private var weatherDescription: String {
-        guard let weather = cell?.weather else { return L10n.tr("不明") }
-        return weather.weatherLabel
+        DashboardViewModel.weatherAccessibilityDescription(for: cell?.weather)
     }
 
     private var accessibilityLabel: String {
@@ -266,10 +271,20 @@ private struct DashboardDayColumn: View {
 
             scoreButton
 
-            Image(systemName: weatherSymbol)
-                .font(.caption)
-                .foregroundStyle(weatherColor)
-                .accessibilityHidden(true)
+            // 読み上げはセル全体のラベル（weatherDescription）に含めるため、ここは隠す
+            HStack(spacing: Spacing.xxs) {
+                Image(systemName: weatherSymbol)
+                    .font(.caption)
+                    .foregroundStyle(weatherColor)
+                // 幅が狭いため防寒判断に効く夜間最低気温だけを添える
+                if let lowTemperatureText {
+                    Text(lowTemperatureText)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .accessibilityHidden(true)
 
             Text(moonText)
                 .font(.caption2)

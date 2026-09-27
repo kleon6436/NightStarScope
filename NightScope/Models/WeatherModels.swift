@@ -36,6 +36,7 @@ struct DayWeatherSummary {
         let dewpointSpreadSum: Double
         let maxPrecipitation: Double
         let minTemperature: Double
+        let maxTemperature: Double
         let maxWeatherCode: Int
 
         let visibilitySum: Double
@@ -52,6 +53,7 @@ struct DayWeatherSummary {
             var dewpointSpreadSum = 0.0
             var maxPrecipitation = -Double.infinity
             var minTemperature = Double.infinity
+            var maxTemperature = -Double.infinity
             var maxWeatherCode = 0
 
             var visibilitySum = 0.0
@@ -68,6 +70,7 @@ struct DayWeatherSummary {
                 dewpointSpreadSum += (hour.temperatureCelsius - hour.dewpointCelsius)
                 maxPrecipitation = max(maxPrecipitation, hour.precipitationMM)
                 minTemperature = min(minTemperature, hour.temperatureCelsius)
+                maxTemperature = max(maxTemperature, hour.temperatureCelsius)
                 maxWeatherCode = max(maxWeatherCode, hour.weatherCode)
 
                 if let visibility = hour.visibilityMeters {
@@ -90,6 +93,7 @@ struct DayWeatherSummary {
                 dewpointSpreadSum: dewpointSpreadSum,
                 maxPrecipitation: maxPrecipitation,
                 minTemperature: minTemperature,
+                maxTemperature: maxTemperature,
                 maxWeatherCode: maxWeatherCode,
                 visibilitySum: visibilitySum,
                 visibilityCount: visibilityCount,
@@ -129,6 +133,17 @@ struct DayWeatherSummary {
     var minTemperature: Double {
         guard !nighttimeHours.isEmpty else { return 0 }
         return aggregates.minTemperature
+    }
+
+    var maxTemperature: Double {
+        guard !nighttimeHours.isEmpty else { return 0 }
+        return aggregates.maxTemperature
+    }
+
+    /// 夜間の最低〜最高気温（℃）。データなし時は nil（`minTemperature` のように 0 へ丸めない）。
+    var nightTemperatureRange: ClosedRange<Double>? {
+        guard !nighttimeHours.isEmpty else { return nil }
+        return aggregates.minTemperature...aggregates.maxTemperature
     }
 
     /// 気温と露点の平均差（大気の透明度の代理指標・結露リスク評価）

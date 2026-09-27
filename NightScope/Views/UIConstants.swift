@@ -90,8 +90,8 @@ enum LayoutMacOS {
     static let forecastDateColumn: CGFloat = 150
     /// 予報テーブル「雲量」列の幅
     static let forecastCloudColumn: CGFloat = 64
-    /// 予報テーブル「天気」列の幅
-    static let forecastWeatherColumn: CGFloat = 140
+    /// 予報テーブル「天気」列の幅（天気ラベル + 夜間の最高/最低気温が収まる幅）
+    static let forecastWeatherColumn: CGFloat = 190
     /// 予報テーブル「月」列の幅（月相名 + 月明かり注記が英語でも収まる幅）
     static let forecastMoonColumn: CGFloat = 210
     /// 予報テーブル「暗夜開始」列の幅

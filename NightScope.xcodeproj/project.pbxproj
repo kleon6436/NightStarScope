@@ -266,6 +266,7 @@
 		TN0000000000000000000C04 /* IndexBreakdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TN0000000000000000000F04 /* IndexBreakdownView.swift */; };
 		TN0000000000000000000C05 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = TN0000000000000000000F05 /* MetricCard.swift */; };
 		TN0000000000000000000T06 /* TonightViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TN0000000000000000000F06 /* TonightViewsTests.swift */; };
+		TP0000000000000000000T01 /* TemperaturePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TP0000000000000000000F01 /* TemperaturePresentationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -441,6 +442,7 @@
 		TN0000000000000000000F04 /* IndexBreakdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexBreakdownView.swift; sourceTree = "<group>"; };
 		TN0000000000000000000F05 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
 		TN0000000000000000000F06 /* TonightViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonightViewsTests.swift; sourceTree = "<group>"; };
+		TP0000000000000000000F01 /* TemperaturePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemperaturePresentationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -678,6 +680,7 @@
 				AA000000000000000000TF12 /* DetailPresentationViewModelTests.swift */,
 				AA000000000000000000TF61 /* TonightPresentationTests.swift */,
 				TN0000000000000000000F06 /* TonightViewsTests.swift */,
+				TP0000000000000000000F01 /* TemperaturePresentationTests.swift */,
 				AA000000000000000000TF13 /* UpcomingNightsGridViewModelTests.swift */,
 				0C21A9833046DD44B1100A13 /* ComparisonControllerTests.swift */,
 				E9018ABBBB27AE209C8B4401 /* FavoriteLocationTests.swift */,
@@ -1136,6 +1139,7 @@
 				AA000000000000000000TB12 /* DetailPresentationViewModelTests.swift in Sources */,
 				AA000000000000000000TB61 /* TonightPresentationTests.swift in Sources */,
 				TN0000000000000000000T06 /* TonightViewsTests.swift in Sources */,
+				TP0000000000000000000T01 /* TemperaturePresentationTests.swift in Sources */,
 				AA000000000000000000TB13 /* UpcomingNightsGridViewModelTests.swift in Sources */,
 				0C21A9833046DD44B1100A03 /* ComparisonControllerTests.swift in Sources */,
 				DDB100000000000000002007 /* NightScopeTests/DashboardViewModelTests.swift in Sources */,

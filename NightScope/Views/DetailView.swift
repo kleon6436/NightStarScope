@@ -172,6 +172,13 @@ struct DetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            if let temperatureText = viewModel.currentTemperatureText {
+                Text(temperatureText)
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .accessibilityLabel(viewModel.currentTemperatureAccessibilityLabel ?? temperatureText)
+            }
             if viewModel.isCalculating {
                 ProgressView()
                     .controlSize(.small)

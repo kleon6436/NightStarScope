@@ -389,7 +389,8 @@ final class NightWeatherCardViewModelTests: XCTestCase {
             vm.formatWindSpeed(weather.avgWindSpeed)
         )
         // makeDayWeatherSummary uses temp=15, dewpoint=2 → spread=13 → .low risk
-        let expected = base + "。\(vm.dewRiskAccessibilityLabel(weather))"
+        let temperature = TemperatureFormat.accessibilityRange(high: 15, low: 15)
+        let expected = base + "。\(temperature)" + "。\(vm.dewRiskAccessibilityLabel(weather))"
         XCTAssertEqual(desc, expected)
     }
 }

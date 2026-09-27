@@ -24,6 +24,56 @@ enum WeatherPresentation {
     }
 }
 
+// MARK: - Temperature Format
+
+/// 気温（℃）を端末ロケールの温度単位で短く整形する。
+/// 単位記号は省き `18°` の形にする。℃/℉ の選択はロケール（ユーザーの温度単位設定を含む）に従う。
+enum TemperatureFormat {
+    /// 単位記号なしの短い表記（例: `18°`、en_US では `64°`）。
+    static func short(_ celsius: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        let converted = localized(celsius, locale: locale)
+        let formatter = MeasurementFormatter()
+        formatter.locale = locale
+        formatter.unitOptions = .temperatureWithoutUnit
+        formatter.numberFormatter.maximumFractionDigits = 0
+        return formatter.string(from: converted)
+    }
+
+    /// 夜間の「最高/最低」表記（例: `12°/6°`）。
+    static func range(high: Double, low: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        "\(short(high, locale: locale))/\(short(low, locale: locale))"
+    }
+
+    /// VoiceOver 向けに単位名まで含めた表記（例: `18 degrees Celsius`）。
+    static func spoken(_ celsius: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        let converted = localized(celsius, locale: locale)
+        let formatter = MeasurementFormatter()
+        formatter.locale = locale
+        formatter.unitOptions = .providedUnit
+        formatter.unitStyle = .long
+        formatter.numberFormatter.maximumFractionDigits = 0
+        return formatter.string(from: converted)
+    }
+
+    /// 夜間の最高・最低気温の読み上げ文。
+    static func accessibilityRange(high: Double, low: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        L10n.format("夜間の気温 最高 %@、最低 %@", spoken(high, locale: locale), spoken(low, locale: locale))
+    }
+
+    /// ロケールの温度単位へ換算し、整数に丸める。
+    /// MeasurementFormatter は `.temperatureWithoutUnit` で単位換算をしないため自前で換算する。
+    /// 先に丸めることで `-0°` や偶数丸め（12.5 → 12）を避ける。
+    private static func localized(_ celsius: Double, locale: Locale) -> Measurement<UnitTemperature> {
+        let unit = UnitTemperature(forLocale: locale)
+        let rounded = Measurement(value: celsius, unit: UnitTemperature.celsius)
+            .converted(to: unit)
+            .value
+            .rounded()
+        // -0.0 を 0 に揃える
+        return Measurement(value: rounded == 0 ? 0 : rounded, unit: unit)
+    }
+}
+
 // MARK: - Forecast Card Presentation
 
 /// 予報カードに表示する短縮ラベルや補助文をまとめる。
@@ -55,6 +105,12 @@ struct ForecastCardPresentation {
     var cloudCoverText: String {
         guard isReliableWeather, let weather else { return "—" }
         return L10n.percent(weather.avgCloudCover)
+    }
+
+    /// 夜間の最高/最低気温（例: `12°/6°`）。夜間を通した予報がない夜は nil。
+    var temperatureRangeText: String? {
+        guard isReliableWeather, let range = weather?.nightTemperatureRange else { return nil }
+        return TemperatureFormat.range(high: range.upperBound, low: range.lowerBound)
     }
 
     var weatherDetailText: String? {

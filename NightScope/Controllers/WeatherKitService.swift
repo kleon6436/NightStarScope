@@ -34,6 +34,9 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     var isLoadingPublisher: AnyPublisher<Bool, Never> { $isLoading.eraseToAnyPublisher() }
     @Published var errorMessage: String?
     var errorMessagePublisher: AnyPublisher<String?, Never> { $errorMessage.eraseToAnyPublisher() }
+    /// 観測地の現在気温（℃）。観測から `currentTemperatureMaxAge` を超えた値は公開しない。
+    @Published var currentTemperatureCelsius: Double?
+    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { $currentTemperatureCelsius.eraseToAnyPublisher() }
 
     // MARK: - Cache / state
 
@@ -43,8 +46,29 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     private let cacheTTLSeconds: TimeInterval = 3600
     private var cacheTimestamps: [String: Date] = [:]
     private var weatherByDateByLocation: [String: [String: DayWeatherSummary]] = [:]
+    /// 地点ごとの現在気温。予報キャッシュ（1 時間 TTL）に相乗りするため観測時刻も保持する。
+    private var currentByLocation: [String: (celsius: Double, observedAt: Date)] = [:]
+    /// 現在気温として表示してよい観測からの経過時間の上限
+    private let currentTemperatureMaxAge: TimeInterval = 90 * 60
+    /// 現在時刻の取得元（テストで差し替える）
+    private let now: () -> Date
+    /// 現在気温の失効まで待つ処理（テストで差し替える）
+    private let sleep: (TimeInterval) async throws -> Void
+    /// 表示中の現在気温を観測から `currentTemperatureMaxAge` 経過時点で消すタスク。
+    /// 再取得が起きない間（mac はウィンドウを開いたまま等）も古い値を「現在」と見せないため。
+    private var currentTemperatureExpiryTask: Task<Void, Never>?
     private var activeLocationKey: String?
     private var activeTimeZoneIdentifier = TimeZone.current.identifier
+
+    // MARK: - Init
+
+    init(
+        now: @escaping () -> Date = { Date() },
+        sleep: @escaping (TimeInterval) async throws -> Void = { try await Task.sleep(for: .seconds($0)) }
+    ) {
+        self.now = now
+        self.sleep = sleep
+    }
 
     // MARK: - WeatherProviding: fetch
 
@@ -74,12 +98,15 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
            Date().timeIntervalSince(timestamp) < cacheTTLSeconds,
            let cachedData = weatherByDateByLocation[locationKey],
            !cachedData.isEmpty {
+            let cachedCurrent = currentByLocation[locationKey]
             return WeatherFetchResult(
                 weatherByDate: cachedData,
                 errorMessage: nil,
                 lastModifiedDate: nil,
                 locationKey: locationKey,
-                timeZoneIdentifier: timeZone.identifier
+                timeZoneIdentifier: timeZone.identifier,
+                currentTemperatureCelsius: cachedCurrent?.celsius,
+                currentObservedAt: cachedCurrent?.observedAt
             )
         }
         return await loadWeather(
@@ -96,8 +123,13 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         if result.errorMessage == nil && !result.weatherByDate.isEmpty {
             cacheTimestamps[result.locationKey] = Date()
         }
+        // 取得失敗時は既存の値を残し、鮮度判定で古いものだけ落とす
+        if let celsius = result.currentTemperatureCelsius {
+            currentByLocation[result.locationKey] = (celsius, result.currentObservedAt ?? now())
+        }
         weatherByDate = result.weatherByDate
         errorMessage = result.errorMessage
+        publishCurrentTemperature(for: result.locationKey)
         // WeatherKit は lastModifiedDate を提供しないため省略
         evictCacheIfNeeded()
         isLoading = false
@@ -181,6 +213,7 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         activeLocationKey = context.locationKey
         activeTimeZoneIdentifier = context.timeZone.identifier
         weatherByDate = weatherByDateByLocation[activeLocationKey ?? ""] ?? [:]
+        publishCurrentTemperature(for: context.locationKey)
         errorMessage = nil
         isLoading = false
     }
@@ -191,7 +224,36 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         for key in keysToEvict.prefix(weatherByDateByLocation.count - maxCachedLocations) {
             weatherByDateByLocation.removeValue(forKey: key)
             cacheTimestamps.removeValue(forKey: key)
+            currentByLocation.removeValue(forKey: key)
         }
+    }
+
+    /// 地点の現在気温を公開し、観測から `currentTemperatureMaxAge` 経過した時点で消す予約を入れ直す。
+    private func publishCurrentTemperature(for locationKey: String) {
+        currentTemperatureExpiryTask?.cancel()
+        currentTemperatureExpiryTask = nil
+        currentTemperatureCelsius = freshCurrentTemperature(for: locationKey)
+        guard currentTemperatureCelsius != nil, let reading = currentByLocation[locationKey] else { return }
+        let remaining = currentTemperatureMaxAge - now().timeIntervalSince(reading.observedAt)
+        // sleep を先に取り出し、待機中にサービス自身を保持しない
+        let sleep = self.sleep
+        currentTemperatureExpiryTask = Task { [weak self] in
+            try? await sleep(remaining)
+            guard !Task.isCancelled, let self else { return }
+            // 待機中に同じ観測値が表示され続けている場合だけ消す
+            guard self.activeLocationKey == locationKey,
+                  self.currentByLocation[locationKey]?.observedAt == reading.observedAt else { return }
+            self.currentTemperatureCelsius = nil
+        }
+    }
+
+    /// 観測から `currentTemperatureMaxAge` 以内の現在気温だけを返す。
+    private func freshCurrentTemperature(for locationKey: String) -> Double? {
+        guard let reading = currentByLocation[locationKey],
+              now().timeIntervalSince(reading.observedAt) <= currentTemperatureMaxAge else {
+            return nil
+        }
+        return reading.celsius
     }
 
     // MARK: - WeatherKit fetch
@@ -207,15 +269,16 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
             // WeatherKit.WeatherService は module 名を明示して参照する
             // .hourly だけでは 24 時間しか取得できないため、開始日と終了日を明示して
             // upcomingNightCount+1 日分（夜間が翌日にまたがる余裕を含む）を要求する
-            let now = Date()
+            let requestTime = Date()
             let forecastEndDate = Calendar.current.date(
                 byAdding: .day,
                 value: ForecastConfiguration.upcomingNightCount + 1,
-                to: now
-            ) ?? now.addingTimeInterval(Double(ForecastConfiguration.upcomingNightCount + 1) * 24 * 3600)
-            let hourlyForecast = try await WeatherKit.WeatherService.shared.weather(
+                to: requestTime
+            ) ?? requestTime.addingTimeInterval(Double(ForecastConfiguration.upcomingNightCount + 1) * 24 * 3600)
+            // 現在の天気も同じリクエストに同梱し、API 呼び出し回数を増やさない
+            let (currentWeather, hourlyForecast) = try await WeatherKit.WeatherService.shared.weather(
                 for: clLocation,
-                including: .hourly(startDate: now, endDate: forecastEndDate)
+                including: .current, .hourly(startDate: requestTime, endDate: forecastEndDate)
             )
 
             if Task.isCancelled {
@@ -243,7 +306,9 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
                 errorMessage: nil,
                 lastModifiedDate: nil,
                 locationKey: context.locationKey,
-                timeZoneIdentifier: context.timeZone.identifier
+                timeZoneIdentifier: context.timeZone.identifier,
+                currentTemperatureCelsius: currentWeather.temperature.converted(to: .celsius).value,
+                currentObservedAt: currentWeather.date
             )
         } catch {
             let serviceError = WeatherServiceError.networkError(underlying: error)

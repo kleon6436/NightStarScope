@@ -291,6 +291,13 @@ final class DashboardViewModel: ObservableObject {
         return matrix.cellsByID[ComparisonCell.makeID(locationID: locationID, date: matrixDate)]
     }
 
+    /// セルの読み上げに使う天気の説明。見た目で添えている夜間最低気温もここで読み上げる。
+    static func weatherAccessibilityDescription(for weather: DayWeatherSummary?) -> String {
+        guard let weather else { return L10n.tr("不明") }
+        guard let low = weather.nightTemperatureRange?.lowerBound else { return weather.weatherLabel }
+        return L10n.format("%@、夜間の最低気温 %@", weather.weatherLabel, TemperatureFormat.spoken(low))
+    }
+
     private func scoreSum(for location: FavoriteLocation) -> Int {
         matrix.dates.reduce(0) { partialResult, date in
             partialResult + (cell(for: location.id, date: date)?.index?.score ?? 0)

@@ -54,6 +54,17 @@ final class NightWeatherCardViewModel: ObservableObject {
         windSpeedUnit.format(value)
     }
 
+    /// 風速行に夜間の最高/最低気温を連結する（例: `風速 8 km/h ・ 12°/6°`）。行数を増やさないため 1 行にまとめる。
+    func formatWindAndTemperature(wind: Double, weather: DayWeatherSummary) -> String {
+        let windText = formatWindSpeed(wind)
+        guard let range = weather.nightTemperatureRange else { return windText }
+        return L10n.format(
+            "%@ ・ %@",
+            windText,
+            TemperatureFormat.range(high: range.upperBound, low: range.lowerBound)
+        )
+    }
+
     func unavailableTitle(isForecastOutOfRange: Bool) -> String {
         isForecastOutOfRange ? L10n.tr("予報対象外") : L10n.tr("不明")
     }
@@ -158,6 +169,10 @@ final class NightWeatherCardViewModel: ObservableObject {
             L10n.format("weather.precipitation.compact", L10n.number(w.maxPrecipitation, fractionDigits: 1)),
             L10n.format("weather.cloudCover.compact", L10n.percent(w.avgCloudCover)),
             formatWindSpeed(w.avgWindSpeed)
-        ) + (showDewRiskWarning(w) ? "。\(dewRiskAccessibilityLabel(w))" : "")
+        )
+            + (w.nightTemperatureRange.map {
+                "。" + TemperatureFormat.accessibilityRange(high: $0.upperBound, low: $0.lowerBound)
+            } ?? "")
+            + (showDewRiskWarning(w) ? "。\(dewRiskAccessibilityLabel(w))" : "")
     }
 }

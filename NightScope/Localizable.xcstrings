@@ -104,6 +104,23 @@
         }
       }
     },
+    "%@、夜間の最低気温 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, night low %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、夜間の最低気温 %@"
+          }
+        }
+      }
+    },
     "%@ ・ %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5085,6 +5102,23 @@
         }
       }
     },
+    "夜間の気温 最高 %@、最低 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Night temperature: high %1$@, low %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "夜間の気温 最高 %@、最低 %@"
+          }
+        }
+      }
+    },
     "夜間を最後まで評価できません" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6594,6 +6628,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Current Azimuth"
+          }
+        }
+      }
+    },
+    "現在の気温 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current temperature %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の気温 %@"
           }
         }
       }

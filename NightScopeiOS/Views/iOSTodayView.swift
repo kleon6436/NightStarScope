@@ -203,6 +203,15 @@ struct iOSTodayView: View {
                         Text(viewModel.locationText(detailViewModel.locationName))
                             .font(.footnote)
                             .lineLimit(1)
+                        if let temperatureText = detailViewModel.currentTemperatureText {
+                            Text(verbatim: "· \(temperatureText)")
+                                .font(.footnote.monospacedDigit())
+                                .lineLimit(1)
+                                .fixedSize()
+                                .accessibilityLabel(
+                                    detailViewModel.currentTemperatureAccessibilityLabel ?? temperatureText
+                                )
+                        }
                     }
                     .foregroundStyle(HeaderStyle.secondaryTextColor)
 

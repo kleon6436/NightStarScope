@@ -36,6 +36,7 @@ enum IOSPreviewFactory {
             appController.upcomingNights = []
             appController.upcomingIndexes = [:]
             (appController.weatherService as? WeatherKitService)?.weatherByDate = [:]
+            (appController.weatherService as? WeatherKitService)?.currentTemperatureCelsius = nil
 
         case .empty:
             appController.isCalculating = false
@@ -44,6 +45,7 @@ enum IOSPreviewFactory {
             appController.upcomingNights = []
             appController.upcomingIndexes = [:]
             (appController.weatherService as? WeatherKitService)?.weatherByDate = [:]
+            (appController.weatherService as? WeatherKitService)?.currentTemperatureCelsius = nil
 
         case .content:
             appController.isCalculating = false
@@ -56,6 +58,7 @@ enum IOSPreviewFactory {
             (appController.weatherService as? WeatherKitService)?.weatherByDate = [
                 dateKey(for: date): tonightWeather
             ]
+            (appController.weatherService as? WeatherKitService)?.currentTemperatureCelsius = 18
             appController.starGazingIndex = StarGazingIndex.compute(
                 nightSummary: tonightSummary,
                 weather: tonightWeather,

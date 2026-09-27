@@ -175,7 +175,9 @@ struct iOSNightCardRow: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             if let detailText = presentation.weatherDetailText {
-                Text(detailText)
+                // 夜間の最高/最低気温は天気ラベルの後ろに添え、行数を増やさない。
+                // 92pt 列に縮小込みで収めるため、区切りは「 ・ 」ではなく空白 1 つにする
+                Text([detailText, presentation.temperatureRangeText].compactMap { $0 }.joined(separator: " "))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
