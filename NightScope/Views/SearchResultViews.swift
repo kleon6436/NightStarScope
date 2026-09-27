@@ -32,25 +32,56 @@ struct DetailErrorOverlay: View {
 private struct DetailErrorBanner: View {
     let message: String
     let retryAction: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: Spacing.xs) {
-            Image(systemName: AppIcons.Status.warning)
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
-            Text(message)
-                .font(.body)
-                .lineLimit(2)
-            Spacer()
-            Button("再試行", action: retryAction)
-                .glassButtonStyle()
-                .controlSize(.small)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                // 横並びでは本文も「再試行」も 1〜2 文字ずつに折れるため、ボタンを本文の下へ回す。
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+                        warningIcon
+                        messageText
+                    }
+                    retryButton
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            } else {
+                HStack(spacing: Spacing.xs) {
+                    warningIcon
+                    messageText
+                    Spacer()
+                    retryButton
+                }
+            }
         }
         .padding(.horizontal, Spacing.sm)
         .padding(.vertical, Spacing.xs)
         .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.smallCornerRadius))
         .shadow(radius: 4)
         .accessibilityLabel(L10n.format("エラー: %@", message))
+    }
+
+    private var warningIcon: some View {
+        Image(systemName: AppIcons.Status.warning)
+            .foregroundStyle(.orange)
+            .accessibilityHidden(true)
+    }
+
+    private var messageText: some View {
+        Text(message)
+            .font(.body)
+            // 既定より大きな文字サイズでは 2 行に収まらないため 1 行増やす。
+            .lineLimit(dynamicTypeSize > .large ? 3 : 2)
+            // 下端のインセットでは縦幅が詰められて 1 行に省略されるため、必要な行数ぶんの高さを確保する。
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var retryButton: some View {
+        Button("再試行", action: retryAction)
+            .glassButtonStyle()
+            .controlSize(.small)
+            .fixedSize()
     }
 }
 

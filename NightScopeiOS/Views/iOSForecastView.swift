@@ -130,7 +130,7 @@ struct iOSForecastView: View {
 
                 Text("今後9日間の夜空の見通し")
                     .font(.subheadline)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
         } trailing: {
             if detailViewModel.isUpcomingLoading || gridViewModel.isLoading {
@@ -235,7 +235,7 @@ struct iOSForecastView: View {
                     Text(pick.reasonText)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
                 }
                 Spacer(minLength: 0)

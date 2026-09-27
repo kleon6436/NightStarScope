@@ -4,9 +4,9 @@ import SwiftUI
 enum IOSDesignTokens {
     /// 今夜タブのレイアウト。
     enum Today {
-        /// 上部に敷く空のグラデーションの高さ。
+        /// 上部に敷く空のグラデーションの最小の高さ。
         /// ヒーローとタイムライン（凡例まで）は白文字なので、下端のフェードが始まる前に
-        /// 収まりきる高さが必要。文字サイズを上げた状態でも暗いまま読めるよう余裕を持たせる。
+        /// 収まりきる高さが必要。文字サイズで内容が伸びた場合は実測した高さまで広げる。
         static let heroBackgroundHeight: CGFloat = 620
         /// 要約カード 2×2 グリッドの間隔。
         static let gridSpacing: CGFloat = Spacing.sm
@@ -31,8 +31,9 @@ enum IOSDesignTokens {
         static let panelVerticalPadding: CGFloat = Spacing.xs
         /// 下部コントロールパネルの角丸。浮遊パネルなのでコンテナ半径に合わせる。
         static let panelCornerRadius: CGFloat = Layout.containerCornerRadius
-        /// 月・流星群ステータスのアイコン寸法。caption の文字高に合わせる。
-        static let statusIconSize: CGFloat = 11
+        /// 星空に重ねる上下のパネルの文字サイズ上限。
+        /// パネルは星図の上に浮かぶため、これ以上大きくすると星空の大半を覆ってしまう。
+        static let maximumOverlayTypeSize: DynamicTypeSize = .accessibility1
         /// ステータスのアイコンと文字の間隔。
         static let statusIconSpacing: CGFloat = Spacing.xxs
         /// 「現在」ボタンのガラスカプセルの高さ。
@@ -97,6 +98,8 @@ enum IOSDesignTokens {
         static let dateColumnWidth: CGFloat = 64
         static let cloudColumnWidth: CGFloat = 48
         static let trailingColumnWidth: CGFloat = 92
+        /// この文字サイズ以上では 4 列を 2 段組みに切り替える。
+        static let stackedLayoutMinimumTypeSize: DynamicTypeSize = .xxxLarge
         /// 選択中の行だけに開く時間別雲量ストリップ。
         static let hourlyStripHeight: CGFloat = 6
         static let hourlyStripCornerRadius: CGFloat = 3

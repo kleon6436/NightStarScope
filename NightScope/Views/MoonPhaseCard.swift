@@ -4,6 +4,7 @@ import SwiftUI
 struct MoonPhaseCard: View {
     let summary: NightSummary
     var style: SummaryCardStyle = .regular
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var moonAgeDays: Double {
         summary.moonPhaseAtMidnight * 29.53
@@ -27,16 +28,16 @@ struct MoonPhaseCard: View {
             VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text(summary.moonPhaseName)
                     .font(.title3.weight(.semibold))
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                     .minimumScaleFactor(0.75)
                 Text(L10n.format("月齢 %.1f日", moonAgeDays))
                     .font(.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(moonRecommendationText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                     .minimumScaleFactor(0.75)
             }
         }

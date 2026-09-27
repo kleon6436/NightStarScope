@@ -13,6 +13,11 @@ import UIKit
 struct SkyGradientBackground: View {
     let height: CGFloat
 
+    /// 上端から `contentHeight` までを、下端のフェードに掛からない暗い空で覆うのに必要な高さ。
+    static func height(coveringContentHeight contentHeight: CGFloat) -> CGFloat {
+        contentHeight / (1 - Metrics.bottomFadeRatio)
+    }
+
     var body: some View {
         LinearGradient(
             colors: Metrics.sunAltitudeStops.map {

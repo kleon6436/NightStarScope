@@ -77,7 +77,7 @@ struct iOSStarMapHeaderOverlay: View {
     private var terrainStatusLabel: some View {
         HStack(spacing: IOSDesignTokens.StarMap.statusIconSpacing) {
             Image(systemName: controlState.terrainFetchState.systemImageName)
-                .font(.system(size: IOSDesignTokens.StarMap.statusIconSize))
+                .font(.caption2)
             Text(controlState.terrainFetchState.statusText)
                 .font(.caption2)
         }

@@ -122,6 +122,7 @@ struct iOSStarMapView: View {
             onToggleGyroMode: toggleGyroMode,
             onOpenSettings: openAppSettings
         )
+        .dynamicTypeSize(...IOSDesignTokens.StarMap.maximumOverlayTypeSize)
     }
 
     // MARK: - 下部コントロール
@@ -141,6 +142,7 @@ struct iOSStarMapView: View {
         )
         .padding(.horizontal, Spacing.sm)
         .padding(.bottom, bottomControlBottomPadding)
+        .dynamicTypeSize(...IOSDesignTokens.StarMap.maximumOverlayTypeSize)
     }
 
     private var bottomControlBottomPadding: CGFloat {
@@ -156,19 +158,36 @@ struct iOSStarMapView: View {
     }
 
     /// 時刻・観測日・空の状況・「現在」を 1 行にまとめた主操作行。
+    /// 大きな文字サイズで 1 行に収まらないときは、空の状況を 2 行目へ回す。
     private var primaryControlRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Spacing.xs) {
+                timeAndDateControls
+                Spacer(minLength: Spacing.xs)
+                skyStatusLabel
+                    .fixedSize()
+                nowButton
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: Spacing.xs) {
+                    timeAndDateControls
+                    Spacer(minLength: Spacing.xs)
+                    nowButton
+                }
+                skyStatusLabel
+            }
+        }
+    }
+
+    private var timeAndDateControls: some View {
         HStack(spacing: Spacing.xs) {
             Text(viewModel.displayTimeString)
                 .font(.title2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.white)
+                .lineLimit(1)
+                .fixedSize()
 
             observationDateButton
-
-            Spacer(minLength: Spacing.xs)
-
-            skyStatusLabel
-
-            nowButton
         }
     }
 
@@ -180,7 +199,7 @@ struct iOSStarMapView: View {
             HStack(spacing: IOSDesignTokens.StarMap.statusIconSpacing) {
                 Text(viewModel.observationDate, format: .dateTime.month(.abbreviated).day())
                 Image(systemName: "chevron.down")
-                    .font(.system(size: IOSDesignTokens.StarMap.statusIconSize))
+                    .font(.caption2)
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -214,18 +233,20 @@ struct iOSStarMapView: View {
             Text("現在")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.accentColor)
+                .lineLimit(1)
                 .padding(.horizontal, Spacing.xs)
-                .frame(height: IOSDesignTokens.StarMap.nowButtonHeight)
+                .frame(minHeight: IOSDesignTokens.StarMap.nowButtonHeight)
                 .glassEffectCompat(
                     in: RoundedRectangle(
                         cornerRadius: IOSDesignTokens.StarMap.nowButtonHeight / 2,
                         style: .continuous
                     )
                 )
-                .frame(height: IOSDesignTokens.StarMap.minimumTapTarget)
+                .frame(minHeight: IOSDesignTokens.StarMap.minimumTapTarget)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .fixedSize()
         .accessibilityLabel(L10n.tr("現在"))
     }
 
@@ -304,7 +325,7 @@ struct iOSStarMapView: View {
     private func statusChip(systemImage: String, text: String, tint: Color) -> some View {
         HStack(spacing: IOSDesignTokens.StarMap.statusIconSpacing) {
             Image(systemName: systemImage)
-                .font(.system(size: IOSDesignTokens.StarMap.statusIconSize))
+                .font(.caption2)
             Text(text)
                 .font(.caption)
         }

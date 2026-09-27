@@ -17,8 +17,15 @@ struct iOSNightCardRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// アクセシビリティ文字サイズでは固定幅の 4 列が収まらないため、2 段組みに切り替える。
-    private var usesStackedLayout: Bool { dynamicTypeSize.isAccessibilitySize }
+    /// 列幅は既定の文字サイズで決めた値を Dynamic Type に合わせて広げる。
+    @ScaledMetric(relativeTo: .subheadline) private var dateColumnWidth = IOSDesignTokens.NightRow.dateColumnWidth
+    @ScaledMetric(relativeTo: .subheadline) private var cloudColumnWidth = IOSDesignTokens.NightRow.cloudColumnWidth
+    @ScaledMetric(relativeTo: .footnote) private var trailingColumnWidth = IOSDesignTokens.NightRow.trailingColumnWidth
+
+    /// 大きな文字サイズでは列幅を広げても 4 列が 1 行に収まらないため、2 段組みに切り替える。
+    private var usesStackedLayout: Bool {
+        dynamicTypeSize >= IOSDesignTokens.NightRow.stackedLayoutMinimumTypeSize
+    }
 
     private var presentation: ForecastCardPresentation {
         ForecastCardPresentation(
@@ -110,7 +117,7 @@ struct iOSNightCardRow: View {
                     .lineLimit(1)
             }
         }
-        .frame(width: usesStackedLayout ? nil : IOSDesignTokens.NightRow.dateColumnWidth, alignment: .leading)
+        .frame(width: usesStackedLayout ? nil : dateColumnWidth, alignment: .leading)
     }
 
     private var cloudColumn: some View {
@@ -124,7 +131,7 @@ struct iOSNightCardRow: View {
                 .lineLimit(1)
                 .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
         }
-        .frame(width: usesStackedLayout ? nil : IOSDesignTokens.NightRow.cloudColumnWidth, alignment: .leading)
+        .frame(width: usesStackedLayout ? nil : cloudColumnWidth, alignment: .leading)
     }
 
     @ViewBuilder
@@ -184,7 +191,7 @@ struct iOSNightCardRow: View {
                     .minimumScaleFactor(IOSDesignTokens.NightRow.metadataMinimumScaleFactor)
             }
         }
-        .frame(width: usesStackedLayout ? nil : IOSDesignTokens.NightRow.trailingColumnWidth, alignment: .trailing)
+        .frame(width: usesStackedLayout ? nil : trailingColumnWidth, alignment: .trailing)
     }
 
     // MARK: - Hourly Strip

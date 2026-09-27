@@ -4,6 +4,7 @@ import SwiftUI
 struct MilkyWaySummaryCard: View {
     let summary: NightSummary
     var style: SummaryCardStyle = .regular
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let viewModel = ViewingWindowsSectionViewModel()
     private var bestWindow: ViewingWindow? { summary.bestViewingWindow }
@@ -23,17 +24,17 @@ struct MilkyWaySummaryCard: View {
                 if let window = bestWindow {
                     Text(viewModel.directionText(window))
                         .font(.title3.weight(.semibold))
-                        .lineLimit(1)
+                        .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                         .minimumScaleFactor(0.75)
                     Text(viewModel.windowTimeText(window, timeZone: summary.timeZone))
                         .font(.footnote.monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                         .minimumScaleFactor(0.7)
                     Text(viewModel.altitudeText(window))
                         .font(.footnote.monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 } else {
                     Text(L10n.tr("観測に適した時間帯がありません"))
                         .font(.footnote)

@@ -32,6 +32,12 @@ struct iOSTodayView: View {
     @StateObject private var weatherViewModel = NightWeatherCardViewModel()
     @State private var presentedSheet: PresentedSheet?
     @State private var calendarDraftDate = Date()
+    /// ヒーローとタイムラインの下端（スクロール内容の座標系）。空の背景をここまで暗く保つために測る。
+    @State private var skyContentBottom: CGFloat = 0
+    @State private var topSafeAreaInset: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private nonisolated static let scrollContentSpace = "iOSTodayScrollContent"
 
     /// 詳細画面の ViewModel と観測モード設定を受け取る。
     init(
@@ -57,6 +63,15 @@ struct iOSTodayView: View {
         viewModel.contentState(isCalculating: detailViewModel.isCalculating, summary: nightSummary)
     }
 
+    /// 白文字のヒーローとタイムラインが、下端のフェードより上の暗い空に収まる高さ。
+    /// 文字サイズで内容の高さが変わるため、実測した下端から求め、既定値を下限にする。
+    private var skyBackgroundHeight: CGFloat {
+        max(
+            IOSDesignTokens.Today.heroBackgroundHeight,
+            SkyGradientBackground.height(coveringContentHeight: topSafeAreaInset + skyContentBottom + Spacing.sm)
+        )
+    }
+
     private var verdict: NightVerdictPresentation? {
         guard let summary = nightSummary else { return nil }
         return NightVerdictPresentation(
@@ -69,18 +84,25 @@ struct iOSTodayView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                SkyGradientBackground(height: IOSDesignTokens.Today.heroBackgroundHeight)
-                    .ignoresSafeArea(edges: .top)
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Spacing.sm) {
-                        headerSection
-                        contentSection
-                    }
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.bottom, Spacing.sm)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    headerSection
+                    contentSection
                 }
+                .padding(.horizontal, Spacing.sm)
+                .padding(.bottom, Spacing.sm)
+                .coordinateSpace(.named(Self.scrollContentSpace))
+            }
+            // 背景は画面より高くなりうるため、レイアウトに参加しない background として敷く。
+            // ZStack に入れると背景の高さで全体が伸び、スクロール位置がずれる。
+            .background(alignment: .top) {
+                SkyGradientBackground(height: skyBackgroundHeight)
+                    .ignoresSafeArea(edges: .top)
+            }
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.safeAreaInsets.top
+            } action: { inset in
+                topSafeAreaInset = inset
             }
             .refreshable {
                 await viewModel.refreshAll(using: detailViewModel)
@@ -145,6 +167,11 @@ struct iOSTodayView: View {
                 ),
                 style: .onSky
             )
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.frame(in: .named(Self.scrollContentSpace)).maxY
+            } action: { bottom in
+                skyContentBottom = bottom
+            }
 
             summaryGrid(summary: summary)
 
@@ -166,9 +193,15 @@ struct iOSTodayView: View {
         }
     }
 
+    /// アクセシビリティ文字サイズでは 2 列だと値が収まらないため 1 列に並べる。
+    private var summaryGridColumns: [GridItem] {
+        let count = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        return Array(repeating: GridItem(.flexible()), count: count)
+    }
+
     private func summaryGrid(summary: NightSummary) -> some View {
         LazyVGrid(
-            columns: [GridItem(.flexible()), GridItem(.flexible())],
+            columns: summaryGridColumns,
             spacing: IOSDesignTokens.Today.gridSpacing
         ) {
             DarkTimeCard(summary: summary, weather: weather, style: .compact)
@@ -234,6 +267,8 @@ struct iOSTodayView: View {
                     calendarButton
                     settingsButton
                 }
+                // グリフ枠は 44pt の円に合わせた固定寸法のため、枠を超えない文字サイズで頭打ちにする。
+                .dynamicTypeSize(...HeaderStyle.maximumButtonTypeSize)
             }
 
             observationModeButton
@@ -295,6 +330,7 @@ struct iOSTodayView: View {
         static let capsuleFill = Color.white.opacity(0.14)
         /// ガラスボタンはスタイル側で余白が付くため、グリフ枠は小さめにして全体を約 44pt の円に収める。
         static let buttonGlyphSize: CGFloat = 28
+        static let maximumButtonTypeSize: DynamicTypeSize = .xxxLarge
     }
 
     // MARK: - 読み込み中

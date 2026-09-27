@@ -13,6 +13,9 @@ struct NightTimelineView: View {
     let model: NightTimelineModel
     var style: Style = .onSurface
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 目盛りの枠は「18:00」が 1 行に収まる幅・高さ。文字サイズに合わせて広げる。
+    @ScaledMetric(relativeTo: .caption2) private var tickSlotWidth: CGFloat = Metrics.tickSlotWidth
+    @ScaledMetric(relativeTo: .caption2) private var tickRowHeight: CGFloat = Metrics.tickRowHeight
 
     /// アクセシビリティ文字サイズでは 5 つの目盛りが重なるため、両端だけを示す。
     private var isAccessibilitySize: Bool { dynamicTypeSize.isAccessibilitySize }
@@ -25,7 +28,7 @@ struct NightTimelineView: View {
                 GeometryReader { proxy in
                     tickLabels(width: proxy.size.width)
                 }
-                .frame(height: Metrics.tickRowHeight)
+                .frame(height: tickRowHeight)
             }
 
             track
@@ -61,7 +64,7 @@ struct NightTimelineView: View {
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(secondaryColor)
                     .lineLimit(1)
-                    .frame(width: Metrics.tickSlotWidth)
+                    .frame(width: tickSlotWidth)
                     .offset(x: tickOffset(fraction: tick.fraction, width: width))
             }
         }
@@ -70,8 +73,8 @@ struct NightTimelineView: View {
 
     /// 目盛りラベルを比率の位置に中央寄せしつつ、両端で帯からはみ出さないよう丸める。
     private func tickOffset(fraction: Double, width: CGFloat) -> CGFloat {
-        let centered = width * fraction - Metrics.tickSlotWidth / 2
-        let maxOffset = max(width - Metrics.tickSlotWidth, 0)
+        let centered = width * fraction - tickSlotWidth / 2
+        let maxOffset = max(width - tickSlotWidth, 0)
         return min(max(centered, 0), maxOffset)
     }
 

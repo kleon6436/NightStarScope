@@ -5,12 +5,36 @@ import SwiftUI
 enum SummaryCardStyle {
     case regular
     case compact
+
+    /// 本文 1 行あたりの行数上限。
+    /// `.compact` は狭いグリッド幅に置かれ、既定より大きな文字サイズでは 1 行に収まらないため折り返しを許す。
+    /// 既定の文字サイズ（macOS は常にこれ）では 1 行のままにして、グリッドの高さを変えない。
+    func textLineLimit(for dynamicTypeSize: DynamicTypeSize) -> Int {
+        switch self {
+        case .regular: return 1
+        case .compact: return dynamicTypeSize > .large ? 3 : 1
+        }
+    }
 }
 
 /// `MetricCard` はジェネリクスのため、定数はファイルスコープへ置く。
 private enum MetricCardMetrics {
     static let padding: CGFloat = 14
     static let iconSize: CGFloat = 14
+}
+
+/// アイコンの寸法は見出しの caption に合わせて Dynamic Type に追従させる。
+private struct MetricCardIcon: View {
+    let systemName: String
+    let tint: Color
+    @ScaledMetric(relativeTo: .caption) private var size: CGFloat = MetricCardMetrics.iconSize
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: size))
+            .foregroundStyle(tint)
+            .accessibilityHidden(true)
+    }
 }
 
 /// `.compact` の要約カード共通の器。
@@ -24,10 +48,7 @@ struct MetricCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(spacing: Spacing.xxs) {
-                Image(systemName: icon)
-                    .font(.system(size: MetricCardMetrics.iconSize))
-                    .foregroundStyle(tint)
-                    .accessibilityHidden(true)
+                MetricCardIcon(systemName: icon, tint: tint)
                 Text(LocalizedStringKey(title))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)

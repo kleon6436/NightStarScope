@@ -14,9 +14,17 @@ struct IndexBreakdownView: View {
     let index: StarGazingIndex
     let lightPollutionViewModel: StarGazingIndexCardViewModel?
     var layout: Arrangement = .column
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         switch layout {
+        case .row where dynamicTypeSize.isAccessibilitySize:
+            // 横 3 分割では値が省略されるため、各項目を全幅にして縦に積む。
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                ForEach(items) { item in
+                    columnItem(item)
+                }
+            }
         case .row:
             HStack(alignment: .top, spacing: Spacing.sm) {
                 ForEach(items) { item in

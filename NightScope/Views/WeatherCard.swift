@@ -9,6 +9,7 @@ struct NightWeatherCard: View {
     let errorMessage: String?
     @ObservedObject var viewModel: NightWeatherCardViewModel
     var style: SummaryCardStyle = .regular
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         switch style {
@@ -77,15 +78,15 @@ struct NightWeatherCard: View {
             if let weather, !isCoverageIncomplete {
                 Text(viewModel.weatherLabel(weather))
                     .font(titleFont)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.formatMetrics(precipitation: weather.maxPrecipitation, cloudCover: weather.avgCloudCover))
                     .font(detailFont.monospacedDigit())
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.formatWindAndTemperature(wind: weather.avgWindSpeed, weather: weather))
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 if viewModel.showDewRiskWarning(weather) {
                     HStack(spacing: Spacing.xs) {
                         Image(systemName: viewModel.dewRiskIconName(weather))
@@ -94,60 +95,60 @@ struct NightWeatherCard: View {
                             .foregroundStyle(viewModel.dewRiskColor(weather))
                     }
                     .font(detailFont)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 }
             } else if isCoverageIncomplete {
                 Text(viewModel.partialCoverageTitle())
                     .font(titleFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.partialCoveragePrimaryText())
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.partialCoverageSecondaryText())
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
             } else if isLoading {
                 Text(L10n.tr("取得中..."))
                     .font(titleFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text("最新データを取得しています")
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text("しばらくお待ちください")
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
             } else if let errorMessage {
                 Text(viewModel.errorTitle())
                     .font(titleFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.errorPrimaryText(errorMessage))
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.errorSecondaryText())
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
             } else {
                 Text(viewModel.unavailableTitle(isForecastOutOfRange: isForecastOutOfRange))
                     .font(titleFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.unavailablePrimaryText(isForecastOutOfRange: isForecastOutOfRange))
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.unavailableSecondaryText(isForecastOutOfRange: isForecastOutOfRange))
                     .font(detailFont)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
             }
         }
     }

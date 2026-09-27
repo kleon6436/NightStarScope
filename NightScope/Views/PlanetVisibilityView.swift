@@ -12,8 +12,22 @@ struct PlanetVisibilityView: View {
     let location: CLLocationCoordinate2D
     let timeZone: TimeZone
 
+    var body: some View {
+        PlanetVisibilityContent(selectedDate: selectedDate, location: location, timeZone: timeZone)
+            // 出・南中・没の時刻を横に並べる表のため、これ以上大きくすると 2 段組みでも収まらない。
+            // 内側の @ScaledMetric にも上限を効かせるため、中身全体の外側で指定する。
+            .dynamicTypeSize(...PlanetStyle.maximumTypeSize)
+    }
+}
+
+private struct PlanetVisibilityContent: View {
+    let selectedDate: Date
+    let location: CLLocationCoordinate2D
+    let timeZone: TimeZone
+
     @State private var summaries: [PlanetNightSummary] = []
     @State private var isLoading = true
+    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = PlanetStyle.rowHeight
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -45,21 +59,36 @@ struct PlanetVisibilityView: View {
     // MARK: - Private Subviews
 
     private var sectionHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(L10n.tr("今夜の惑星"))
-                .font(.title3.bold())
-            Spacer()
-            Text(nightDateLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        // 見出しと日付が 1 行に並ばない文字サイズでは、日付を見出しの下へ回す。
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                sectionTitle
+                Spacer()
+                sectionCaption
+            }
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                sectionTitle
+                sectionCaption
+            }
         }
+    }
+
+    private var sectionTitle: some View {
+        Text(L10n.tr("今夜の惑星"))
+            .font(.title3.bold())
+    }
+
+    private var sectionCaption: some View {
+        Text(nightDateLabel)
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 
     private var planetsCard: some View {
         VStack(spacing: 0) {
             ForEach(summaries) { summary in
                 PlanetRow(summary: summary, timeZone: timeZone)
-                    .frame(height: PlanetStyle.rowHeight)
+                    .frame(minHeight: rowHeight)
                 if summary.id != summaries.last?.id {
                     Divider()
                         .opacity(0.4)
@@ -77,7 +106,7 @@ struct PlanetVisibilityView: View {
             ProgressView()
             Spacer()
         }
-        .frame(height: PlanetStyle.rowHeight * 5 + Spacing.xs * 2)
+        .frame(height: rowHeight * 5 + Spacing.xs * 2)
         .opaqueCardBackground(in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
     }
 
@@ -101,24 +130,32 @@ private struct PlanetRow: View {
 
     @State private var isHovered = false
     @State private var showDetail = false
+    @ScaledMetric(relativeTo: .callout) private var nameWidth: CGFloat = PlanetStyle.nameWidth
+    @ScaledMetric(relativeTo: .subheadline) private var timeWidth: CGFloat = PlanetStyle.timeWidth
+    @ScaledMetric(relativeTo: .subheadline) private var altWidth: CGFloat = PlanetStyle.altWidth
+    @ScaledMetric(relativeTo: .callout) private var difficultyIconSize: CGFloat = PlanetStyle.difficultyIconSize
 
     var body: some View {
-        HStack(spacing: Spacing.xs) {
-            Image(systemName: summary.observationDifficulty.systemImage)
-                .font(.system(size: 11))
-                .foregroundStyle(summary.observationDifficulty.color)
-            Text(summary.localizedName)
-                .font(.callout)
-                .frame(width: PlanetStyle.nameWidth, alignment: .leading)
-                .lineLimit(1)
-            Spacer()
-            timeEntry(symbol: "↑", date: summary.riseTime)
-            timeEntry(symbol: "▲", date: summary.transitTime)
-            timeEntry(symbol: "↓", date: summary.setTime)
-            Text(altitudeLabel)
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: PlanetStyle.altWidth, alignment: .trailing)
+        // 1 行に収まらない文字サイズでは、名前と高度の行・時刻の行の 2 段に分ける。
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Spacing.xs) {
+                nameLabel
+                Spacer()
+                timeEntries
+                altitudeText
+            }
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                HStack(spacing: Spacing.xs) {
+                    nameLabel
+                    Spacer()
+                    altitudeText
+                }
+                HStack(spacing: Spacing.xs) {
+                    Spacer()
+                    timeEntries
+                }
+            }
+            .padding(.vertical, Spacing.xxs)
         }
         .padding(.horizontal, Spacing.xs)
         .opacity(summary.isVisibleTonight ? 1 : 0.4)
@@ -143,6 +180,33 @@ private struct PlanetRow: View {
 
     // MARK: Components
 
+    private var nameLabel: some View {
+        HStack(spacing: Spacing.xs) {
+            Image(systemName: summary.observationDifficulty.systemImage)
+                .font(.system(size: difficultyIconSize))
+                .foregroundStyle(summary.observationDifficulty.color)
+            Text(summary.localizedName)
+                .font(.callout)
+                .frame(width: nameWidth, alignment: .leading)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var timeEntries: some View {
+        timeEntry(symbol: "↑", date: summary.riseTime)
+        timeEntry(symbol: "▲", date: summary.transitTime)
+        timeEntry(symbol: "↓", date: summary.setTime)
+    }
+
+    private var altitudeText: some View {
+        Text(altitudeLabel)
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .frame(width: altWidth, alignment: .trailing)
+    }
+
     private func timeEntry(symbol: String, date: Date?) -> some View {
         HStack(spacing: 2) {
             Text(symbol)
@@ -150,8 +214,9 @@ private struct PlanetRow: View {
                 .foregroundStyle(.secondary)
             Text(date.map { $0.nightTimeString(timeZone: timeZone) } ?? Placeholder.dash)
                 .font(.subheadline.monospacedDigit())
+                .lineLimit(1)
         }
-        .frame(width: PlanetStyle.timeWidth, alignment: .leading)
+        .frame(width: timeWidth, alignment: .leading)
     }
 
     // MARK: Hover Tooltip (macOS)
@@ -324,6 +389,9 @@ private enum PlanetStyle {
     static let nameWidth: CGFloat = 52
     static let timeWidth: CGFloat = 60
     static let altWidth:  CGFloat = 52
+    static let difficultyIconSize: CGFloat = 11
+    /// 2 段組みでも出・南中・没の時刻が 1 行に収まる上限の文字サイズ。
+    static let maximumTypeSize: DynamicTypeSize = .accessibility2
 }
 
 // MARK: - Preview

@@ -5,6 +5,7 @@ struct DarkTimeCard: View {
     let summary: NightSummary
     let weather: DayWeatherSummary?
     var style: SummaryCardStyle = .regular
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var viewModel: DarkTimeCardViewModel {
         DarkTimeCardViewModel(summary: summary, weather: weather)
@@ -24,11 +25,11 @@ struct DarkTimeCard: View {
             VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text(L10n.format("%.1f時間", summary.totalDarkHours))
                     .font(.title3.weight(.semibold).monospacedDigit())
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                 Text(viewModel.displayText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
                     .minimumScaleFactor(0.75)
             }
         }
