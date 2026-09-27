@@ -23,9 +23,7 @@ struct SettingsView<PlatformSections: View>: View {
     var body: some View {
         formContent
             .navigationTitle("設定")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .inlineNavigationTitleDisplay()
     }
 
     private var formContent: some View {

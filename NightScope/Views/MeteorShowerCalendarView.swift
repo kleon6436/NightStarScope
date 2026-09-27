@@ -221,7 +221,6 @@ private struct ShowerTimelineRow: View {
     let labelWidth: CGFloat
 
     @State private var isHovered = false
-    @State private var showDetail = false
     @ScaledMetric(relativeTo: .callout) private var rowHeight: CGFloat = CalendarStyle.rowHeight
     @ScaledMetric(relativeTo: .footnote) private var starIconSize: CGFloat = CalendarStyle.starIconSize
 
@@ -230,20 +229,11 @@ private struct ShowerTimelineRow: View {
             .padding(.horizontal, Spacing.xs)
             .contentShape(Rectangle())
         .background(isHovered ? Color.primary.opacity(0.06) : Color.clear)
-#if os(macOS)
-        .onHover { isHovered = $0 }
-        .overlay(alignment: .bottomTrailing) {
-            if isHovered {
-                hoverTooltip
-            }
-        }
-#endif
-#if os(iOS)
-        .onTapGesture { showDetail = true }
-        .sheet(isPresented: $showDetail) {
+        .hoverTooltipOrTapSheet(isHovered: $isHovered) {
+            hoverTooltip
+        } sheet: {
             MeteorShowerDetailSheet(shower: shower)
         }
-#endif
         .zIndex(isHovered ? 10 : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)

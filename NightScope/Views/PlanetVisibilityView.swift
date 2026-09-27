@@ -129,7 +129,6 @@ private struct PlanetRow: View {
     let timeZone: TimeZone
 
     @State private var isHovered = false
-    @State private var showDetail = false
     @ScaledMetric(relativeTo: .callout) private var nameWidth: CGFloat = PlanetStyle.nameWidth
     @ScaledMetric(relativeTo: .subheadline) private var timeWidth: CGFloat = PlanetStyle.timeWidth
     @ScaledMetric(relativeTo: .subheadline) private var altWidth: CGFloat = PlanetStyle.altWidth
@@ -161,18 +160,11 @@ private struct PlanetRow: View {
         .opacity(summary.isVisibleTonight ? 1 : 0.4)
         .contentShape(Rectangle())
         .background(isHovered ? Color.primary.opacity(0.06) : Color.clear)
-#if os(macOS)
-        .onHover { isHovered = $0 }
-        .overlay(alignment: .bottomTrailing) {
-            if isHovered { hoverTooltip }
-        }
-#endif
-#if os(iOS)
-        .onTapGesture { showDetail = true }
-        .sheet(isPresented: $showDetail) {
+        .hoverTooltipOrTapSheet(isHovered: $isHovered) {
+            hoverTooltip
+        } sheet: {
             PlanetDetailSheet(summary: summary, timeZone: timeZone)
         }
-#endif
         .zIndex(isHovered ? 10 : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)

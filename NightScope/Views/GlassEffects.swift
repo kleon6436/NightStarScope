@@ -15,20 +15,6 @@ extension View {
         }
     }
 
-    /// iOS 26+ はシステム Liquid Glass NavBar に委ねる。それ以前は非表示にする。
-    @ViewBuilder
-    func adaptiveToolbarBackground() -> some View {
-        #if os(iOS)
-        if #available(iOS 26, *) {
-            self
-        } else {
-            self.toolbarBackground(.hidden, for: .navigationBar)
-        }
-        #else
-        self
-        #endif
-    }
-
     /// `.backgroundExtensionEffect()` の互換ラッパー。
     /// iOS 26 / macOS 26 以降では背景をウィンドウ端まで引き伸ばし、それ以前は何もしない。
     @ViewBuilder
@@ -87,11 +73,7 @@ extension View {
     }
 
     func opaqueCardBackground<S: Shape>(in shape: S) -> some View {
-        #if os(macOS)
-        background(Color(nsColor: .controlBackgroundColor), in: shape)
-        #else
-        background(Color(uiColor: .secondarySystemBackground), in: shape)
-        #endif
+        background(Color.platformSecondaryBackground, in: shape)
     }
 
     /// コンテンツ層のカード共通スタイル（余白 + 不透明サーフェス）。
@@ -101,19 +83,6 @@ extension View {
 
     func summaryCardMetricVisualFrame() -> some View {
         frame(width: CardVisual.width, height: CardVisual.metricVisualHeight, alignment: .center)
-    }
-
-    @ViewBuilder
-    func panelTooltip(_ text: String?) -> some View {
-#if os(macOS)
-        if let text, !text.isEmpty {
-            self.help(text)
-        } else {
-            self
-        }
-#else
-        self
-#endif
     }
 }
 

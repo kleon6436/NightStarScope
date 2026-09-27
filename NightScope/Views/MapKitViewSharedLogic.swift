@@ -356,13 +356,8 @@ final class MapKitCoordinatorState {
         }
         if overlay is ViewingDirectionOverlay {
             let renderer = MKPolygonRenderer(overlay: overlay)
-            #if os(macOS)
-            renderer.fillColor = NSColor.white.withAlphaComponent(0.15)
-            renderer.strokeColor = NSColor.white.withAlphaComponent(0.5)
-            #else
-            renderer.fillColor = UIColor.white.withAlphaComponent(0.15)
-            renderer.strokeColor = UIColor.white.withAlphaComponent(0.5)
-            #endif
+            renderer.fillColor = .white.withAlphaComponent(0.15)
+            renderer.strokeColor = .white.withAlphaComponent(0.5)
             renderer.lineWidth = 1.0
             return renderer
         }

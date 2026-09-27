@@ -72,9 +72,7 @@ struct FavoriteSyncImportView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("地点の取り込み")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .inlineNavigationTitleDisplay()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") {

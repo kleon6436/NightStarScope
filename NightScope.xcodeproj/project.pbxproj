@@ -22,9 +22,11 @@
 		40385D2B167E1A5D6A6BB31B /* StarMapTerrainCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5261CADE1879D741D7A7C8 /* StarMapTerrainCoordinator.swift */; };
 		41110F14F7A80572A2BB3CAE /* StarMapTimeSliderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2844F23FF6044140250E5CA9 /* StarMapTimeSliderScheduler.swift */; };
 		477B2E3CB5355CA1BA5757D3 /* ViewingWindowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F16 /* ViewingWindowsSection.swift */; };
+		4AD3654937530A1F221A60D3 /* PlatformAdaptive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D16D20FC0E2749386EC5230 /* PlatformAdaptive.swift */; };
 		4ADBD70F53B069798670D94D /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
 		4DE2663F89BB12E4C05EDFB8 /* StarMapTerrainCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5261CADE1879D741D7A7C8 /* StarMapTerrainCoordinator.swift */; };
 		4F871C5177B328F9DFC5EEAA /* FavoriteLocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA0C4060B1252A05AA86C03 /* FavoriteLocationStore.swift */; };
+		518E4DCAC7901B7B21AB70AF /* PlatformAdaptive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D16D20FC0E2749386EC5230 /* PlatformAdaptive.swift */; };
 		54A5C1BEDE1E30CC826A7F87 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C18B76F2F791309007949F3 /* SettingsView.swift */; };
 		583A0AA2970A947069C16B9B /* AppFocusedValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34751E11F1332B240190535A /* AppFocusedValues.swift */; };
 		5E1D3BECAFBABEA00CDA3F01 /* StarMapVisualConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3481868EB3E9A808C6EDC90 /* StarMapVisualConstants.swift */; };
@@ -296,6 +298,7 @@
 		34751E11F1332B240190535A /* AppFocusedValues.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppFocusedValues.swift; sourceTree = "<group>"; };
 		3C88010FC1657FBB75579A3E /* iOSTodayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSTodayView.swift; sourceTree = "<group>"; };
 		49D29ECC147ED54DD9F02540 /* LayoutMacOS.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LayoutMacOS.swift; sourceTree = "<group>"; };
+		4D16D20FC0E2749386EC5230 /* PlatformAdaptive.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlatformAdaptive.swift; sourceTree = "<group>"; };
 		4F5261CADE1879D741D7A7C8 /* StarMapTerrainCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarMapTerrainCoordinator.swift; sourceTree = "<group>"; };
 		6C1674E72F8E7B7500AF040A /* ObservationTimeZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationTimeZone.swift; sourceTree = "<group>"; };
 		6C18B76F2F791309007949F3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -673,6 +676,7 @@
 				AFE412EE29186D5CBF59B71A /* GlassEffects.swift */,
 				273AFE7A6097D1B3EF523D16 /* AppIcons.swift */,
 				TN0000000000000000000G01 /* Tonight */,
+				4D16D20FC0E2749386EC5230 /* PlatformAdaptive.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1037,6 +1041,7 @@
 				TN0000000000000000000C05 /* MetricCard.swift in Sources */,
 				C4CAF12283082138C6BAAEE0 /* AppIcons.swift in Sources */,
 				C5F54DB292A2F4530825BF28 /* AppFocusedValues.swift in Sources */,
+				518E4DCAC7901B7B21AB70AF /* PlatformAdaptive.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1151,6 +1156,7 @@
 				E752FF956AC776BBBA209D5C /* AppIcons.swift in Sources */,
 				583A0AA2970A947069C16B9B /* AppFocusedValues.swift in Sources */,
 				D0055AB0CA6D40D6F762A0D7 /* LayoutMacOS.swift in Sources */,
+				4AD3654937530A1F221A60D3 /* PlatformAdaptive.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

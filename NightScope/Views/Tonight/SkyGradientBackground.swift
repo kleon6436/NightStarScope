@@ -47,13 +47,7 @@ struct SkyGradientBackground: View {
         static let starFieldHeightRatio: CGFloat = 0.45
         static let bottomFadeRatio: CGFloat = 0.32
 
-        static var systemBackground: Color {
-            #if os(macOS)
-            Color(nsColor: .windowBackgroundColor)
-            #else
-            Color(uiColor: .systemBackground)
-            #endif
-        }
+        static var systemBackground: Color { .platformWindowBackground }
     }
 }
 
