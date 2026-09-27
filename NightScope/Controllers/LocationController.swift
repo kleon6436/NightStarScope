@@ -216,13 +216,7 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         isLocating = true
         locationError = nil
         // 既に許可済みなら即開始、未決定なら locationManagerDidChangeAuthorization で開始する
-        let alreadyAuthorized: Bool
-        #if os(iOS)
-        alreadyAuthorized = status == .authorizedWhenInUse || status == .authorizedAlways
-        #else
-        alreadyAuthorized = status == .authorized || status == .authorizedAlways
-        #endif
-        if alreadyAuthorized {
+        if Self.isAuthorized(status) {
             shouldResumeLocationAfterAuthorization = false
             startLocationUpdatesWithTimeout()
         } else {
