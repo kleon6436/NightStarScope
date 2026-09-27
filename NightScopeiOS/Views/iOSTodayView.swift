@@ -445,7 +445,15 @@ private struct iOSSettingsSheetView: View {
 
     var body: some View {
         NavigationStack {
-            SettingsView(favoriteSyncReconciler: favoriteSyncReconciler)
+            SettingsView(favoriteSyncReconciler: favoriteSyncReconciler) {
+                Section(L10n.tr("コンパス")) {
+                    NavigationLink {
+                        iOSCompassCalibrationStandaloneView()
+                    } label: {
+                        Label(L10n.tr("コンパスキャリブレーション"), systemImage: "location.north.fill")
+                    }
+                }
+            }
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("完了") {

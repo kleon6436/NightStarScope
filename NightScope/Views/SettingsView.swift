@@ -1,19 +1,23 @@
 import SwiftUI
 
 /// アプリ全体の表示設定とデータソース情報をまとめる設定画面。
-struct SettingsView: View {
+/// - Note: プラットフォーム固有のセクション（iOS のコンパスなど）は、各ターゲットの呼び出し側から `platformSections` で渡す。
+struct SettingsView<PlatformSections: View>: View {
     @AppStorage("windSpeedUnit") private var windSpeedUnit: String = WindSpeedUnit.kmh.rawValue
     @AppStorage(AppSettingsKeys.iCloudSyncEnabled) private var iCloudSyncEnabled: Bool = false
     @ObservedObject private var observationModePreference: ObservationModePreference
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
+    private let platformSections: PlatformSections
     @State private var isFavoriteImportPresented = false
 
     init(
         observationModePreference: ObservationModePreference = ObservationModePreference(),
-        favoriteSyncReconciler: FavoriteSyncReconciler? = nil
+        favoriteSyncReconciler: FavoriteSyncReconciler? = nil,
+        @ViewBuilder platformSections: () -> PlatformSections
     ) {
         self.observationModePreference = observationModePreference
         self.favoriteSyncReconciler = favoriteSyncReconciler
+        self.platformSections = platformSections()
     }
 
     var body: some View {
@@ -66,15 +70,9 @@ struct SettingsView: View {
 
             StarMapDisplaySettingsSection()
 
-            #if os(iOS)
-            Section(L10n.tr("コンパス")) {
-                NavigationLink {
-                    iOSCompassCalibrationStandaloneView()
-                } label: {
-                    Label(L10n.tr("コンパスキャリブレーション"), systemImage: "location.north.fill")
-                }
-            }
+            platformSections
 
+            #if os(iOS)
             Section("情報") {
                 NavigationLink {
                     SettingsAboutView()
@@ -101,6 +99,19 @@ struct SettingsView: View {
         #endif
     }
 
+}
+
+extension SettingsView where PlatformSections == EmptyView {
+    init(
+        observationModePreference: ObservationModePreference = ObservationModePreference(),
+        favoriteSyncReconciler: FavoriteSyncReconciler? = nil
+    ) {
+        self.init(
+            observationModePreference: observationModePreference,
+            favoriteSyncReconciler: favoriteSyncReconciler,
+            platformSections: { EmptyView() }
+        )
+    }
 }
 
 /// iCloud 同期セクションの差分件数と、選んで追加・取り込む導線。一覧が0件のときは出さない。
