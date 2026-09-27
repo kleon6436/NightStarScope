@@ -1,6 +1,5 @@
 import SwiftUI
 
-#if os(macOS)
 /// 観測モードを選ぶツールバー用メニュー。選択ロジックはここ 1 か所に保つ。
 struct ObservationModeMenu: View {
     @ObservedObject var observationModePreference: ObservationModePreference
@@ -43,4 +42,3 @@ struct ObservationModeMenu: View {
         )
     }
 }
-#endif

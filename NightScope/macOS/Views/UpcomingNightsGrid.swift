@@ -1,4 +1,3 @@
-#if os(macOS)
 import SwiftUI
 
 /// 今後 9 日分の夜間条件を 1 行 1 夜の表で並べるビュー。
@@ -272,4 +271,3 @@ struct UpcomingNightsGrid: View {
             + Spacing.xs * 2
     }
 }
-#endif
