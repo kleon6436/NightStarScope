@@ -1,4 +1,3 @@
-#if os(macOS)
 import SwiftUI
 import CoreLocation
 import AppKit
@@ -440,4 +439,3 @@ private extension ComparisonCell.LoadState {
         }
     }
 }
-#endif

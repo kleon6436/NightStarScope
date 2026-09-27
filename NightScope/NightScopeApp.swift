@@ -146,13 +146,11 @@ struct NightScopeApp: App {
             NightScopeCommands()
         }
 
-        #if os(macOS)
         WindowGroup(id: "dashboard") {
             DashboardWindowView(dependencies: dashboardSceneDependencies)
                 .environmentObject(weatherAttributionService)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
-        #endif
 
         Settings {
             SettingsView(

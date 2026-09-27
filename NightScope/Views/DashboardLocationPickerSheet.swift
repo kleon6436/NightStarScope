@@ -1,4 +1,3 @@
-#if os(macOS)
 import SwiftUI
 import CoreLocation
 
@@ -131,4 +130,3 @@ private struct DashboardAccessibilityHintModifier: ViewModifier {
         }
     }
 }
-#endif

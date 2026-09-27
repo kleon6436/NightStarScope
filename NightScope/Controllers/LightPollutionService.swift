@@ -1,10 +1,5 @@
 import Foundation
 import Compression
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
 import MapKit
 
 /// 光害データ取得時の代表的なエラー。

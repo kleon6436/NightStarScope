@@ -1,4 +1,3 @@
-#if os(macOS)
 import SwiftUI
 import AppKit
 
@@ -280,5 +279,3 @@ private struct DashboardErrorBanner: View {
         .accessibilityLabel(L10n.format("エラー: %@", message))
     }
 }
-
-#endif

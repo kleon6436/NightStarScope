@@ -1,7 +1,5 @@
 import Foundation
 import os
-
-#if os(macOS)
 import AppKit
 import MapKit
 
@@ -109,4 +107,3 @@ final class MapSnapshotCache {
         "\(latitude.bitPattern)_\(longitude.bitPattern)_\(Int(sizePoints.width))x\(Int(sizePoints.height))_\(spanDegrees.bitPattern)"
     }
 }
-#endif

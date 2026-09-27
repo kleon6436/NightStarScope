@@ -1,9 +1,4 @@
 import SwiftUI
-#if os(macOS)
-import AppKit
-#elseif os(iOS)
-import UIKit
-#endif
 
 /// 今夜タブ上部に敷く「空」の背景。
 ///

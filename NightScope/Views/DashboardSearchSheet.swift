@@ -1,4 +1,3 @@
-#if os(macOS)
 import SwiftUI
 import MapKit
 import AppKit
@@ -348,4 +347,3 @@ private struct DashboardSearchResultRow: View {
         }
     }
 }
-#endif

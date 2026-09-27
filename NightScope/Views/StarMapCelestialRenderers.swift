@@ -1,9 +1,4 @@
 import SwiftUI
-#if os(macOS)
-import AppKit
-#elseif os(iOS)
-import UIKit
-#endif
 
 extension StarMapCanvasView {
     // MARK: - Drawing primitives
