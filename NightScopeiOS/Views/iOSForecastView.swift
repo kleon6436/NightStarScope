@@ -107,7 +107,12 @@ struct iOSForecastView: View {
                         PlanetVisibilityView(
                             selectedDate: detailViewModel.selectedDate,
                             location: location,
-                            timeZone: detailViewModel.selectedTimeZone
+                            timeZone: detailViewModel.selectedTimeZone,
+                            isTonight: ObservationTimeZone.isDate(
+                                detailViewModel.selectedDate,
+                                inSameDayAs: detailViewModel.currentObservationDate(),
+                                timeZone: detailViewModel.selectedTimeZone
+                            )
                         )
                     }
                 }

@@ -154,6 +154,101 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         XCTAssertNotNil(provider.score(for: losAngeles.id))
     }
 
+    func test_refreshIfNeeded_weatherFailureIsNotCachedAndKeepsPreviousValue() async {
+        let favorite = makeFavorite(name: "Flaky", latitude: 35.0, longitude: 135.0)
+        let weatherService = MockTonightWeatherService()
+        let calculationService = MockNightCalculationService()
+        weatherService.registerFailure(favorite: favorite)
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
+
+        let provider = FavoriteTonightScoreProvider(
+            weatherService: weatherService,
+            lightPollutionService: MockLightPollutionService(),
+            calculationService: calculationService,
+            referenceDateProvider: { self.baseDate }
+        )
+
+        // 天気取得に失敗した地点はスコアを保存しない（次回の更新で再取得される）。
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertNil(provider.score(for: favorite.id))
+
+        // 成功した値は、その後の失敗で上書きされない。
+        weatherService.register(favorite: favorite, dates: [baseDate])
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
+        await provider.refreshIfNeeded(favorites: [favorite])
+        let stored = provider.score(for: favorite.id)
+        XCTAssertNotNil(stored)
+
+        weatherService.registerFailure(favorite: favorite)
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
+        await provider.refreshIfNeeded(favorites: [favorite], force: true)
+        XCTAssertEqual(provider.score(for: favorite.id), stored)
+    }
+
+    func test_refreshIfNeeded_prunesRemovedFavorites() async {
+        let kept = makeFavorite(name: "Kept", latitude: 35.0, longitude: 135.0)
+        let removed = makeFavorite(name: "Removed", latitude: 36.0, longitude: 136.0)
+        let weatherService = MockTonightWeatherService()
+        let calculationService = MockNightCalculationService()
+        for favorite in [kept, removed] {
+            weatherService.register(favorite: favorite, dates: [baseDate])
+            await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
+        }
+
+        let provider = FavoriteTonightScoreProvider(
+            weatherService: weatherService,
+            lightPollutionService: MockLightPollutionService(),
+            calculationService: calculationService,
+            referenceDateProvider: { self.baseDate }
+        )
+
+        await provider.refreshIfNeeded(favorites: [kept, removed])
+        XCTAssertNotNil(provider.score(for: removed.id))
+
+        await provider.refreshIfNeeded(favorites: [kept])
+        XCTAssertNil(provider.score(for: removed.id))
+        XCTAssertNotNil(provider.score(for: kept.id))
+        XCTAssertEqual(provider.scoresByFavoriteID.count, 1)
+    }
+
+    func test_refreshIfNeeded_recomputesWhenObservationNightRollsOverWithinTTL() async {
+        let favorite = makeFavorite(name: "Tokyo", latitude: 35.0, longitude: 135.0)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TestTimeZones.tokyo
+        let nov14 = calendar.date(from: DateComponents(year: 2023, month: 11, day: 14)) ?? baseDate
+        let nov15 = calendar.date(from: DateComponents(year: 2023, month: 11, day: 15)) ?? baseDate
+        // 日の出前（前夜が観測夜）と日の出後（当夜が観測夜）。TTL（1 時間）以内の間隔にする。
+        let beforeSunrise = calendar.date(
+            from: DateComponents(year: 2023, month: 11, day: 15, hour: 5, minute: 50)
+        ) ?? baseDate
+        let afterSunrise = calendar.date(
+            from: DateComponents(year: 2023, month: 11, day: 15, hour: 6, minute: 40)
+        ) ?? baseDate
+
+        let weatherService = MockTonightWeatherService()
+        weatherService.register(favorite: favorite, dates: [nov14, nov15])
+        let calculationService = MockNightCalculationService()
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: nov14, withWindow: true)])
+
+        var now = beforeSunrise
+        let provider = FavoriteTonightScoreProvider(
+            weatherService: weatherService,
+            lightPollutionService: MockLightPollutionService(),
+            calculationService: calculationService,
+            referenceDateProvider: { now }
+        )
+
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertEqual(weatherService.fetchCount, 1)
+
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: nov15, withWindow: true)])
+        now = afterSunrise
+        XCTAssertLessThan(afterSunrise.timeIntervalSince(beforeSunrise), FavoriteTonightScoreProvider.cacheLifetime)
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertEqual(weatherService.fetchCount, 2)
+        XCTAssertEqual(provider.score(for: favorite.id)?.computedAt, afterSunrise)
+    }
+
     private func makeFavorite(name: String, latitude: Double, longitude: Double) -> FavoriteLocation {
         FavoriteLocation(
             name: name,
@@ -204,6 +299,18 @@ private final class MockTonightWeatherService: WeatherProviding {
 
     private(set) var fetchCount = 0
     private var resultByLocationKey: [String: WeatherFetchResult] = [:]
+
+    func registerFailure(favorite: FavoriteLocation) {
+        let timeZone = TimeZone(identifier: favorite.timeZoneIdentifier) ?? .current
+        let key = locationKey(latitude: favorite.latitude, longitude: favorite.longitude, timeZone: timeZone)
+        resultByLocationKey[key] = WeatherFetchResult(
+            weatherByDate: [:],
+            errorMessage: "weather unavailable",
+            lastModifiedDate: nil,
+            locationKey: key,
+            timeZoneIdentifier: timeZone.identifier
+        )
+    }
 
     var weatherByDatePublisher: Published<[String: DayWeatherSummary]>.Publisher { $weatherByDate }
     var isLoadingPublisher: AnyPublisher<Bool, Never> { $isLoading.eraseToAnyPublisher() }

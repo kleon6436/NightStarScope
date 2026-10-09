@@ -4048,6 +4048,61 @@
         }
       }
     },
+    "この夜は星見向き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good night for stargazing"
+          }
+        }
+      }
+    },
+    "この夜はやや不向き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not ideal this night"
+          }
+        }
+      }
+    },
+    "この夜は星見に不向き" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poor night for stargazing"
+          }
+        }
+      }
+    },
+    "この夜の観測データがありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No observing data for this night"
+          }
+        }
+      }
+    },
+    "この夜の惑星" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planets This Night"
+          }
+        }
+      }
+    },
     "今夜の惑星" : {
       "extractionState" : "manual",
       "localizations" : {

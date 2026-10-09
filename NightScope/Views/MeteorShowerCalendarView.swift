@@ -255,6 +255,7 @@ private struct ShowerTimelineRow: View {
         .zIndex(isHovered ? 10 : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: Hover Tooltip

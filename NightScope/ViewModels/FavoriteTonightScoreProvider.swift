@@ -7,6 +7,8 @@ struct FavoriteTonightScore: Equatable, Sendable {
     let tier: StarGazingIndex.Tier
     let bortleClass: Double?
     let computedAt: Date
+    /// このスコアが対象とする観測夜（列のタイムゾーンの暦日 0 時）。夜が切り替わったらキャッシュを無効にする。
+    let observationDate: Date
 }
 
 /// お気に入り地点ごとの「今夜の星空指数」をまとめて計算し、キャッシュして公開する。
@@ -50,9 +52,17 @@ final class FavoriteTonightScoreProvider: ObservableObject {
     /// - Parameter force: true なら TTL を無視して対象全件を再計算する。
     func refreshIfNeeded(favorites: [FavoriteLocation], force: Bool = false) async {
         let referenceDate = referenceDateProvider()
+
+        // 削除済みのお気に入りのキャッシュを刈り込む。
+        let favoriteIDs = Set(favorites.map(\.id))
+        if scoresByFavoriteID.keys.contains(where: { !favoriteIDs.contains($0) }) {
+            scoresByFavoriteID = scoresByFavoriteID.filter { favoriteIDs.contains($0.key) }
+        }
+
         let targets = favorites.filter { favorite in
             guard !force, let cached = scoresByFavoriteID[favorite.id] else { return true }
             return referenceDate.timeIntervalSince(cached.computedAt) >= Self.cacheLifetime
+                || cached.observationDate != observationDate(for: favorite, referenceDate: referenceDate)
         }
         guard !targets.isEmpty else { return }
 
@@ -69,7 +79,7 @@ final class FavoriteTonightScoreProvider: ObservableObject {
         // 「今夜」（観測日）は地点ごとに異なる（時差や深夜〜明け方の前夜）ため、地点ごとに 1 列の行列を作る。
         // まとめて計算すると列が最も早い観測日にそろい、他の地点で終わった夜の指数を出してしまう。
         // 取得に失敗した地点は既存値を残し、成功した地点だけを差し替える。
-        var updated = scoresByFavoriteID
+        // 地点ごとに、更新が世代交代していない間は即座に反映する（途中でやめても完了分は失われない）。
         for target in targets {
             let matrix = await ComparisonController.computeMatrix(
                 referenceDate: referenceDate,
@@ -80,16 +90,28 @@ final class FavoriteTonightScoreProvider: ObservableObject {
                 calculationService: calculationService
             )
             guard generation == refreshGeneration, !Task.isCancelled else { return }
+            // 天気の取得に失敗した結果は正規の値として保存しない。
+            guard !matrix.weatherFailedLocationIDs.contains(target.id) else { continue }
             guard let tonight = matrix.dates.first else { continue }
             let cellID = ComparisonCell.makeID(locationID: target.id, date: tonight)
             guard let index = matrix.cellsByID[cellID]?.index else { continue }
-            updated[target.id] = FavoriteTonightScore(
+            scoresByFavoriteID[target.id] = FavoriteTonightScore(
                 score: index.score,
                 tier: index.tier,
                 bortleClass: matrix.cellsByID[cellID]?.bortleClass,
-                computedAt: referenceDate
+                computedAt: referenceDate,
+                observationDate: tonight
             )
         }
-        scoresByFavoriteID = updated
+    }
+
+    /// その地点の「今夜」にあたる観測夜（列のタイムゾーンの暦日）。
+    private func observationDate(for favorite: FavoriteLocation, referenceDate: Date) -> Date {
+        ComparisonController.makeDates(
+            referenceDate: referenceDate,
+            dayCount: 1,
+            timeZone: .current,
+            locations: [favorite]
+        ).first ?? referenceDate
     }
 }

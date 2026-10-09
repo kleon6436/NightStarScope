@@ -11,9 +11,16 @@ struct PlanetVisibilityView: View {
     let selectedDate: Date
     let location: CLLocationCoordinate2D
     let timeZone: TimeZone
+    /// 選択中の夜が「今夜」か。false のときは見出しに「今夜」を使わない。
+    var isTonight: Bool = true
 
     var body: some View {
-        PlanetVisibilityContent(selectedDate: selectedDate, location: location, timeZone: timeZone)
+        PlanetVisibilityContent(
+            selectedDate: selectedDate,
+            location: location,
+            timeZone: timeZone,
+            isTonight: isTonight
+        )
             // 出・南中・没の時刻を横に並べる表のため、これ以上大きくすると 2 段組みでも収まらない。
             // 内側の @ScaledMetric にも上限を効かせるため、中身全体の外側で指定する。
             .dynamicTypeSize(...PlanetStyle.maximumTypeSize)
@@ -24,6 +31,7 @@ private struct PlanetVisibilityContent: View {
     let selectedDate: Date
     let location: CLLocationCoordinate2D
     let timeZone: TimeZone
+    let isTonight: Bool
 
     @State private var summaries: [PlanetNightSummary] = []
     @State private var isLoading = true
@@ -78,7 +86,7 @@ private struct PlanetVisibilityContent: View {
     }
 
     private var sectionTitle: some View {
-        Text(L10n.tr("今夜の惑星"))
+        Text(L10n.tr(isTonight ? "今夜の惑星" : "この夜の惑星"))
             .font(.title3.bold())
     }
 
@@ -172,6 +180,7 @@ private struct PlanetRow: View {
         .zIndex(isHovered ? 10 : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: Components

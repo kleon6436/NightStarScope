@@ -86,12 +86,22 @@ struct DetailView: View {
                     PlanetVisibilityView(
                         selectedDate: viewModel.selectedDate,
                         location: summary.location,
-                        timeZone: viewModel.selectedTimeZone
+                        timeZone: viewModel.selectedTimeZone,
+                        isTonight: isSelectedNightTonight
                     )
                 }
                 .padding(Spacing.md)
             }
         }
+    }
+
+    /// 選択中の夜が現在の観測夜（今夜）か。予報から別の夜を選んでいるときは false。
+    private var isSelectedNightTonight: Bool {
+        ObservationTimeZone.isDate(
+            viewModel.selectedDate,
+            inSameDayAs: viewModel.currentObservationDate(),
+            timeZone: viewModel.selectedTimeZone
+        )
     }
 
     private var loadingContent: some View {
@@ -204,7 +214,8 @@ struct DetailView: View {
             index: index,
             summary: summary,
             weather: weather,
-            hasReliableWeather: weather != nil && !viewModel.isCurrentWeatherCoverageIncomplete
+            hasReliableWeather: weather != nil && !viewModel.isCurrentWeatherCoverageIncomplete,
+            isTonight: isSelectedNightTonight
         )
         let timeline = NightTimelineModel(
             summary: summary,

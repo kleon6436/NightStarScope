@@ -531,6 +531,8 @@ final class StarMapCameraController: NSObject, ObservableObject {
         }
         guard !isConfiguringSession else { return }
         isConfiguringSession = true
+        // 前回の失敗を消し、再試行が同じエラーで失敗しても onChange が発火するようにする。
+        lastErrorMessage = nil
 
         let session = session
         sessionQueue.async {

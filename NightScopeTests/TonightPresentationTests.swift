@@ -133,6 +133,48 @@ final class TonightPresentationTests: XCTestCase {
         XCTAssertEqual(makeVerdict(score: 10).headline, L10n.tr("今夜は星見に不向き"))
     }
 
+    func test_headline_notTonight_usesNeutralWording() {
+        func headline(score: Int) -> String {
+            NightVerdictPresentation(
+                index: makeTestIndex(score: score),
+                summary: makeTokyoNight(),
+                weather: nil,
+                hasReliableWeather: false,
+                isTonight: false
+            ).headline
+        }
+        XCTAssertEqual(headline(score: 95), L10n.tr("絶好の星空日和"))
+        XCTAssertEqual(headline(score: 80), L10n.tr("この夜は星見向き"))
+        XCTAssertEqual(headline(score: 60), L10n.tr("条件はまずまず"))
+        XCTAssertEqual(headline(score: 40), L10n.tr("この夜はやや不向き"))
+        XCTAssertEqual(headline(score: 10), L10n.tr("この夜は星見に不向き"))
+    }
+
+    func test_axis_onDaylightSavingStartDay_staysAtWallClockSixPMToSixAM() {
+        let newYork = TimeZone(identifier: "America/New_York") ?? .current
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: newYork)
+        // 2026-03-08 は 02:00 に夏時間へ切り替わる日。00:00 + 18h だと 19:00 になってしまう。
+        let day = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8)) ?? Date()
+        let summary = NightSummary(
+            date: day,
+            location: CLLocationCoordinate2D(latitude: 40.7, longitude: -74.0),
+            events: [],
+            viewingWindows: [],
+            moonPhaseAtMidnight: 0,
+            timeZoneIdentifier: newYork.identifier
+        )
+        let timeline = NightTimelineModel(summary: summary, nighttimeHours: [])
+
+        XCTAssertEqual(
+            timeline.axisStart,
+            calendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 18))
+        )
+        XCTAssertEqual(
+            timeline.axisEnd,
+            calendar.date(from: DateComponents(year: 2026, month: 3, day: 9, hour: 6))
+        )
+    }
+
     func test_headline_missingIndex_showsCalculating() {
         XCTAssertEqual(makeVerdict(score: nil).headline, L10n.tr("計算中"))
     }

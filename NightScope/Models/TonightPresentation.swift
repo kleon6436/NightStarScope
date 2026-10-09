@@ -14,10 +14,11 @@ struct NightVerdictPresentation {
         index: StarGazingIndex?,
         summary: NightSummary,
         weather: DayWeatherSummary?,
-        hasReliableWeather: Bool
+        hasReliableWeather: Bool,
+        isTonight: Bool = true
     ) {
         let tier = index?.tier
-        self.headline = Self.makeHeadline(tier: tier)
+        self.headline = Self.makeHeadline(tier: tier, isTonight: isTonight)
         self.reason = Self.makeReason(
             tier: tier,
             summary: summary,
@@ -28,14 +29,15 @@ struct NightVerdictPresentation {
 
     // MARK: - Headline
 
-    private static func makeHeadline(tier: StarGazingIndex.Tier?) -> String {
+    /// - Parameter isTonight: 選択中の夜が「今夜」か。予報から別の夜を選んだ場合は「今夜」を使わない。
+    private static func makeHeadline(tier: StarGazingIndex.Tier?, isTonight: Bool) -> String {
         guard let tier else { return L10n.tr("計算中") }
         switch tier {
         case .excellent: return L10n.tr("絶好の星空日和")
-        case .good:      return L10n.tr("今夜は星見向き")
+        case .good:      return L10n.tr(isTonight ? "今夜は星見向き" : "この夜は星見向き")
         case .fair:      return L10n.tr("条件はまずまず")
-        case .poor:      return L10n.tr("今夜はやや不向き")
-        case .bad:       return L10n.tr("今夜は星見に不向き")
+        case .poor:      return L10n.tr(isTonight ? "今夜はやや不向き" : "この夜はやや不向き")
+        case .bad:       return L10n.tr(isTonight ? "今夜は星見に不向き" : "この夜は星見に不向き")
         }
     }
 
@@ -125,12 +127,13 @@ struct NightTimelineModel {
 
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let dayStart = calendar.startOfDay(for: summary.date)
-        let start = calendar.date(byAdding: .hour, value: axisStartHour, to: dayStart) ?? dayStart
+        // 壁時計の時刻で指す。DST の切り替え日に `.hour` 加算だと 1 時間ずれる。
+        let start = calendar.date(bySettingHour: axisStartHour, minute: 0, second: 0, of: dayStart) ?? dayStart
         // 終端の時刻が開始以下なら翌日に回り込む（既定の 18:00 → 翌 06:00）。
         let endDayOffset = axisEndHour <= axisStartHour ? 1 : 0
         let endDayStart = calendar.date(byAdding: .day, value: endDayOffset, to: dayStart) ?? dayStart
         self.axisStart = start
-        self.axisEnd = calendar.date(byAdding: .hour, value: axisEndHour, to: endDayStart) ?? start
+        self.axisEnd = calendar.date(bySettingHour: axisEndHour, minute: 0, second: 0, of: endDayStart) ?? start
     }
 
     var totalSeconds: TimeInterval { axisEnd.timeIntervalSince(axisStart) }
