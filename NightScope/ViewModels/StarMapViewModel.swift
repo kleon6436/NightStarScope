@@ -70,6 +70,8 @@ final class StarMapViewModel: ObservableObject {
     @Published private(set) var moonAltitude: Double = 0
     @Published private(set) var moonAzimuth: Double = 0
     @Published private(set) var moonPhase: Double = 0      // 0=新月, 0.5=満月, 1=新月
+    /// 月の輝面の向き（天頂方向 0°、観測者から見て左回り, 度）。nil なら従来の左右表示
+    @Published private(set) var moonBrightLimbZenithAngle: Double? = nil
     @Published private(set) var galacticCenterAltitude: Double = 0
     @Published private(set) var galacticCenterAzimuth: Double = 0
     @Published private(set) var constellationLines: [ConstellationLineAltAz] = []
@@ -422,6 +424,7 @@ final class StarMapViewModel: ObservableObject {
         moonAltitude = snapshot.moonAltitude
         moonAzimuth = snapshot.moonAzimuth
         moonPhase = snapshot.moonPhase
+        moonBrightLimbZenithAngle = snapshot.moonBrightLimbZenithAngle
         galacticCenterAltitude = snapshot.galacticCenterAltitude
         galacticCenterAzimuth = snapshot.galacticCenterAzimuth
         constellationLines = snapshot.constellationLines

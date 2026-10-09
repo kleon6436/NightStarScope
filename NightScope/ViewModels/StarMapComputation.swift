@@ -16,6 +16,9 @@ enum StarMapComputation {
         let planetPositions: [PlanetPosition]
         let meteorShowerRadiants: [(shower: MeteorShower, altitude: Double, azimuth: Double)]
         let milkyWayBandPoints: [MilkyWayBandPoint]
+        /// 月の輝面の向き（天頂方向 0°、観測者から見て左回り, 度）。
+        /// `MilkyWayCalculator.moonBrightLimbZenithAngle` の値。nil の場合は描画側で従来の左右表示にする。
+        var moonBrightLimbZenithAngle: Double? = nil
     }
 
     private static let cachedStarColors: [Color] = {
@@ -112,7 +115,12 @@ enum StarMapComputation {
                 lst: localSiderealTime
             ),
             meteorShowerRadiants: meteorRadiants,
-            milkyWayBandPoints: computeMilkyWayBandPoints(observer: observer)
+            milkyWayBandPoints: computeMilkyWayBandPoints(observer: observer),
+            moonBrightLimbZenithAngle: MilkyWayCalculator.moonBrightLimbZenithAngle(
+                jd: julianDate,
+                latitude: latitude,
+                localSiderealTime: localSiderealTime
+            )
         )
     }
 

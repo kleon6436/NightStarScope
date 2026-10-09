@@ -1187,4 +1187,82 @@ final class LocationControllerTests: XCTestCase {
             )
         }
     }
+
+    /// トルコ・東地中海・東欧・コーカサス・中央アジア・南アジアの主要都市を、近隣国の矩形と取り違えずに判定する。
+    func test_ApproximateTimeZoneResolver_heuristics_coverEasternEuropeMiddleEastAndAsia() {
+        let cases: [(name: String, latitude: Double, longitude: Double, expected: String)] = [
+            ("Istanbul", 41.01, 28.98, "Europe/Istanbul"),
+            ("Ankara", 39.93, 32.86, "Europe/Istanbul"),
+            ("Izmir", 38.42, 27.14, "Europe/Istanbul"),
+            ("Edirne", 41.68, 26.56, "Europe/Istanbul"),
+            ("Antakya", 36.20, 36.16, "Europe/Istanbul"),
+            ("Mardin", 37.31, 40.74, "Europe/Istanbul"),
+            ("Van", 38.50, 43.38, "Europe/Istanbul"),
+            ("Samos (GR)", 37.75, 26.98, "Europe/Athens"),
+            ("Rhodes (GR)", 36.43, 28.22, "Europe/Athens"),
+            ("Mytilene (GR)", 39.10, 26.55, "Europe/Athens"),
+            ("Kaliningrad", 54.71, 20.51, "Europe/Kaliningrad"),
+            ("Gdansk", 54.35, 18.65, "Europe/Warsaw"),
+            ("Amman", 31.95, 35.93, "Asia/Amman"),
+            ("Aqaba", 29.53, 35.006, "Asia/Amman"),
+            ("Eilat", 29.56, 34.95, "Asia/Jerusalem"),
+            ("Tiberias", 32.79, 35.53, "Asia/Jerusalem"),
+            ("Metula", 33.28, 35.58, "Asia/Jerusalem"),
+            ("Beirut", 33.89, 35.50, "Asia/Beirut"),
+            ("Tyre", 33.27, 35.20, "Asia/Beirut"),
+            ("Baalbek", 34.006, 36.21, "Asia/Beirut"),
+            ("Damascus", 33.51, 36.29, "Asia/Damascus"),
+            ("Aleppo", 36.20, 37.15, "Asia/Damascus"),
+            ("Deir ez-Zor", 35.33, 40.14, "Asia/Damascus"),
+            ("Mosul", 36.34, 43.13, "Asia/Baghdad"),
+            ("Zakho", 37.14, 42.68, "Asia/Baghdad"),
+            ("Cairo", 30.04, 31.24, "Africa/Cairo"),
+            ("Nicosia", 35.17, 33.36, "Asia/Nicosia"),
+            ("Limassol", 34.68, 33.04, "Asia/Nicosia"),
+            ("Kyiv", 50.45, 30.52, "Europe/Kyiv"),
+            ("Lviv", 49.84, 24.03, "Europe/Kyiv"),
+            ("Odesa", 46.48, 30.73, "Europe/Kyiv"),
+            ("Kharkiv", 49.99, 36.23, "Europe/Kyiv"),
+            ("Minsk", 53.90, 27.56, "Europe/Minsk"),
+            ("Przemysl", 49.78, 22.77, "Europe/Warsaw"),
+            ("Bucharest", 44.43, 26.10, "Europe/Bucharest"),
+            ("Cluj-Napoca", 46.77, 23.60, "Europe/Bucharest"),
+            ("Debrecen", 47.53, 21.63, "Europe/Budapest"),
+            ("Sofia", 42.70, 23.32, "Europe/Sofia"),
+            ("Varna", 43.21, 27.91, "Europe/Sofia"),
+            ("Vilnius", 54.69, 25.28, "Europe/Vilnius"),
+            ("Riga", 56.95, 24.10, "Europe/Riga"),
+            ("Tallinn", 59.44, 24.75, "Europe/Tallinn"),
+            ("Helsinki", 60.17, 24.94, "Europe/Helsinki"),
+            ("Oulu", 65.01, 25.47, "Europe/Helsinki"),
+            ("St Petersburg", 59.94, 30.31, "Europe/Moscow"),
+            ("Vyborg", 60.71, 28.75, "Europe/Moscow"),
+            ("Tbilisi", 41.72, 44.79, "Asia/Tbilisi"),
+            ("Yerevan", 40.18, 44.51, "Asia/Yerevan"),
+            ("Baku", 40.41, 49.87, "Asia/Baku"),
+            ("Tabriz", 38.08, 46.29, "Asia/Tehran"),
+            ("Ashgabat", 37.95, 58.38, "Asia/Ashgabat"),
+            ("Mashhad", 36.30, 59.60, "Asia/Tehran"),
+            ("Tashkent", 41.30, 69.24, "Asia/Tashkent"),
+            ("Samarkand", 39.65, 66.96, "Asia/Samarkand"),
+            ("Almaty", 43.24, 76.95, "Asia/Almaty"),
+            ("Kathmandu", 27.7172, 85.324, "Asia/Kathmandu"),
+            ("Nepalgunj", 28.05, 81.62, "Asia/Kathmandu"),
+            ("Lakhimpur (IN)", 27.95, 80.78, "Asia/Kolkata"),
+            ("Colombo", 6.93, 79.86, "Asia/Colombo"),
+            ("Jaffna", 9.66, 80.02, "Asia/Colombo"),
+            ("Rameswaram (IN)", 9.29, 79.31, "Asia/Kolkata"),
+            ("Chennai", 13.08, 80.27, "Asia/Kolkata"),
+        ]
+        for c in cases {
+            XCTAssertEqual(
+                ApproximateTimeZoneResolver.approximateIdentifier(
+                    for: CLLocationCoordinate2D(latitude: c.latitude, longitude: c.longitude)
+                ),
+                c.expected,
+                c.name
+            )
+            XCTAssertNotNil(TimeZone(identifier: c.expected), c.expected)
+        }
+    }
 }

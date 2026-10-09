@@ -934,3 +934,137 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
         }
     }
 }
+
+/// 月の輝面の向き（Meeus 48 章の位置角 χ と視差角 q）と、その画面描画への反映。
+final class MoonBrightLimbTests: XCTestCase {
+
+    /// Meeus 例題 48.a（1992-04-12 0h TD）: 太陽 α0=20.6579°, δ0=8.6964° / 月 α=134.6885°, δ=13.7684° → χ=285.0°
+    func test_moonBrightLimbPositionAngle_matchesMeeusExample48a() {
+        let chi = MilkyWayCalculator.moonBrightLimbPositionAngle(
+            sunRA: 20.6579, sunDec: 8.6964,
+            moonRA: 134.6885, moonDec: 13.7684
+        )
+        XCTAssertEqual(chi, 285.0, accuracy: 0.1)
+    }
+
+    /// アプリの太陽・月の位置から求めた χ は PyEphem 4.2.1（地心視位置）から求めた χ と 0.5° 以内で一致する。
+    func test_moonBrightLimbPositionAngle_matchesPyEphem() {
+        let cases: [(jd: Double, expected: Double)] = [
+            (2461043.5, 310.939),          // 2026-01-03 00:00 UTC
+            (2461045.0541666667, 90.672),  // 2026-01-04 13:18 UTC
+        ]
+        for c in cases {
+            let sun = MilkyWayCalculator.sunRaDec(jd: c.jd)
+            let moon = MilkyWayCalculator.moonRaDec(jd: c.jd)
+            let chi = MilkyWayCalculator.moonBrightLimbPositionAngle(
+                sunRA: sun.ra, sunDec: sun.dec, moonRA: moon.ra, moonDec: moon.dec
+            )
+            XCTAssertEqual(chi, c.expected, accuracy: 0.5, "jd=\(c.jd)")
+        }
+    }
+
+    /// 東京での月の視差角は PyEphem 4.2.1 の Moon.parallactic_angle() と 0.5° 以内で一致する。
+    func test_parallacticAngle_matchesPyEphemAtTokyo() {
+        let tokyo = (latitude: 35.68, longitude: 139.65)
+        let cases: [(jd: Double, expected: Double)] = [
+            (2461043.5, 29.682),
+            (2461045.0541666667, -61.122),
+        ]
+        for c in cases {
+            let moon = MilkyWayCalculator.moonRaDec(jd: c.jd)
+            let lst = MilkyWayCalculator.localSiderealTime(jd: c.jd, longitude: tokyo.longitude)
+            let q = MilkyWayCalculator.parallacticAngle(
+                hourAngle: lst - moon.ra, declination: moon.dec, latitude: tokyo.latitude
+            )
+            XCTAssertEqual(q, c.expected, accuracy: 0.5, "jd=\(c.jd)")
+        }
+    }
+
+    /// 南中時の視差角: 天頂より南の天体は 0°（天頂方向 = 北）、北の天体は 180°。
+    func test_parallacticAngle_onMeridian() {
+        XCTAssertEqual(MilkyWayCalculator.parallacticAngle(hourAngle: 0, declination: 10, latitude: 35), 0, accuracy: 1e-9)
+        XCTAssertEqual(abs(MilkyWayCalculator.parallacticAngle(hourAngle: 0, declination: 60, latitude: 35)), 180, accuracy: 1e-9)
+        // 南中前（東側）は負、南中後（西側）は正
+        XCTAssertLessThan(MilkyWayCalculator.parallacticAngle(hourAngle: -30, declination: 10, latitude: 35), 0)
+        XCTAssertGreaterThan(MilkyWayCalculator.parallacticAngle(hourAngle: 30, declination: 10, latitude: 35), 0)
+    }
+
+    /// 日没後の西空の三日月（東京 2026-02-20 18:30 JST、太陽は月のほぼ真下）は輝面が下（地平線側）を向く。
+    /// 南半球（シドニー）の同時刻では太陽が月の左下にあり、輝面は左下を向く。
+    func test_moonBrightLimbZenithAngle_eveningCrescentPointsTowardSetSun() {
+        let jd = 2461091.8958333335  // 2026-02-20 09:30 UTC
+        let tokyoAngle = MilkyWayCalculator.moonBrightLimbZenithAngle(
+            jd: jd,
+            latitude: 35.6762,
+            localSiderealTime: MilkyWayCalculator.localSiderealTime(jd: jd, longitude: 139.6503)
+        )
+        XCTAssertEqual(tokyoAngle, 189.6, accuracy: 1.0)
+        let sydneyAngle = MilkyWayCalculator.moonBrightLimbZenithAngle(
+            jd: jd,
+            latitude: -33.8688,
+            localSiderealTime: MilkyWayCalculator.localSiderealTime(jd: jd, longitude: 151.2093)
+        )
+        XCTAssertEqual(sydneyAngle, 118.0, accuracy: 1.0)
+    }
+
+    /// 方位角が右に増え、高度が上に増える単純な投影では、天頂角 0° は画面の上、90° は左（方位角が減る側）を向く。
+    func test_moonBrightLimbScreenAngle_followsProjectionOrientation() throws {
+        let project: (Double, Double) -> CGPoint? = { altitude, azimuth in
+            CGPoint(x: azimuth * 1000, y: -altitude * 1000)
+        }
+        let up = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 0, altitudeDegrees: 0, azimuthDegrees: 180, project: project
+        ))
+        XCTAssertEqual(up, -Double.pi / 2, accuracy: 1e-6)
+        let left = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 90, altitudeDegrees: 0, azimuthDegrees: 180, project: project
+        ))
+        XCTAssertEqual(abs(left), Double.pi, accuracy: 1e-6)
+        let down = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 180, altitudeDegrees: 0, azimuthDegrees: 180, project: project
+        ))
+        XCTAssertEqual(down, Double.pi / 2, accuracy: 1e-6)
+
+        // 画面を 90° 回した（ロールした）投影では、天頂方向も画面上で回る
+        let rolled: (Double, Double) -> CGPoint? = { altitude, azimuth in
+            CGPoint(x: altitude * 1000, y: azimuth * 1000)
+        }
+        let rolledUp = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 0, altitudeDegrees: 0, azimuthDegrees: 180, project: rolled
+        ))
+        XCTAssertEqual(rolledUp, 0, accuracy: 1e-6)
+
+        // 投影できない場合は nil
+        XCTAssertNil(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 0, altitudeDegrees: 0, azimuthDegrees: 0, project: { _, _ in nil }
+        ))
+    }
+
+    /// 輝面の向きを指定すると、多角形の輝面側がその向きへ回転する。指定しなければ従来の左右表示。
+    func test_moonLitPolygon_rotatesLitSideToBrightLimbAngle() {
+        let center = CGPoint(x: 100, y: 100)
+        func centroid(_ points: [CGPoint]) -> CGPoint {
+            CGPoint(
+                x: points.map(\.x).reduce(0, +) / CGFloat(points.count),
+                y: points.map(\.y).reduce(0, +) / CGFloat(points.count)
+            )
+        }
+        // 上弦（半月）: 指定なしは右側が光る
+        let legacy = centroid(StarMapCanvasView.moonLitPolygon(center: center, radius: 10, phase: 0.25))
+        XCTAssertGreaterThan(legacy.x, center.x + 2)
+        XCTAssertEqual(legacy.y, center.y, accuracy: 1e-6)
+
+        // 輝面を下（+y）へ向ける
+        let down = centroid(StarMapCanvasView.moonLitPolygon(
+            center: center, radius: 10, phase: 0.25, brightLimbScreenAngle: Double.pi / 2
+        ))
+        XCTAssertGreaterThan(down.y, center.y + 2)
+        XCTAssertEqual(down.x, center.x, accuracy: 1e-6)
+
+        // 下弦でも向きの指定が優先される（左右反転しない）
+        let waningUp = centroid(StarMapCanvasView.moonLitPolygon(
+            center: center, radius: 10, phase: 0.75, brightLimbScreenAngle: -Double.pi / 2
+        ))
+        XCTAssertLessThan(waningUp.y, center.y - 2)
+    }
+}

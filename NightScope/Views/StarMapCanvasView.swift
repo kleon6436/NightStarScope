@@ -382,7 +382,17 @@ struct StarMapCanvasView: View {
                 altitudeRadians: alt,
                 azimuthRadians: viewModel.moonAzimuth * .pi / 180
             ) {
-                drawMoon(ctx: ctx, at: pt, phase: viewModel.moonPhase)
+                // 輝面は太陽の方向（Meeus 48 章の位置角）を空の向きに合わせて描く
+                let brightLimbScreenAngle = viewModel.moonBrightLimbZenithAngle.flatMap { zenithAngle in
+                    Self.moonBrightLimbScreenAngle(
+                        zenithAngleDegrees: zenithAngle,
+                        altitudeDegrees: viewModel.moonAltitude,
+                        azimuthDegrees: viewModel.moonAzimuth
+                    ) { altitudeRadians, azimuthRadians in
+                        projection.project(altitudeRadians: altitudeRadians, azimuthRadians: azimuthRadians)
+                    }
+                }
+                drawMoon(ctx: ctx, at: pt, phase: viewModel.moonPhase, brightLimbScreenAngle: brightLimbScreenAngle)
             }
         }
 

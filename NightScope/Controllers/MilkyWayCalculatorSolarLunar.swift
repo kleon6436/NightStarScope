@@ -258,6 +258,66 @@ extension MilkyWayCalculator {
         )
     }
 
+    // MARK: - 月の輝面の向き
+
+    /// 月の輝面（明るい縁の中点）の位置角 χ (度, 0..<360)。天の北極方向を 0° とし東回りに測る。
+    /// 根拠: Meeus「Astronomical Algorithms」48 章 式 (48.5)。輝面は月から太陽へ向かう大円の方向を向く。
+    static func moonBrightLimbPositionAngle(
+        sunRA: Double,
+        sunDec: Double,
+        moonRA: Double,
+        moonDec: Double
+    ) -> Double {
+        let α0 = AngleMath.toRadians(sunRA)
+        let δ0 = AngleMath.toRadians(sunDec)
+        let α = AngleMath.toRadians(moonRA)
+        let δ = AngleMath.toRadians(moonDec)
+        let y = cos(δ0) * sin(α0 - α)
+        let x = sin(δ0) * cos(δ) - cos(δ0) * sin(δ) * cos(α0 - α)
+        return AngleMath.normalizedDegrees(AngleMath.toDegrees(atan2(y, x)))
+    }
+
+    /// 天体の視差角 q (度, -180...180)。天体の位置で天の北極方向から天頂方向までを東回りに測った角度
+    /// （南中前は負、南中後は正）。
+    /// 根拠: Meeus 14 章 式 (14.1) tan q = sin H / (tan φ cos δ − sin δ cos H) の分子・分母に cos φ を掛けた形
+    ///       （極でも tan φ が発散しない）。
+    static func parallacticAngle(
+        hourAngle: Double,
+        declination: Double,
+        latitude: Double
+    ) -> Double {
+        let H = AngleMath.toRadians(hourAngle)
+        let δ = AngleMath.toRadians(declination)
+        let φ = AngleMath.toRadians(latitude)
+        let y = sin(H) * cos(φ)
+        let x = sin(φ) * cos(δ) - cos(φ) * sin(δ) * cos(H)
+        return AngleMath.toDegrees(atan2(y, x))
+    }
+
+    /// 月の輝面の向きを、月の位置での天頂方向を 0° として観測者から見て左回り
+    /// （天頂 → 東寄りの側）に測った角度 (度, 0..<360)。χ − q。
+    /// 例: 180° は輝面が真下（地平線側）、90° は観測者から見て左側を向く。
+    static func moonBrightLimbZenithAngle(
+        jd: Double,
+        latitude: Double,
+        localSiderealTime: Double
+    ) -> Double {
+        let sun = sunRaDec(jd: jd)
+        let moon = moonRaDec(jd: jd)
+        let chi = moonBrightLimbPositionAngle(
+            sunRA: sun.ra,
+            sunDec: sun.dec,
+            moonRA: moon.ra,
+            moonDec: moon.dec
+        )
+        let q = parallacticAngle(
+            hourAngle: localSiderealTime - moon.ra,
+            declination: moon.dec,
+            latitude: latitude
+        )
+        return AngleMath.normalizedDegrees(chi - q)
+    }
+
     /// 黄道座標 (黄経 λ・黄緯 β・黄道傾斜角 ε, いずれも rad) を赤道座標 (度) に変換する。
     static func eclipticToEquatorial(
         lambda: Double,

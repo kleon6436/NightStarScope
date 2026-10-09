@@ -266,7 +266,7 @@ struct NightSummary {
             )
         }
 
-        guard ObservationTimeZone.isDateInToday(date, timeZone: timeZone, referenceDate: referenceDate),
+        guard isTonight(referenceDate: referenceDate),
               let partialSummary = clippedToCoveredDarkHours(coverage.hours) else {
             return nil
         }
@@ -276,6 +276,19 @@ struct NightSummary {
             DayWeatherSummary(date: date, nighttimeHours: coverage.hours),
             true
         )
+    }
+
+    /// この夜が `referenceDate` 時点の「今夜」かを返す。深夜〜明け方は進行中の前夜も今夜とみなす。
+    private func isTonight(referenceDate: Date) -> Bool {
+        if ObservationTimeZone.isDateInToday(date, timeZone: timeZone, referenceDate: referenceDate) {
+            return true
+        }
+        guard let nextDay = ObservationTimeZone.date(byAdding: .day, value: 1, to: date, timeZone: timeZone),
+              ObservationTimeZone.isDate(nextDay, inSameDayAs: referenceDate, timeZone: timeZone),
+              let nightEnd = morningDarkEnd ?? events.last?.date else {
+            return false
+        }
+        return referenceDate <= nightEnd
     }
 
     private func makeWeatherByHour(nighttimeHours: [HourlyWeather], calendar: Calendar) -> WeatherByHour {
