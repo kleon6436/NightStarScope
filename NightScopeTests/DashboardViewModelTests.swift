@@ -468,10 +468,9 @@ final class DashboardViewModelTests: XCTestCase {
             comparisonController: controller,
             favoriteStore: InMemoryFavoriteStore(favorites: [favorite])
         )
-        // 初期選択の通知（メインキュー経由）による更新が始まるのを待ってから、基準時刻を固定して更新する
-        await waitUntil { controller.computeMatrixCalls >= 1 }
+        // 購読直後の現在値では更新しないため、基準時刻を固定した更新が初回の計算になる
         let refresh = Task { await viewModel.refresh(referenceDate: afterMidnight) }
-        await waitUntil { controller.computeMatrixCalls >= 2 }
+        await waitUntil { controller.computeMatrixCalls >= 1 }
 
         XCTAssertTrue(viewModel.isInitialLoad)
         let matrix = viewModel.matrix
