@@ -61,8 +61,10 @@ enum StarMapComputation {
         let sun = MilkyWayCalculator.sunRaDec(jd: julianDate)
         let (sunAltitude, _) = observer.altAz(ra: sun.ra, dec: sun.dec)
 
-        let moon = MilkyWayCalculator.moonRaDec(jd: julianDate)
-        let (moonAltitude, moonAzimuth) = observer.altAz(ra: moon.ra, dec: moon.dec)
+        // 視差補正済みの地平座標を使い、タイムラインやイベント計算と同じ月高度にそろえる
+        let moon = MilkyWayCalculator.moonHorizontal(jd: julianDate, observer: observer)
+        let moonAltitude = moon.alt
+        let moonAzimuth = moon.az
 
         let (galacticCenterAltitude, galacticCenterAzimuth) = observer.altAz(
             ra: MilkyWayCalculator.gcRA,

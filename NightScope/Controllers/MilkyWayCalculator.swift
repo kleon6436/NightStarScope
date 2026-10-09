@@ -104,7 +104,8 @@ enum MilkyWayCalculator {
         var events: [AstroEvent] = []
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let observationDate = calendar.startOfDay(for: date)
-        let samplingStart = calendar.date(byAdding: .hour, value: 12, to: observationDate)
+        // 夏時間の切替日でも時計の 12:00 から始めるため、経過時間ではなく時刻指定で求める
+        let samplingStart = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: observationDate)
             ?? observationDate.addingTimeInterval(12 * 60 * 60)
         let latRad = AngleMath.toRadians(location.latitude)
         let cosLat = cos(latRad)

@@ -712,6 +712,108 @@ final class StarGazingIndexTests: XCTestCase {
         XCTAssertEqual(idx.score, 0, "白夜は天気が良くても 0 点になるべき")
     }
 
+    /// 白夜（天文薄明が終わらないが太陽高度 < -6° の時間はある）夜の NightSummary と、その時間帯を覆う快晴予報。
+    private func makeWhiteNightFixture() -> (summary: NightSummary, weather: DayWeatherSummary) {
+        let base = Date(timeIntervalSince1970: 0)
+        let events = (0..<24).map { i in
+            AstroEvent(
+                date: base.addingTimeInterval(Double(i) * 900),
+                galacticCenterAltitude: 0,
+                galacticCenterAzimuth: 0,
+                sunAltitude: -10.0,
+                moonAltitude: 20.0,
+                moonPhase: 0.5
+            )
+        }
+        let summary = NightSummary(
+            date: base,
+            location: CLLocationCoordinate2D(latitude: 51.5, longitude: 0),
+            events: events,
+            viewingWindows: [],
+            moonPhaseAtMidnight: 0.5,
+            timeZoneIdentifier: "UTC"
+        )
+        let hours = (0..<6).map { hour in
+            makeOffsetHourlyWeather(
+                base: base, hourOffset: hour,
+                cloud: 5, precip: 0, wind: 4, humidity: 40, dewpoint: -5, weatherCode: 0
+            )
+        }
+        return (summary, DayWeatherSummary(date: base, nighttimeHours: hours))
+    }
+
+    func test_compute_whiteNight_keepsNightWeatherScoreForModes() {
+        let fixture = makeWhiteNightFixture()
+        let idx = StarGazingIndex.compute(
+            nightSummary: fixture.summary,
+            weather: fixture.weather,
+            bortleClass: 3.0
+        )
+        XCTAssertEqual(idx.score, 0, "白夜の総合点は 0 点のまま")
+        XCTAssertTrue(idx.hasWeatherData)
+        XCTAssertGreaterThan(idx.weatherScore, 20, "夜間（市民薄明後）の快晴は気象スコアに反映されるべき")
+    }
+
+    func test_adjusted_whiteNight_moonAndPlanetaryModesUseNightWeather() {
+        let fixture = makeWhiteNightFixture()
+        let idx = StarGazingIndex.compute(
+            nightSummary: fixture.summary,
+            weather: fixture.weather,
+            bortleClass: 3.0
+        )
+        let moon = idx.adjusted(for: .moon, nightSummary: fixture.summary, weather: fixture.weather)
+        let planetary = idx.adjusted(for: .planetary, nightSummary: fixture.summary, weather: fixture.weather)
+        let milkyWay = idx.adjusted(for: .milkyWay, nightSummary: fixture.summary, weather: fixture.weather)
+
+        XCTAssertGreaterThanOrEqual(moon.score, 60, "白夜でも快晴なら月の観測は好条件")
+        XCTAssertGreaterThanOrEqual(planetary.score, 60, "白夜でも快晴なら惑星の観測は好条件")
+        XCTAssertEqual(milkyWay.score, 0, "天の川モードは白夜では 0 点のまま")
+    }
+
+    /// ベース指数が評価しなかった天気（未来夜の部分予報）由来のキャップはモード補正でも掛けない。
+    func test_adjusted_doesNotApplyCapsFromWeatherIgnoredByBaseIndex() {
+        let summary = makeIdealDarkSummary(moonPhase: 0.02, moonAltitude: -10)
+        // 暗時間 7 時間のうち 1 時間だけの悪天候予報（今日ではないので部分予報は使われない）
+        let partialWeather = makeWeather(cloud: 95, precip: 2, wind: 5, humidity: 95, dewpointSpread: 1, weatherCode: 61)
+        let idx = StarGazingIndex.compute(
+            nightSummary: summary,
+            weather: partialWeather,
+            bortleClass: 3.0,
+            referenceDate: Date(timeIntervalSince1970: 30 * 86_400)
+        )
+        XCTAssertFalse(idx.hasWeatherData)
+
+        let adjusted = idx.adjusted(
+            for: .planetary,
+            nightSummary: summary,
+            weather: partialWeather,
+            referenceDate: Date(timeIntervalSince1970: 30 * 86_400)
+        )
+        XCTAssertGreaterThan(adjusted.score, 34, "ベース指数が無視した天気の悪天候キャップは掛けない")
+    }
+
+    /// 今夜の部分予報はベース指数と同じ referenceDate で評価し、悪天候キャップを掛ける。
+    func test_adjusted_usesReferenceDateForCurrentNightPartialWeather() {
+        let summary = makeIdealDarkSummary(moonPhase: 0.02, moonAltitude: -10)
+        let partialWeather = makeWeather(cloud: 95, precip: 2, wind: 5, humidity: 95, dewpointSpread: 1, weatherCode: 61)
+        let referenceDate = Date(timeIntervalSince1970: 0)
+        let idx = StarGazingIndex.compute(
+            nightSummary: summary,
+            weather: partialWeather,
+            bortleClass: 3.0,
+            referenceDate: referenceDate
+        )
+        XCTAssertTrue(idx.hasWeatherData)
+
+        let adjusted = idx.adjusted(
+            for: .planetary,
+            nightSummary: summary,
+            weather: partialWeather,
+            referenceDate: referenceDate
+        )
+        XCTAssertLessThanOrEqual(adjusted.score, 34)
+    }
+
     // MARK: - #2 月明かりキャップ
 
     func test_compute_fullMoonAbove_cappedToPoor() {
@@ -907,14 +1009,14 @@ final class StarGazingIndexTests: XCTestCase {
         let summary = makeIdealDarkSummary()
         let weather = makeWeather(cloud: 10, precip: 0, wind: 5, humidity: 40, dewpointSpread: 20, visibility: 25_000, windGusts: 15)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 3.0)
-        XCTAssertEqual(idx.adjusted(for: .general, nightSummary: summary, weather: weather).score, idx.score)
+        XCTAssertEqual(idx.adjusted(for: .general, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary)).score, idx.score)
     }
 
     func test_adjusted_milkyWayMode_capsBrightMoonMoreStrictly() {
         let summary = makeDarkNightSummary(darkEventCount: 25, moonPhase: 0.196, moonAltitude: 30)
         let weather = makeWeather(cloud: 10, precip: 0, wind: 5, humidity: 40, dewpointSpread: 20, visibility: 25_000, windGusts: 15)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 3.0)
-        let adjusted = idx.adjusted(for: .milkyWay, nightSummary: summary, weather: weather)
+        let adjusted = idx.adjusted(for: .milkyWay, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary))
         XCTAssertGreaterThan(idx.score, 49)
         XCTAssertEqual(adjusted.score, 49)
     }
@@ -923,14 +1025,14 @@ final class StarGazingIndexTests: XCTestCase {
         let summary = makeIdealDarkSummary(moonPhase: 0.05, moonAltitude: -10)
         let weather = makeWeather(cloud: 45, precip: 0, wind: 5, humidity: 60, dewpointSpread: 10, visibility: 10_000, windGusts: 15)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 3.0)
-        XCTAssertLessThan(idx.adjusted(for: .meteors, nightSummary: summary, weather: weather).score, idx.score)
+        XCTAssertLessThan(idx.adjusted(for: .meteors, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary)).score, idx.score)
     }
 
     func test_adjusted_milkyWayMode_doesNotExceedBaseScoreUnderUrbanSky() {
         let summary = makeIdealDarkSummary(moonPhase: 0.02, moonAltitude: -10)
         let weather = makeWeather(cloud: 5, precip: 0, wind: 4, humidity: 35, dewpointSpread: 18, visibility: 25_000, windGusts: 10)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 9.0)
-        let adjusted = idx.adjusted(for: .milkyWay, nightSummary: summary, weather: weather)
+        let adjusted = idx.adjusted(for: .milkyWay, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary))
 
         XCTAssertEqual(idx.score, 49)
         XCTAssertLessThanOrEqual(adjusted.score, idx.score)
@@ -940,7 +1042,7 @@ final class StarGazingIndexTests: XCTestCase {
         let summary = makeIdealDarkSummary(moonPhase: 0.5, moonAltitude: 30)
         let weather = makeWeather(cloud: 10, precip: 0, wind: 5, humidity: 40, dewpointSpread: 20, visibility: 25_000, windGusts: 15)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 3.0)
-        let adjusted = idx.adjusted(for: .moon, nightSummary: summary, weather: weather)
+        let adjusted = idx.adjusted(for: .moon, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary))
         XCTAssertLessThanOrEqual(idx.score, 49)
         XCTAssertGreaterThan(adjusted.score, idx.score)
         XCTAssertGreaterThan(adjusted.score, 74)
@@ -950,7 +1052,7 @@ final class StarGazingIndexTests: XCTestCase {
         let summary = makeIdealDarkSummary(moonPhase: 0.1, moonAltitude: -10)
         let weather = makeWeather(cloud: 10, precip: 0, wind: 22, humidity: 40, dewpointSpread: 20, visibility: 25_000, windGusts: 40)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 3.0)
-        let adjusted = idx.adjusted(for: .planetary, nightSummary: summary, weather: weather)
+        let adjusted = idx.adjusted(for: .planetary, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary))
 
         XCTAssertGreaterThan(idx.score, 64)
         XCTAssertEqual(adjusted.score, 64)
@@ -960,7 +1062,7 @@ final class StarGazingIndexTests: XCTestCase {
         let summary = makeIdealDarkSummary(moonPhase: 0.02, moonAltitude: -10)
         let weather = makeWeather(cloud: 5, precip: 0, wind: 4, humidity: 35, dewpointSpread: 18, visibility: 25_000, windGusts: 10)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 9.0)
-        let adjusted = idx.adjusted(for: .planetary, nightSummary: summary, weather: weather)
+        let adjusted = idx.adjusted(for: .planetary, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary))
 
         XCTAssertEqual(idx.score, 49)
         XCTAssertGreaterThan(adjusted.score, idx.score)
@@ -970,7 +1072,7 @@ final class StarGazingIndexTests: XCTestCase {
         let summary = makeIdealDarkSummary(moonPhase: 0.02, moonAltitude: -10)
         let weather = makeWeather(cloud: 5, precip: 0, wind: 5, humidity: 40, dewpointSpread: 18, visibility: 25_000, windGusts: 12)
         let idx = computeIndex(nightSummary: summary, weather: weather, bortleClass: 9.0)
-        let adjusted = idx.adjusted(for: .photography, nightSummary: summary, weather: weather)
+        let adjusted = idx.adjusted(for: .photography, nightSummary: summary, weather: expandWeatherCoverage(weather, for: summary))
 
         XCTAssertEqual(idx.score, 49)
         XCTAssertLessThanOrEqual(adjusted.score, idx.score)

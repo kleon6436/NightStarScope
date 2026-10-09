@@ -366,7 +366,239 @@ final class MilkyWayCalculatorTests: XCTestCase {
         }
     }
 
+    // MARK: - 日没・日の出（太陽中心高度 -0.833°）
+
+    /// 12:00 時点で既に太陽が沈んでいる高緯度（ウトキアグヴィク 11 月）でも、
+    /// 正午前後の短い昼の後の日没〜翌日の出を返す。
+    func test_sunsetSunriseInterval_anchorsAtSolarNoonWhenSunIsDownAtClockNoon() throws {
+        let timeZone = TimeZone(identifier: "America/Anchorage")!
+        let date = makeDate(year: 2026, month: 11, day: 16, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 71.29, longitude: -156.79)
+
+        let interval = try XCTUnwrap(
+            MilkyWayCalculator.sunsetSunriseInterval(date: date, location: location, timeZone: timeZone)
+        )
+        // PyEphem (horizon -0:34): 日没 14:13 AKST、翌日の出 12:2x AKST
+        let expectedSunset = makeDate(year: 2026, month: 11, day: 16, hour: 14, minute: 13, timeZoneIdentifier: timeZone.identifier)
+        XCTAssertEqual(interval.start.timeIntervalSince(expectedSunset), 0, accuracy: 3 * 60)
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let end = calendar.dateComponents([.day, .hour], from: interval.end)
+        XCTAssertEqual(end.day, 17)
+        XCTAssertEqual(end.hour, 12)
+        XCTAssertGreaterThan(interval.duration, 20 * 3600)
+    }
+
+    /// 標準の日没高度 (-0.833°) を使い、暦の日没・日の出時刻と 3 分以内で一致する。
+    func test_findSunsetSunrise_usesStandardRefractionAltitude() throws {
+        let timeZone = TestTimeZones.tokyo
+        let date = makeDate(year: 2026, month: 8, day: 12, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
+
+        let times = try XCTUnwrap(
+            MilkyWayCalculator.findSunsetSunrise(date: date, location: location, timeZone: timeZone)
+        )
+        // PyEphem 4.2.1 (horizon -0:50, 大気差なし): 東京 2026-08-12 日没 18:36、08-13 日の出 4:57
+        let expectedSunset = makeDate(year: 2026, month: 8, day: 12, hour: 18, minute: 36, timeZoneIdentifier: timeZone.identifier)
+        let expectedSunrise = makeDate(year: 2026, month: 8, day: 13, hour: 4, minute: 57, timeZoneIdentifier: timeZone.identifier)
+        XCTAssertEqual(times.sunset.timeIntervalSince(expectedSunset), 0, accuracy: 3 * 60)
+        XCTAssertEqual(times.sunrise.timeIntervalSince(expectedSunrise), 0, accuracy: 3 * 60)
+    }
+
+    /// 夏時間開始の夜でも、日の出を経過秒ではなく時計時刻（PDT）で返す。
+    func test_findSunsetSunriseMinutes_returnsWallClockOnDstStartNight() throws {
+        let timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let date = makeDate(year: 2026, month: 3, day: 7, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
+
+        let minutes = try XCTUnwrap(
+            MilkyWayCalculator.findSunsetSunriseMinutes(date: date, location: location, timeZone: timeZone)
+        )
+        // PyEphem: 日没 17:54 PST、翌日の出 07:12 PDT
+        XCTAssertEqual(minutes.sunsetMinutes, 17 * 60 + 54, accuracy: 3)
+        XCTAssertEqual(minutes.sunriseMinutes, 7 * 60 + 12, accuracy: 3)
+    }
+
+    /// 極夜では日没・日の出が同じ時計時刻 (12:00) になる。
+    func test_findSunsetSunriseMinutes_polarNightReturnsSameClockTime() throws {
+        let timeZone = TimeZone(identifier: "Europe/Oslo")!
+        let date = makeDate(year: 2026, month: 12, day: 21, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 78.2232, longitude: 15.6469)
+
+        let minutes = try XCTUnwrap(
+            MilkyWayCalculator.findSunsetSunriseMinutes(date: date, location: location, timeZone: timeZone)
+        )
+        XCTAssertEqual(minutes.sunsetMinutes, 720, accuracy: 0.001)
+        XCTAssertEqual(minutes.sunriseMinutes, 720, accuracy: 0.001)
+    }
+
+    /// 日没が深夜 0 時を過ぎる夜（6 月のレイキャビク）は、翌日 0 時台の日没から始まる区間を返す。
+    func test_sunsetSunriseInterval_sunsetAfterMidnight() throws {
+        let timeZone = TimeZone(identifier: "Atlantic/Reykjavik")!
+        let date = makeDate(year: 2026, month: 6, day: 21, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 64.1466, longitude: -21.9426)
+
+        let interval = try XCTUnwrap(
+            MilkyWayCalculator.sunsetSunriseInterval(date: date, location: location, timeZone: timeZone)
+        )
+        let expectedSunset = makeDate(year: 2026, month: 6, day: 22, hour: 0, minute: 4, timeZoneIdentifier: timeZone.identifier)
+        let expectedSunrise = makeDate(year: 2026, month: 6, day: 22, hour: 2, minute: 55, timeZoneIdentifier: timeZone.identifier)
+        XCTAssertEqual(interval.start.timeIntervalSince(expectedSunset), 0, accuracy: 3 * 60)
+        XCTAssertEqual(interval.end.timeIntervalSince(expectedSunrise), 0, accuracy: 3 * 60)
+    }
+
+    // MARK: - 月の位置精度
+
+    /// 月の高度（視差補正込み）が PyEphem 4.2.1（大気差なし）と 0.3° 以内で一致する。
+    func test_moonHorizontal_matchesPyEphemAtTokyo() {
+        let latitude = 35.6762
+        let longitude = 139.6503
+        let latRad = AngleMath.toRadians(latitude)
+        // (UTC 年月日時, PyEphem の高度)
+        let cases: [(month: Int, day: Int, hour: Int, altitude: Double)] = [
+            (1, 15, 12, -82.230),
+            (3, 3, 15, 59.349),
+            (5, 20, 9, 52.802),
+            (7, 8, 18, 41.373),
+            (9, 26, 21, -2.821),
+            (11, 30, 3, -6.883),
+            (12, 24, 14, 71.253),
+        ]
+        for c in cases {
+            let date = makeDate(year: 2026, month: c.month, day: c.day, hour: c.hour, timeZoneIdentifier: "UTC")
+            let jd = MilkyWayCalculator.julianDate(from: date)
+            let observer = MilkyWayCalculator.HorizontalObserver(
+                cosLat: cos(latRad),
+                sinLat: sin(latRad),
+                lst: MilkyWayCalculator.localSiderealTime(jd: jd, longitude: longitude)
+            )
+            let moon = MilkyWayCalculator.moonHorizontal(jd: jd, observer: observer)
+            XCTAssertEqual(moon.alt, c.altitude, accuracy: 0.3, "2026-\(c.month)-\(c.day) \(c.hour)h UTC")
+        }
+    }
+
+    /// 地平線上の月は視差で約 1° 低く見える。
+    func test_moonTopocentricAltitude_lowersHorizonAltitudeByParallax() {
+        XCTAssertEqual(
+            MilkyWayCalculator.moonTopocentricAltitude(geocentricAltitude: 0, parallax: 0.95),
+            -0.95,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MilkyWayCalculator.moonTopocentricAltitude(geocentricAltitude: 90, parallax: 0.95),
+            90,
+            accuracy: 0.001
+        )
+    }
+
     // MARK: - planets in NightSummary テストは削除済み（Feature #1 Planet Visibility を撤去）
+}
+
+/// 星空マップの夜間スライダーと時計時刻の対応（夏時間・深夜 0 時以降の日没・極夜）を検証する。
+final class StarMapDateLogicNightRangeTests: XCTestCase {
+    private func makeDate(
+        _ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0,
+        timeZone: TimeZone
+    ) -> Date {
+        var components = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
+        components.timeZone = timeZone
+        return Calendar(identifier: .gregorian).date(from: components)!
+    }
+
+    private let reykjavik = CLLocationCoordinate2D(latitude: 64.1466, longitude: -21.9426)
+    private let reykjavikTZ = TimeZone(identifier: "Atlantic/Reykjavik")!
+
+    /// 日没が翌日 0 時台の夜は、開始分を観測日 0:00 からの 1440 分以上で表し、スライダー時刻を翌日に写像する。
+    func test_nightRange_sunsetAfterMidnightMapsSliderToNextDay() throws {
+        let date = makeDate(2026, 6, 21, timeZone: reykjavikTZ)
+        let range = StarMapDateLogic.nightRange(
+            for: date,
+            location: reykjavik,
+            timeZone: reykjavikTZ,
+            fallback: .init(startMinutes: 18 * 60, durationMinutes: 600)
+        )
+        XCTAssertEqual(range.startMinutes, 1_440 + 4, accuracy: 3)
+        XCTAssertEqual(range.durationMinutes, 171, accuracy: 4)
+
+        let realMinutes = StarMapDateLogic.nightOffsetToRealMinutes(30, nightStartMinutes: range.startMinutes)
+        let mapped = try XCTUnwrap(StarMapDateLogic.date(
+            bySettingClockMinutes: realMinutes,
+            onObservationDate: date,
+            timeZone: reykjavikTZ,
+            nightStartMinutes: range.startMinutes
+        ))
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: reykjavikTZ)
+        XCTAssertEqual(calendar.component(.day, from: mapped), 22)
+        XCTAssertEqual(calendar.component(.hour, from: mapped), 0)
+        XCTAssertEqual(
+            StarMapDateLogic.realMinutesToNightOffset(
+                realMinutes,
+                nightStartMinutes: range.startMinutes,
+                nightDurationMinutes: range.durationMinutes
+            ),
+            30,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            StarMapDateLogic.observationDate(for: mapped, timeZone: reykjavikTZ, nightStartMinutes: range.startMinutes),
+            date
+        )
+    }
+
+    /// 日没が翌日 0 時台の夜に参照時刻 01:00 を渡すと、翌日 01:00 を返す。
+    func test_resolvedPresentationDate_sunsetAfterMidnightKeepsNightTime() throws {
+        let date = makeDate(2026, 6, 21, timeZone: reykjavikTZ)
+        let reference = makeDate(2025, 1, 1, 1, 0, timeZone: reykjavikTZ)
+        let resolved = try XCTUnwrap(StarMapDateLogic.resolvedPresentationDate(
+            for: date,
+            referenceDate: reference,
+            location: reykjavik,
+            timeZone: reykjavikTZ
+        ))
+        XCTAssertEqual(resolved, makeDate(2026, 6, 22, 1, 0, timeZone: reykjavikTZ))
+    }
+
+    /// 夏時間開始の夜は、スライダー最大位置が日の出の時計時刻 (PDT) に一致する。
+    func test_nightRange_durationMatchesWallClockOnDstNight() {
+        let timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let location = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
+        let date = makeDate(2026, 3, 7, timeZone: timeZone)
+        let range = StarMapDateLogic.nightRange(
+            for: date,
+            location: location,
+            timeZone: timeZone,
+            fallback: .init(startMinutes: 18 * 60, durationMinutes: 600)
+        )
+        let sunrise = MilkyWayCalculator.findSunsetSunriseMinutes(date: date, location: location, timeZone: timeZone)
+        XCTAssertEqual(range.startMinutes, sunrise?.sunsetMinutes ?? -1, accuracy: 1)
+        XCTAssertEqual(
+            StarMapDateLogic.nightOffsetToRealMinutes(range.durationMinutes, nightStartMinutes: range.startMinutes),
+            sunrise?.sunriseMinutes ?? -1,
+            accuracy: 1
+        )
+    }
+
+    /// 極夜では夜間区間が終日のため、参照時刻を 12:00 に丸めずそのまま使う。
+    func test_resolvedPresentationDate_polarNightKeepsReferenceTime() throws {
+        let timeZone = TimeZone(identifier: "Europe/Oslo")!
+        let location = CLLocationCoordinate2D(latitude: 78.2232, longitude: 15.6469)
+        let date = makeDate(2026, 12, 21, timeZone: timeZone)
+
+        let evening = try XCTUnwrap(StarMapDateLogic.resolvedPresentationDate(
+            for: date,
+            referenceDate: makeDate(2025, 1, 1, 21, 7, timeZone: timeZone),
+            location: location,
+            timeZone: timeZone
+        ))
+        XCTAssertEqual(evening, makeDate(2026, 12, 21, 21, 7, timeZone: timeZone))
+
+        let morning = try XCTUnwrap(StarMapDateLogic.resolvedPresentationDate(
+            for: date,
+            referenceDate: makeDate(2025, 1, 1, 3, 0, timeZone: timeZone),
+            location: location,
+            timeZone: timeZone
+        ))
+        XCTAssertEqual(morning, makeDate(2026, 12, 22, 3, 0, timeZone: timeZone))
+    }
 }
 
 /// MilkyWayCalculator の角度計算を現行の出力値に固定する特性テスト。

@@ -159,6 +159,54 @@ final class UpcomingNightsGridViewModelTests: XCTestCase {
         XCTAssertFalse(label.contains(L10n.tr("天気予報一部のみ")))
     }
 
+    /// 白夜（暗時間ゼロ）でも、市民薄明後の時間帯を覆う予報があれば「予報一部のみ」としない。
+    func test_hasPartialWeatherData_whiteNightWithFullNightForecast_isNotPartial() {
+        let appController = AppController(calculationService: MockNightCalculationService())
+        let detailVM = DetailViewModel(appController: appController)
+        let vm = UpcomingNightsGridViewModel(detailViewModel: detailVM)
+
+        // 未来の夜（今日扱いの部分予報にならないよう 10 日後の UTC 正時を基準にする）
+        let utc = TimeZone(identifier: "UTC")!
+        let base = ObservationTimeZone.startOfDay(for: Date().addingTimeInterval(10 * 86_400), timeZone: utc)
+            .addingTimeInterval(22 * 3600)
+        let night = NightSummary(
+            date: ObservationTimeZone.startOfDay(for: base, timeZone: utc),
+            location: .init(latitude: 51.5, longitude: 0),
+            events: (0..<16).map { i in
+                AstroEvent(
+                    date: base.addingTimeInterval(Double(i) * 900),
+                    galacticCenterAltitude: 0,
+                    galacticCenterAzimuth: 0,
+                    sunAltitude: -10,
+                    moonAltitude: -5,
+                    moonPhase: 0.1
+                )
+            },
+            viewingWindows: [],
+            moonPhaseAtMidnight: 0.1,
+            timeZoneIdentifier: utc.identifier
+        )
+        XCTAssertEqual(night.totalDarkHours, 0)
+        let weather = DayWeatherSummary(date: night.date, nighttimeHours: (0..<4).map { hour in
+            HourlyWeather(
+                date: base.addingTimeInterval(Double(hour) * 3600),
+                temperatureCelsius: 15,
+                cloudCoverPercent: 10,
+                precipitationMM: 0,
+                windSpeedKmh: 5,
+                humidityPercent: 40,
+                dewpointCelsius: 2,
+                weatherCode: 0,
+                visibilityMeters: 20_000,
+                windGustsKmh: nil,
+                windSpeedKmh500hpa: nil
+            )
+        })
+
+        XCTAssertFalse(vm.hasPartialWeatherData(for: night, weather: weather))
+        XCTAssertTrue(vm.hasReliableWeatherData(for: night, weather: weather))
+    }
+
     func test_observationModePreference_persistsSelection() {
         let suiteName = "ObservationModePreferenceTests"
         let defaults = UserDefaults(suiteName: suiteName)!

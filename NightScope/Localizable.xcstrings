@@ -445,17 +445,6 @@
         }
       }
     },
-    "BSC5 (CDS VizieR)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "BSC5 (CDS VizieR)"
-          }
-        }
-      }
-    },
     "BSD 3-Clause" : {
 
     },
@@ -1202,9 +1191,6 @@
           }
         }
       }
-    },
-    "Yale Bright Star Catalogue (BSC5) / CDS VizieR" : {
-
     },
     "アークトゥルス" : {
       "extractionState" : "manual",
@@ -3040,17 +3026,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dubhe"
-          }
-        }
-      }
-    },
-    "ナッシュ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nash"
           }
         }
       }
@@ -7748,6 +7723,37 @@
           }
         }
       }
+    },
+    "みぞれ・着氷性の雨" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleet / Freezing Rain"
+          }
+        }
+      }
+    },
+    "タウ・サジタリ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tau Sagittarii"
+          }
+        }
+      }
+    },
+    "HYG Database v4.1 / David Nash (astronexus)" : {
+
+    },
+    "CC BY-SA 4.0" : {
+
+    },
+    "HYG Database (GitHub)" : {
+
     }
   },
   "version" : "1.0"
