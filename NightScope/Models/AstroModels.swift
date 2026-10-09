@@ -297,12 +297,14 @@ struct NightSummary {
 
     private func makeWeatherByHour(nighttimeHours: [HourlyWeather], calendar: Calendar) -> WeatherByHour {
         Dictionary(
-            uniqueKeysWithValues: nighttimeHours.compactMap { weather in
+            nighttimeHours.compactMap { weather in
                 guard let hourStart = calendar.dateInterval(of: .hour, for: weather.date)?.start else {
                     return nil
                 }
                 return (hourStart, weather)
-            }
+            },
+            // 同一時刻が重複しても trap させず、先頭のエントリを採用する
+            uniquingKeysWith: { first, _ in first }
         )
     }
 

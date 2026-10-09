@@ -71,6 +71,9 @@ enum MilkyWayCalculator {
         let cosAlt = cos(altRad)
         guard cosAlt > 1e-10 else { return (alt, 0.0) }
 
+        // 極 (|lat|≈90) では方位が定義できないため 0 を返す
+        guard abs(cosLat) > 1e-9 else { return (alt, 0.0) }
+
         let sinA = -sinHa * cosDec / cosAlt
         let cosA = (sinDec - sinLat * sinAlt) / (cosLat * cosAlt)
         var az = atan2(sinA, cosA) * 180.0 / .pi

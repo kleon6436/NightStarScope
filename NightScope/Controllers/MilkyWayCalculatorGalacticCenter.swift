@@ -20,16 +20,16 @@ extension MilkyWayCalculator {
                 windowSamples.append(event)
             } else if let start = windowStart {
                 if !windowSamples.isEmpty,
-                   let bestAlt = windowSamples.max(by: { $0.galacticCenterAltitude < $1.galacticCenterAltitude }),
                    let bestViewing = windowSamples.max(by: { viewingScore($0) < viewingScore($1) }),
                    let lastSample = windowSamples.last {
+                    // peakTime / peakAltitude / peakAzimuth は同一サンプル (観測スコア最大) から取る。
                     // 各サンプルは sampleIntervalMinutes 分の区間を代表するため、
                     // ウィンドウ終端は最終サンプル時刻 + 1 インターバル。
                     windows.append(ViewingWindow(
                         start: start,
                         end: lastSample.date.addingTimeInterval(Constants.sampleIntervalSeconds),
                         peakTime: bestViewing.date,
-                        peakAltitude: bestAlt.galacticCenterAltitude,
+                        peakAltitude: bestViewing.galacticCenterAltitude,
                         peakAzimuth: bestViewing.galacticCenterAzimuth
                     ))
                 }
@@ -40,14 +40,13 @@ extension MilkyWayCalculator {
 
         if let start = windowStart,
            !windowSamples.isEmpty,
-           let bestAlt = windowSamples.max(by: { $0.galacticCenterAltitude < $1.galacticCenterAltitude }),
            let bestViewing = windowSamples.max(by: { viewingScore($0) < viewingScore($1) }),
            let lastSample = windowSamples.last {
             windows.append(ViewingWindow(
                 start: start,
                 end: lastSample.date.addingTimeInterval(Constants.sampleIntervalSeconds),
                 peakTime: bestViewing.date,
-                peakAltitude: bestAlt.galacticCenterAltitude,
+                peakAltitude: bestViewing.galacticCenterAltitude,
                 peakAzimuth: bestViewing.galacticCenterAzimuth
             ))
         }

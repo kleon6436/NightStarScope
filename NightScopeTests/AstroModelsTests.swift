@@ -572,4 +572,18 @@ final class AstroModelsTests: XCTestCase {
         XCTAssertEqual(next.shower.id, "quadrantids")
         XCTAssertEqual(next.daysUntilPeak, 10)
     }
+
+    /// 同一時刻の気象データが重複していても trap せず、先頭のエントリが採用される
+    func test_weatherAwareObservableWindow_duplicateHourEntries_doesNotCrashAndKeepsFirst() {
+        let date = makeDate(2026, 4, 2, 22, 0)
+        let summary = makeSummary(events: [makeEvent(date: date)])
+
+        let hours = [
+            makeWeatherHour(date: date, cloud: 0, precipitation: 0, weatherCode: 0),
+            makeWeatherHour(date: date, cloud: 100, precipitation: 5, weatherCode: 65)
+        ]
+
+        let window = summary.weatherAwareObservableWindow(nighttimeHours: hours)
+        XCTAssertEqual(window?.start, date)
+    }
 }

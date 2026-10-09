@@ -537,12 +537,8 @@ struct StarGazingIndex {
         if precipitation == 0 && weatherCode < 45 {
             return 6
         }
-        if precipitation == 0 && weatherCode <= 48 {
-            // 霧のみ: 視程がほぼゼロのため最低点
-            return 1
-        }
         // weatherCode >= 45（霧・霧雨・雨・雪・雷雨）は降水量に関わらず観測不可
-        // isObservationBlocked と同じ基準で一貫して 0 点
+        // 霧のみ（降水量 0）も視程がほぼゼロのため 0 点。isObservationBlocked と同じ基準
         if weatherCode >= 45 {
             return 0
         }
@@ -585,17 +581,15 @@ struct StarGazingIndex {
     }
 
     // e. 露リスク (0–2 pts)
-    // 根拠: 気温と露点の差（露点差）< 3°C で相対湿度が約90%以上となり、
-    //       光学部品（レンズ・反射鏡）への結露が発生する。旧「湿度スコア」を置き換え。
+    // 根拠: 気温と露点の差（露点差）が小さいと相対湿度が高く、
+    //       光学部品（レンズ・反射鏡）へ結露する。旧「湿度スコア」を置き換え。
+    //       段階は DewRiskLevel（high < 2°C, medium < 5°C）と共通で、ラベルと点数を一致させる。
     private static func computeDewRiskScore(weather: DayWeatherSummary) -> Int {
-        let dewpointSpread = weather.avgDewpointSpread
-        if dewpointSpread > 5 {
-            return 2
+        switch DewRiskLevel(dewpointSpread: weather.avgDewpointSpread) {
+        case .high: return 0
+        case .medium: return 1
+        case .low: return 2
         }
-        if dewpointSpread > 3 {
-            return 1
-        }
-        return 0
     }
 
     private static func visibilityBaseTransparencyScore(visibilityKm: Double) -> Int {

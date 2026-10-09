@@ -7,6 +7,17 @@ import Foundation
 /// 光学機器への結露リスクを段階で表す。
 enum DewRiskLevel: Sendable {
     case low, medium, high
+
+    /// 露点差 (°C) から段階を決める。結露リスク表示とスコアで共有する唯一の閾値定義。
+    init(dewpointSpread spread: Double) {
+        if spread < 2.0 {
+            self = .high
+        } else if spread < 5.0 {
+            self = .medium
+        } else {
+            self = .low
+        }
+    }
 }
 
 /// 1 時間単位の天気情報を保持するモデル。
@@ -155,10 +166,7 @@ struct DayWeatherSummary {
     /// 夜間の結露リスクレベル。データなし時は nil。
     var dewRiskLevel: DewRiskLevel? {
         guard !nighttimeHours.isEmpty else { return nil }
-        let spread = avgDewpointSpread
-        if spread < 2.0 { return .high }
-        if spread < 5.0 { return .medium }
-        return .low
+        return DewRiskLevel(dewpointSpread: avgDewpointSpread)
     }
 
     /// 視程の夜間平均（メートル）。データなし時は nil

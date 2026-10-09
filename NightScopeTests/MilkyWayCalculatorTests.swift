@@ -933,6 +933,37 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             XCTAssertEqual(first.moonAltitude, golden.firstEvent.moonAltitude, accuracy: accuracy, label)
         }
     }
+
+    /// peakTime / peakAltitude / peakAzimuth は同一サンプル (観測スコア最大) から取る
+    func test_findViewingWindows_peakFieldsComeFromSameSample() {
+        let base = Date(timeIntervalSince1970: 0)
+        // 0: 高度は最大だが太陽が浅い (スコア低)、1: 高度はやや低いが空が暗い (スコア高)
+        let specs: [(alt: Double, az: Double, sun: Double)] = [
+            (40, 150, -19), (35, 170, -60), (30, 190, -19)
+        ]
+        let events = specs.enumerated().map { i, spec in
+            AstroEvent(
+                date: base.addingTimeInterval(Double(i) * 900),
+                galacticCenterAltitude: spec.alt,
+                galacticCenterAzimuth: spec.az,
+                sunAltitude: spec.sun,
+                moonAltitude: -5.0,
+                moonPhase: 0.1
+            )
+        }
+        let windows = MilkyWayCalculator.findViewingWindows(events: events)
+        XCTAssertEqual(windows.count, 1)
+        XCTAssertEqual(windows[0].peakTime, events[1].date)
+        XCTAssertEqual(windows[0].peakAltitude, 35.0)
+        XCTAssertEqual(windows[0].peakAzimuth, 170.0)
+    }
+
+    /// 天頂に近い極 (|lat|=90) でも方位角が有限値で返る
+    func test_altAz_atPole_returnsFiniteAzimuth() {
+        let result = MilkyWayCalculator.altAz(ra: 10, dec: 45, latitude: 90, lst: 100)
+        XCTAssertTrue(result.az.isFinite)
+        XCTAssertEqual(result.alt, 45, accuracy: 1e-6)
+    }
 }
 
 /// 月の輝面の向き（Meeus 48 章の位置角 χ と視差角 q）と、その画面描画への反映。

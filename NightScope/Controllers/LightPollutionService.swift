@@ -322,6 +322,8 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     private enum Constants {
         /// 同一座標とみなすキャッシュ半径（度）≈ 5 km
         static let cacheRadiusDegrees = 0.05
+        /// Falchi World Atlas 2015 の収録緯度範囲。範囲外は 0 埋めのため Bortle 1 と誤判定される。
+        static let coveredLatitudeRange: ClosedRange<Double> = -60.0...75.0
     }
 
     /// 直近の取得結果と UI 反映用フラグをまとめる。
@@ -435,6 +437,9 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
             throw LightPollutionServiceError.noData
         }
         gridData = grid
+        guard Constants.coveredLatitudeRange.contains(latitude) else {
+            throw LightPollutionServiceError.noData
+        }
         let brightness = grid.brightness(latitude: latitude, longitude: longitude)
         return scaleConverter.bortleClass(for: brightness)
     }

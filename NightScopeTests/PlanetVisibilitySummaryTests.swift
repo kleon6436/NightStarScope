@@ -378,4 +378,17 @@ final class PlanetVisibilitySummaryTests: XCTestCase {
         XCTAssertGreaterThan(venus.magnitude, -5.0)
         XCTAssertLessThan(venus.magnitude, -3.0)
     }
+
+    // MARK: - Saturn magnitude
+
+    /// 2025-09-21 の土星 (衝の約2週間前、環ほぼ edge-on) は約 +0.6〜+0.9 等。
+    func test_planetPositions_saturnMagnitude_nearOpposition2025() {
+        let date = makeDate(year: 2025, month: 9, day: 21, hour: 12, timeZoneIdentifier: "UTC")
+        let jd = MilkyWayCalculator.julianDate(from: date)
+        let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: 0)
+        let saturn = MilkyWayCalculator.planetPositions(jd: jd, latitude: 0, lst: lst)
+            .first { $0.name == "土星" }
+        XCTAssertNotNil(saturn)
+        XCTAssertEqual(saturn?.magnitude ?? 99, 0.75, accuracy: 0.3)
+    }
 }

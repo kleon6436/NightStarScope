@@ -356,7 +356,7 @@ final class StarGazingIndexTests: XCTestCase {
     }
 
     func test_weatherScore_fogWeatherCode_reducesPrecipScore() {
-        // precip=0 だが weatherCode=45(霧) → 降水スコアは1点のみ
+        // precip=0 だが weatherCode=45(霧) → 降水スコアは0点
         let summary = makeDarkNightSummary(darkEventCount: 1)
         let fog = makeWeather(
             cloud: 10, precip: 0, wind: 5, humidity: 40, dewpointSpread: 10,
@@ -369,8 +369,8 @@ final class StarGazingIndexTests: XCTestCase {
         let idxFog = computeIndex(nightSummary: summary, weather: fog)
         let idxClear = computeIndex(nightSummary: summary, weather: clear)
         // 霧コードにより降水スコアが下がる（6点差）
-        XCTAssertEqual(idxClear.weatherScore - idxFog.weatherScore, 5,
-            "霧コード(45)で降水スコアが6点から1点に減るため差は5点")
+        XCTAssertEqual(idxClear.weatherScore - idxFog.weatherScore, 6,
+            "霧コード(45)で降水スコアが6点から0点に減るため差は6点")
     }
 
     func test_weatherScore_drizzleCode_zerosPrecipScore() {
@@ -428,10 +428,10 @@ final class StarGazingIndexTests: XCTestCase {
     }
 
     func test_weatherScore_dewRisk_highRisk_zeroPoints() {
-        // spread=2°C → 気温-露点差 < 3°C → 結露リスク高 → 露リスク0点
+        // spread=1°C → 気温-露点差 < 2°C → 結露リスク高 → 露リスク0点
         let summary = makeDarkNightSummary(darkEventCount: 1)
         let highRisk = makeWeather(
-            cloud: 0, precip: 0, wind: 5, humidity: 95, dewpointSpread: 2,
+            cloud: 0, precip: 0, wind: 5, humidity: 95, dewpointSpread: 1,
             visibility: 25000, windGusts: 15
         )
         let lowRisk = makeWeather(
@@ -440,9 +440,26 @@ final class StarGazingIndexTests: XCTestCase {
         )
         let idxHigh = computeIndex(nightSummary: summary, weather: highRisk)
         let idxLow = computeIndex(nightSummary: summary, weather: lowRisk)
-        // spread=2 → 0点, spread=6 → 2点, 差は2点
+        // spread=1 → 0点, spread=6 → 2点, 差は2点
         XCTAssertEqual(idxLow.weatherScore - idxHigh.weatherScore, 2,
-            "露点差 6°C(2点) vs 2°C(0点) で差は2点")
+            "露点差 6°C(2点) vs 1°C(0点) で差は2点")
+    }
+
+    func test_weatherScore_dewRisk_scoreMatchesDewRiskLevel() {
+        // 閾値: high < 2°C → 0点, medium < 5°C → 1点, low >= 5°C → 2点
+        let summary = makeDarkNightSummary(darkEventCount: 1)
+        func score(spread: Double) -> Int {
+            let w = makeWeather(
+                cloud: 0, precip: 0, wind: 5, humidity: 50, dewpointSpread: spread,
+                visibility: 25000, windGusts: 15
+            )
+            return computeIndex(nightSummary: summary, weather: w).weatherScore
+        }
+        XCTAssertEqual(score(spread: 3) - score(spread: 1), 1, "2.0〜5.0°C は medium(1点)")
+        XCTAssertEqual(score(spread: 5) - score(spread: 3), 1, "5.0°C 以上は low(2点)")
+        XCTAssertEqual(DewRiskLevel(dewpointSpread: 1.9), .high)
+        XCTAssertEqual(DewRiskLevel(dewpointSpread: 2.0), .medium)
+        XCTAssertEqual(DewRiskLevel(dewpointSpread: 5.0), .low)
     }
 
     // MARK: - compute() 統合テスト

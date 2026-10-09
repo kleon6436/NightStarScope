@@ -209,11 +209,12 @@ def build_copernicus(
                 src_crs=src.crs,
                 dst_transform=tile_transform,
                 dst_crs="EPSG:4326",
+                src_nodata=src.nodata,
+                dst_nodata=np.nan,
                 resampling=Resampling.average,
             )
-            nodata = src.nodata
-            if nodata is not None:
-                tile_dst[tile_dst == nodata] = 0.0
+        # nodata を平均化に混ぜず NaN として扱い、最後に 0 へ置換する
+        tile_dst = np.nan_to_num(tile_dst, nan=0.0)
 
         grid[lat_i_lo:lat_i_hi, lon_j_lo:lon_j_hi] = np.flipud(tile_dst)
 
