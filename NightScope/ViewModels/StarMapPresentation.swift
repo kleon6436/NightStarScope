@@ -36,6 +36,7 @@ func starColorForBV(_ bvIndex: Double?) -> Color {
 
 /// 描画対象の恒星 1 件分の座標と色を保持する。
 struct StarPosition {
+    let catalogIndex: Int
     let star: Star
     let altitude: Double
     let azimuth: Double

@@ -691,7 +691,7 @@ struct StarMapCanvasView: View {
             }
             .onEnded { [self] value in
                 guard allowsManualFOVAdjustment else { return }
-                viewModel.fov = StarMapLayout.clampedFOV(viewModel.fov / value)
+                viewModel.fov = StarMapLayout.clampedFOV(viewModel.fov / max(0.1, value))
             }
     }
 

@@ -135,6 +135,16 @@ final class DashboardViewModelTests: XCTestCase {
         XCTAssertEqual(swap?.addedID, newID)
     }
 
+    func test_init_doesNotRefreshFromReplayedCurrentFavorites() async {
+        let store = InMemoryFavoriteStore(favorites: makeFavorites(count: 3))
+        let controller = StubComparisonController(matrix: .empty)
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: store)
+        try? await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(controller.computeMatrixCalls, 0)
+        XCTAssertEqual(viewModel.availableFavorites.count, 3)
+    }
+
     func test_registerAndSelect_triggersSingleRefresh() async {
         let favorites = makeFavorites(count: 6)
         let store = InMemoryFavoriteStore(favorites: favorites)

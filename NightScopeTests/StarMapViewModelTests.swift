@@ -1362,17 +1362,19 @@ final class StarMapViewModelTests: XCTestCase {
             CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
         )
 
-        await waitUntil(timeout: 2.0) {
-            locationController.selectedTimeZone.identifier == losAngeles.identifier
-        }
-
         let expectedDate = StarMapDateLogic.resolvedPresentationDate(
             for: appController.selectedDate,
             referenceDate: initialDisplayDate,
-            location: locationController.selectedLocation,
+            location: CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437),
             timeZone: losAngeles
         )
 
+        // VM の再同期は購読経由で非同期に走るため、VM 自身の状態を待つ。
+        await waitUntil(timeout: 2.0) {
+            viewModel.displayDate == expectedDate
+        }
+
+        XCTAssertEqual(locationController.selectedTimeZone.identifier, losAngeles.identifier)
         XCTAssertEqual(viewModel.displayDate, expectedDate)
     }
 

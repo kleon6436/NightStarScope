@@ -91,7 +91,9 @@ final class DashboardViewModel: ObservableObject {
         self.searchController = DashboardSearchController()
         self.comparisonController.dayCount = Self.dayCount
         reloadFavorites()
+        // 購読直後の現在値は reloadFavorites() で反映済みのため、二重の refresh を避けて読み飛ばす。
         favoriteStore.locationsPublisher
+            .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] favorites in
                 self?.applyFavorites(favorites, triggerRefresh: true)

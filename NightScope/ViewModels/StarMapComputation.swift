@@ -53,6 +53,7 @@ enum StarMapComputation {
             guard altitude > -3 else { continue }
             stars.append(
                 StarPosition(
+                    catalogIndex: index,
                     star: star,
                     altitude: altitude,
                     azimuth: azimuth,

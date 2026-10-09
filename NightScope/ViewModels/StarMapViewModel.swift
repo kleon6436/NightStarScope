@@ -248,6 +248,8 @@ final class StarMapViewModel: ObservableObject {
         if elapsed < minUpdateInterval {
             // 前回から時間が短い → trailing-edge debounce でインターバル後に最終値を計算
             trailingTask?.cancel()
+            // 入力が変わった時点で飛行中の計算結果は古いため、適用されないよう破棄する。
+            updateTask?.cancel()
             let remaining = minUpdateInterval - elapsed
             trailingTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
@@ -304,18 +306,18 @@ final class StarMapViewModel: ObservableObject {
     }
 
     private func setupBindings() {
-        appController.locationController.selectedLocationPublisher
+        // 地点とタイムゾーンは同時に変わることが多い。@Published の willSet 時点では
+        // コントローラの値が古いため、メインキューへ送って確定後に 1 回だけ再同期する。
+        let locationChanges = appController.locationController.selectedLocationPublisher
             .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.resyncAfterSelectionChange()
-            }
-            .store(in: &cancellables)
-
-        appController.locationController.selectedTimeZonePublisher
+            .map { _ in () }
+        let timeZoneChanges = appController.locationController.selectedTimeZonePublisher
             .dropFirst()
             .removeDuplicates { $0.identifier == $1.identifier }
-            .receive(on: DispatchQueue.main)
+            .map { _ in () }
+        locationChanges
+            .merge(with: timeZoneChanges)
+            .debounce(for: .zero, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.resyncAfterSelectionChange()
             }
@@ -824,6 +826,6 @@ final class StarMapViewModel: ObservableObject {
 }
 
 extension StarPosition: Identifiable {
-    /// 赤経・赤緯の組み合わせで一意に識別する
-    public var id: String { "\(star.ra)-\(star.dec)" }
+    /// カタログ内の位置で一意に識別する（赤経・赤緯は重複しうる）
+    public var id: Int { catalogIndex }
 }
