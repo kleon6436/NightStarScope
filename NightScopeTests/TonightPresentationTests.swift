@@ -467,6 +467,36 @@ final class TonightPresentationTests: XCTestCase {
         XCTAssertEqual(sut.darkStartText, "20:00")
     }
 
+    /// 「今夜」「明夜」は暦日ではなく、渡された観測日（アプリ全体の「今日」）を基準にする。
+    /// 深夜 02:00（観測日は前日の 8/12）なら、8/12 の夜が「今夜」、8/13 の夜が「明夜」。
+    func test_relativeNightLabel_usesCurrentObservationDate() {
+        func label(night day: Int, observationDate: Date) -> String? {
+            let night = makeTokyoNight(date: jst(2026, 8, day))
+            return ForecastCardPresentation(
+                night: night,
+                weather: nil,
+                timeZone: night.timeZone,
+                isReliableWeather: false,
+                hasPartialWeather: false,
+                isForecastOutOfRange: false,
+                hasWeatherLoadError: false,
+                currentObservationDate: observationDate
+            ).relativeNightLabel
+        }
+
+        let afterMidnightObservationDate = jst(2026, 8, 12)
+        XCTAssertNil(label(night: 11, observationDate: afterMidnightObservationDate))
+        XCTAssertEqual(label(night: 12, observationDate: afterMidnightObservationDate), L10n.tr("今夜"))
+        XCTAssertEqual(label(night: 13, observationDate: afterMidnightObservationDate), L10n.tr("明夜"))
+        XCTAssertNil(label(night: 14, observationDate: afterMidnightObservationDate))
+
+        // 時刻を含む日付を渡しても、その日の夜として判定する
+        let afterSunrise = jst(2026, 8, 13, 7)
+        XCTAssertNil(label(night: 12, observationDate: afterSunrise))
+        XCTAssertEqual(label(night: 13, observationDate: afterSunrise), L10n.tr("今夜"))
+        XCTAssertEqual(label(night: 14, observationDate: afterSunrise), L10n.tr("明夜"))
+    }
+
     func test_darkStartText_isNilWithoutDarkHours() {
         let night = NightSummary.placeholder
         let sut = ForecastCardPresentation(

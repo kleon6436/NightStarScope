@@ -439,6 +439,70 @@ final class DashboardViewModelTests: XCTestCase {
         XCTAssertGreaterThan(controller.computeMatrixCalls, beforeRefreshCalls)
     }
 
+    /// 深夜 02:00（東京、日の出 04:58 前）の初回読み込みでは、読み込み中の列も先頭が進行中の前夜（8/12）になる。
+    /// 計算結果の列（ComparisonController.makeDates）と同じ列なので、読み込み完了時に列がずれない。
+    func test_initialLoadingMatrix_afterLocalMidnight_startsAtPreviousNight() async {
+        let tokyo = TestTimeZones.tokyo
+        let afterMidnight = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
+            .date(from: DateComponents(year: 2026, month: 8, day: 13, hour: 2))!
+        let favorite = FavoriteLocation(
+            id: UUID(),
+            name: "Tokyo",
+            latitude: 35.6762,
+            longitude: 139.6503,
+            timeZoneIdentifier: tokyo.identifier,
+            createdAt: afterMidnight
+        )
+        let controller = SuspendingComparisonController()
+        let viewModel = DashboardViewModel(
+            comparisonController: controller,
+            favoriteStore: InMemoryFavoriteStore(favorites: [favorite])
+        )
+        // 初期選択の通知（メインキュー経由）による更新が始まるのを待ってから、基準時刻を固定して更新する
+        await waitUntil { controller.computeMatrixCalls >= 1 }
+        let refresh = Task { await viewModel.refresh(referenceDate: afterMidnight) }
+        await waitUntil { controller.computeMatrixCalls >= 2 }
+
+        XCTAssertTrue(viewModel.isInitialLoad)
+        let matrix = viewModel.matrix
+        let columnCalendar = ObservationTimeZone.gregorianCalendar(timeZone: matrix.columnTimeZone)
+        XCTAssertEqual(matrix.dates.count, DashboardViewModel.dayCount)
+        XCTAssertEqual(
+            matrix.dates.first.map { columnCalendar.dateComponents([.year, .month, .day], from: $0) },
+            DateComponents(year: 2026, month: 8, day: 12)
+        )
+        XCTAssertEqual(
+            matrix.dates,
+            ComparisonController.makeDates(
+                referenceDate: afterMidnight,
+                dayCount: DashboardViewModel.dayCount,
+                timeZone: matrix.columnTimeZone,
+                locations: [favorite]
+            )
+        )
+        XCTAssertEqual(
+            matrix.cellsByID[ComparisonCell.makeID(locationID: favorite.id, date: matrix.dates[0])]?.loadState,
+            .loading
+        )
+
+        controller.resume()
+        await refresh.value
+    }
+
+    private func waitUntil(
+        timeout: TimeInterval = 2.0,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("条件を満たすまでにタイムアウトしました", file: file, line: line)
+    }
+
     private func makeFavorites(count: Int) -> [FavoriteLocation] {
         (0..<count).map { index in
             FavoriteLocation(
@@ -499,5 +563,28 @@ final class DashboardViewModelTests: XCTestCase {
             cellsByID: cellsByID,
             columnTimeZone: TestTimeZones.tokyo
         )
+    }
+}
+
+/// `resume()` を呼ぶまで計算を終えない比較コントローラ。読み込み中の行列を観察するために使う。
+@MainActor
+private final class SuspendingComparisonController: ComparisonControlling {
+    var matrix: ComparisonMatrix = .empty
+    var dayCount: Int = DashboardViewModel.dayCount
+    private(set) var computeMatrixCalls = 0
+    private var isSuspended = true
+
+    func resume() {
+        isSuspended = false
+    }
+
+    func refresh(referenceDate: Date, locations: [FavoriteLocation]?) async {}
+
+    func computeMatrix(referenceDate: Date, locations: [FavoriteLocation]?) async -> ComparisonMatrix {
+        computeMatrixCalls += 1
+        while isSuspended && !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        return matrix
     }
 }

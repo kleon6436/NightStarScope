@@ -407,6 +407,69 @@ final class AstroModelsTests: XCTestCase {
         XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: referenceDate))
     }
 
+    // MARK: - 進行中の前夜の部分予報
+
+    /// 東京 8/12 の夜（暗時間 20:00〜04:00、薄明 19:00〜20:00 と 04:00〜05:00、日の出 05:00）に、
+    /// 予報が 02 時台・03 時台しかない（深夜の取得では過ぎた時間の予報がない）場合の部分予報の扱い。
+    /// 当日の日中〜夜と、翌日 0 時から日の出までは「今夜」として部分予報を使う。
+    func test_usableWeatherContext_partialCoverage_acceptedForInProgressPreviousNightUntilSunrise() throws {
+        let start = makeDate(2026, 8, 12, 12, 0)
+        let darkStart = makeDate(2026, 8, 12, 20, 0)
+        let darkEnd = makeDate(2026, 8, 13, 4, 0)
+        let sunset = makeDate(2026, 8, 12, 19, 0)
+        let sunrise = makeDate(2026, 8, 13, 5, 0)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let sunAltitude: Double
+            if date >= darkStart && date < darkEnd {
+                sunAltitude = -20
+            } else if date >= sunset && date < sunrise {
+                sunAltitude = -5
+            } else {
+                sunAltitude = 5
+            }
+            return makeEvent(date: date, sunAltitude: sunAltitude)
+        }
+        let summary = makeSummary(events: events)
+        XCTAssertEqual(summary.morningDarkEnd, darkEnd)
+
+        let partialHours = [2, 3].map { makeWeatherHour(date: makeDate(2026, 8, 13, $0, 0)) }
+
+        let evening = try XCTUnwrap(summary.usableWeatherContext(
+            nighttimeHours: partialHours,
+            referenceDate: makeDate(2026, 8, 12, 21, 0)
+        ))
+        XCTAssertTrue(evening.isPartial)
+        XCTAssertEqual(evening.weather.nighttimeHours.count, 2)
+
+        let afterMidnight = try XCTUnwrap(summary.usableWeatherContext(
+            nighttimeHours: partialHours,
+            referenceDate: makeDate(2026, 8, 13, 2, 0)
+        ))
+        XCTAssertTrue(afterMidnight.isPartial)
+        // 部分予報のときは、予報のある暗時間（02:00〜04:00）だけの夜として評価する
+        XCTAssertEqual(afterMidnight.summary.totalDarkHours, 2)
+
+        // 暗時間の終了（04:00）後も、日の出（05:00）までは進行中の夜として扱う
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 13, 4, 30)))
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 13, 4, 59)))
+        // 日の出以降・翌々日・前日は今夜ではない
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: sunrise))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 13, 21, 0)))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 14, 2, 0)))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 11, 21, 0)))
+
+        // 暗時間をすべて覆う予報は参照日時によらず使う
+        let fullHours = [20, 21, 22, 23, 0, 1, 2, 3].map { hour in
+            makeWeatherHour(date: makeDate(2026, 8, hour >= 20 ? 12 : 13, hour, 0))
+        }
+        let full = try XCTUnwrap(summary.usableWeatherContext(
+            nighttimeHours: fullHours,
+            referenceDate: makeDate(2026, 8, 14, 2, 0)
+        ))
+        XCTAssertFalse(full.isPartial)
+    }
+
     /// 太陽が -6° まで沈まない夜は、太陽が地平線下（< 0°）の正時を天気の基準にする。
     /// （WeatherKitService.weatherNightInterval のフォールバックと同じ基準）
     func test_hasUsableWeatherData_whiteNightWithoutCivilHoursFallsBackToHorizonHours() {

@@ -1067,6 +1067,65 @@ final class AppControllerTests: XCTestCase {
         }
     }
 
+    /// 観測地変更時の予報は、要求の upcomingStartDate（現在の観測日）から計算する。
+    func test_locationRefreshFetcher_startsUpcomingAtRequestedObservationDate() async {
+        let calculationService = RequestedDaysNightCalculationService()
+        let fetcher = LocationRefreshFetcher(
+            calculationService: calculationService,
+            weatherService: CountingWeatherService(),
+            lightPollutionService: LightPollutionService(
+                gridData: makeTwoByTwoLightPollutionGrid(northWestBrightness: 0.0172, northEastBrightness: 0.172)
+            )
+        )
+        let request = AppController.LocationRefreshRequest(
+            selectedDate: tokyoDate(14, 0),
+            coordinate: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+            timeZoneIdentifier: TestTimeZones.tokyo.identifier,
+            upcomingStartDate: tokyoDate(12, 0)
+        )
+
+        let results = await fetcher.fetch(for: request, timeZone: TestTimeZones.tokyo)
+
+        XCTAssertEqual(results.nightSummary.date, tokyoDate(14, 0))
+        XCTAssertEqual(results.upcomingNights.first?.date, tokyoDate(12, 0))
+        XCTAssertEqual(results.upcomingNights.count, ForecastConfiguration.upcomingNightCount)
+    }
+
+    /// 深夜 02:00 に観測地を変えると、予報の先頭は新しい観測地の進行中の前夜になる。
+    func test_locationChange_afterMidnight_upcomingStartsAtInProgressNight() async {
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 35.6762
+        storage.longitude = 139.6503
+        storage.name = "東京"
+        storage.timeZoneIdentifier = TestTimeZones.tokyo.identifier
+        let locationController = LocationController(
+            storage: storage,
+            searchService: NoopLocationSearchService(),
+            locationNameResolver: FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "大阪", timeZoneIdentifier: TestTimeZones.tokyo.identifier)
+            )
+        )
+        let afterMidnight = tokyoDate(13, 2)
+        let appController = AppController(
+            locationController: locationController,
+            lightPollutionService: LightPollutionService(
+                gridData: makeTwoByTwoLightPollutionGrid(northWestBrightness: 0.0172, northEastBrightness: 0.172)
+            ),
+            calculationService: RequestedDaysNightCalculationService(),
+            now: { afterMidnight }
+        )
+        XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
+
+        locationController.selectCoordinate(CLLocationCoordinate2D(latitude: 34.6937, longitude: 135.5023))
+
+        await waitUntil(timeout: 2.0) {
+            !appController.isUpcomingLoading
+                && appController.upcomingNights.count == ForecastConfiguration.upcomingNightCount
+        }
+        XCTAssertEqual(appController.upcomingNights.first?.date, tokyoDate(12, 0))
+        XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
+    }
+
     func test_locationRefreshDisposition_appliesAll_whenSelectionStillMatches() {
         let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let request = AppController.LocationRefreshRequest(
