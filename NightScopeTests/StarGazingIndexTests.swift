@@ -315,9 +315,9 @@ final class StarGazingIndexTests: XCTestCase {
         // visibility=nil, spread=3(≤5)→+0
         // precip=1.0(≥0.5)→+0
         // gusts=nil→40(fallback), 40≥35 and not <50&&<35 combo → +0
-        // spread=3(≤3)→+0
+        // spread=1(<2)→+0
         let summary = makeDarkNightSummary(darkEventCount: 1)
-        let weather = makeWeather(cloud: 80, precip: 1.0, wind: 40, humidity: 90, dewpointSpread: 3)
+        let weather = makeWeather(cloud: 80, precip: 1.0, wind: 40, humidity: 90, dewpointSpread: 1)
         let idx = computeIndex(nightSummary: summary, weather: weather)
         XCTAssertEqual(idx.weatherScore, 0)
     }

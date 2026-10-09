@@ -648,7 +648,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
                 PlanetGolden(name: "木星", altitude: -21.37020125426606, azimuth: 54.229231439085424,
                              magnitude: -2.0010241023843998, distanceAU: 5.404758758732948),
                 PlanetGolden(name: "土星", altitude: 60.672680989186325, azimuth: 180.6898185648289,
-                             magnitude: 0.8771066612510056, distanceAU: 10.111670497464866),
+                             magnitude: 0.6771066612510045, distanceAU: 10.111670497464866),
             ]
         ),
         EphemerisGolden(
@@ -666,7 +666,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
                 PlanetGolden(name: "木星", altitude: -13.931795276016679, azimuth: 287.0119847760995,
                              magnitude: -2.731475067124823, distanceAU: 4.202376899312364),
                 PlanetGolden(name: "土星", altitude: -48.09220636977525, azimuth: 183.7793197285681,
-                             magnitude: 1.2858303333871781, distanceAU: 10.044399438959942),
+                             magnitude: 1.085830333387177, distanceAU: 10.044399438959942),
             ]
         ),
         EphemerisGolden(
@@ -684,7 +684,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
                 PlanetGolden(name: "木星", altitude: -13.464116088573478, azimuth: 55.59435278007359,
                              magnitude: -1.7100758792390391, distanceAU: 6.26217787665897),
                 PlanetGolden(name: "土星", altitude: 37.78345846619784, azimuth: 196.02166787931642,
-                             magnitude: 0.4617918354955625, distanceAU: 8.953372193913253),
+                             magnitude: 0.26179183549556156, distanceAU: 8.953372193913253),
             ]
         ),
     ]
@@ -807,7 +807,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
                 PlanetNightGolden(name: "土星", riseTime: nil, riseAzimuth: nil,
                                   setTime: 1736941706.7710838, setAzimuth: 260.7215428599125,
                                   peakAltitude: 36.89799100246175,
-                                  transitAzimuth: 222.2102394807375, magnitude: 1.315237889013572),
+                                  transitAzimuth: 222.2102394807375, magnitude: 1.115237889013571),
             ]
         ),
         NightGolden(
@@ -834,7 +834,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
                 PlanetNightGolden(name: "土星", riseTime: 1781967661.20436, riseAzimuth: 86.24067833195296,
                                   setTime: nil, setAzimuth: nil,
                                   peakAltitude: 52.43182380923936,
-                                  transitAzimuth: 11.428638772435319, magnitude: 1.0239814036418247),
+                                  transitAzimuth: 11.428638772435319, magnitude: 0.8239814036418236),
             ]
         ),
         NightGolden(
@@ -861,7 +861,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
                 PlanetNightGolden(name: "土星", riseTime: 1825261959.5516527, riseAzimuth: 75.42978740087383,
                                   setTime: 1825311326.7079697, setAzimuth: 284.53565657768775,
                                   peakAltitude: 32.14058720160805,
-                                  transitAzimuth: 180.2605234435665, magnitude: 0.3697710438749644),
+                                  transitAzimuth: 180.2605234435665, magnitude: 0.16977104387496333),
             ]
         ),
     ]

@@ -180,7 +180,7 @@ extension MilkyWayCalculator {
             let sinB = abs(
                 sin(ringInclination) * cos(β) * sin(λ - ringNode) - cos(ringInclination) * sin(β)
             )
-            return distanceTerm - 8.68 + 0.044 * α - 2.60 * sinB + 1.25 * sinB * sinB
+            return distanceTerm - 8.88 + 0.044 * α - 2.60 * sinB + 1.25 * sinB * sinB
         default:
             return orbit.H + distanceTerm
         }
