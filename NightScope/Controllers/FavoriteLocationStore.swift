@@ -99,6 +99,11 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
 
     nonisolated static let iCloudKey = "favorites.locations.v1"
     private static let localFallbackKey = "favorites.locations.icloud.fallback"
+    /// fallback に KV より新しい一覧がある（60KB 超過で KV に書けなかった）ことを示すフラグのキー。
+    static let fallbackIsNewerKey = "favorites.locations.icloud.fallbackIsNewer"
+    /// この端末での追加・削除を、届いた一覧で確認できるまで保留として扱う時間。
+    /// 他の端末がこの変更を見る前に書いた一覧（同時編集）で失われないよう、この間は届いた一覧に統合し直す。
+    static let pendingChangeWindow: TimeInterval = 10 * 60
     /// KV ストアの実用上限（Apple の 64KB 制限に対して余裕を持たせる）
     private static let maxDataSize = 60 * 1_024
 
@@ -120,21 +125,55 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     private let notificationCenter: NotificationCenter
     private let evacuatedSubject = PassthroughSubject<[FavoriteLocation], Never>()
     private let accountChangedSubject = PassthroughSubject<Void, Never>()
+    private let now: () -> Date
+    /// この端末で追加し、まだ届いた一覧で確認できていない地点の ID と追加時刻。永続化しない。
+    private var pendingAdds: [UUID: Date] = [:]
+    /// この端末で削除し、まだ届いた一覧で確認できていない地点の ID と削除時刻。永続化しない。
+    private var pendingDeletes: [UUID: Date] = [:]
+    /// KV のデータがデコードできない。デコードできるデータが届くまで KV に書かない（他の端末のデータを壊さない）。
+    private var isKVDataUnreadable = false
+
+    /// KV の読み出し結果。キーがない場合とデコードできない場合を区別する。
+    private enum KVReadResult {
+        case missing
+        case decoded([FavoriteLocation])
+        case undecodable
+    }
 
     // MARK: - Init
 
     init(kvStore: any UbiquitousKeyValueStoring = NSUbiquitousKeyValueStore.default,
          fallbackDefaults: UserDefaults = .standard,
-         notificationCenter: NotificationCenter = .default) {
+         notificationCenter: NotificationCenter = .default,
+         now: @escaping () -> Date = { Date() }) {
         self.kvStore = kvStore
         self.fallbackDefaults = fallbackDefaults
         self.notificationCenter = notificationCenter
+        self.now = now
         let kvReadStart = ContinuousClock.now
-        let kvLocations = Self.loadFromKVStore(kvStore)
+        let kvRead = Self.readKV(kvStore)
         let kvReadMs = Int((ContinuousClock.now - kvReadStart) / .milliseconds(1))
+        // 60KB 超過で fallback にだけ保存した一覧は KV より新しいので優先する（KV を読むと編集が巻き戻る）。
+        let fallbackIsNewer = fallbackDefaults.bool(forKey: Self.fallbackIsNewerKey)
+            && fallbackDefaults.data(forKey: Self.localFallbackKey) != nil
+        let kvLocations: [FavoriteLocation]?
+        let isKVDataUnreadable: Bool
+        switch kvRead {
+        case .decoded(let decoded):
+            kvLocations = fallbackIsNewer ? nil : decoded
+            isKVDataUnreadable = false
+        case .missing:
+            kvLocations = nil
+            isKVDataUnreadable = false
+        case .undecodable:
+            // 壊れたデータは上書きせずに残し、表示はこの端末の fallback で行う。
+            kvLocations = nil
+            isKVDataUnreadable = true
+        }
         let initialLocations = kvLocations ?? Self.loadFromFallback(fallbackDefaults)
         self.locations = initialLocations
         self.lastSavedSnapshot = initialLocations
+        self.isKVDataUnreadable = isKVDataUnreadable
 
         notificationCenter.addObserver(
             self,
@@ -187,18 +226,10 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
             let data = try FavoriteLocationCodec.encode(favorites)
             let added = favorites.subtracting(locations)
             if advancingDeletionBaseline {
+                recordPendingChanges(newFavorites: favorites)
                 reflectDeletionToLocal(newFavorites: favorites)
             }
-            if data.count > Self.maxDataSize {
-                iCloudLogger.warning(
-                    "Favorites data (\(data.count) bytes) exceeds 60 KB limit; skipping iCloud write."
-                )
-                // サイズ超過時はローカル UserDefaults のみ更新する
-                fallbackDefaults.set(data, forKey: Self.localFallbackKey)
-            } else {
-                kvStore.set(data, forKey: Self.iCloudKey)
-                kvStore.synchronize()
-            }
+            persist(data)
             locations = favorites
             if advancingDeletionBaseline {
                 lastSavedSnapshot = favorites
@@ -240,7 +271,9 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
         case .initialSyncChange:
             // 初回同期前の書き込みは OS に破棄されるため、changedKeys に関係なく KV を読み直し、
             // 消える地点をローカルへ退避してから反映する（reconciler が退避分を必ず拾える順序）。
-            let newLocations = Self.loadFromKVStore(kvStore) ?? []
+            // 破棄された書き込みは同時編集ではないので、保留中の変更は統合し直さない。
+            clearPendingChanges()
+            guard let newLocations = decodedLocations(Self.readKV(kvStore), missingAs: []) else { return }
             let lost = locations.subtracting(newLocations)
             if !lost.isEmpty {
                 let local = FavoriteLocationStore.loadFavorites(userDefaults: fallbackDefaults)
@@ -255,13 +288,46 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
             // アカウントの境界を越えてデータを移さないため、退避も統合もせず KV をそのまま反映する。
             // 新しいアカウントに対象キーがなくても前のアカウントの一覧を残さないよう、changedKeys に関係なく KV を読み直す。
             accountChangedSubject.send()
-            applyExternalLocations(Self.loadFromKVStore(kvStore) ?? [])
+            clearPendingChanges()
+            applyExternalLocations(decodedLocations(Self.readKV(kvStore), missingAs: []) ?? [])
         case .quotaViolationChange:
             iCloudLogger.warning("iCloud KVStore quota exceeded; favorites may not be synced.")
         case .serverChange, nil:
-            guard hasKey, let updated = Self.loadFromKVStore(kvStore) else { return }
-            applyExternalLocations(updated)
+            guard hasKey, let remote = decodedLocations(Self.readKV(kvStore), missingAs: nil) else { return }
+            applyServerChange(remote)
         }
+    }
+
+    /// 他の端末からの一覧を、この端末の未確認の変更と三方向で統合して反映する。
+    /// 結果 = 届いた一覧 − この端末で削除した地点 ∪ この端末で追加した地点（どちらも未確認かつ保留期間内のもの）。
+    /// 届いた一覧と異なれば KV に書き戻す。60KB 超過で fallback の方が新しいときは、この端末の一覧をすべて残す。
+    private func applyServerChange(_ remote: [FavoriteLocation]) {
+        let timestamp = now()
+        let remoteIDs = Set(remote.map(\.id))
+        // 届いた一覧で確認できた変更と、保留期間を過ぎた変更は保留から外す。
+        pendingAdds = pendingAdds.filter { id, addedAt in
+            !remoteIDs.contains(id) && timestamp.timeIntervalSince(addedAt) < Self.pendingChangeWindow
+        }
+        pendingDeletes = pendingDeletes.filter { id, deletedAt in
+            remoteIDs.contains(id) && timestamp.timeIntervalSince(deletedAt) < Self.pendingChangeWindow
+        }
+        let keepsAllLocal = fallbackDefaults.bool(forKey: Self.fallbackIsNewerKey)
+        let preserved = locations.filter { keepsAllLocal || pendingAdds[$0.id] != nil }
+        let merged = remote
+            .filter { pendingDeletes[$0.id] == nil }
+            .unionPreservingOrder(preserved)
+        if merged != remote {
+            do {
+                let data = try FavoriteLocationCodec.encode(merged)
+                persist(data)
+                iCloudLogger.notice(
+                    "event=mergeServerChange remote=\(remote.count, privacy: .public) merged=\(merged.count, privacy: .public)"
+                )
+            } catch {
+                iCloudLogger.error("Failed to encode merged favorites: \(error)")
+            }
+        }
+        applyExternalLocations(merged)
     }
 
     /// 外部から届いた一覧を反映する。
@@ -270,6 +336,68 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     private func applyExternalLocations(_ newLocations: [FavoriteLocation]) {
         lastSavedSnapshot = lastSavedSnapshot.filter { saved in newLocations.contains { saved.isSameSpot(as: $0) } }
         locations = newLocations
+    }
+
+    // MARK: - Pending Changes / Persistence
+
+    /// この端末での追加・削除を、届いた一覧で確認できるまで保留として記録する。
+    /// 削除は `reflectDeletionToLocal` と同じく直前の save にあった地点に限る（古い配列での save を削除とみなさない）。
+    private func recordPendingChanges(newFavorites: [FavoriteLocation]) {
+        let timestamp = now()
+        let previousIDs = Set(locations.map(\.id))
+        for favorite in newFavorites where !previousIDs.contains(favorite.id) {
+            pendingAdds[favorite.id] = timestamp
+            pendingDeletes[favorite.id] = nil
+        }
+        let newIDs = Set(newFavorites.map(\.id))
+        for removed in lastSavedSnapshot where !newIDs.contains(removed.id) {
+            pendingDeletes[removed.id] = timestamp
+            pendingAdds[removed.id] = nil
+        }
+    }
+
+    private func clearPendingChanges() {
+        pendingAdds = [:]
+        pendingDeletes = [:]
+    }
+
+    /// 一覧のデータを KV（書けないときは fallback）に保存する。
+    /// KV のデータがデコードできない間は上書きしない。60KB を超えるときは fallback に保存し、fallback の方が新しいと記録する。
+    private func persist(_ data: Data) {
+        if isKVDataUnreadable {
+            if case .undecodable = Self.readKV(kvStore) {
+                iCloudLogger.warning("iCloud favorites data is unreadable; skipping iCloud write to preserve it.")
+                fallbackDefaults.set(data, forKey: Self.localFallbackKey)
+                return
+            }
+            isKVDataUnreadable = false
+        }
+        if data.count > Self.maxDataSize {
+            iCloudLogger.warning(
+                "Favorites data (\(data.count) bytes) exceeds 60 KB limit; skipping iCloud write."
+            )
+            // サイズ超過時はローカル UserDefaults のみ更新し、次回起動時に KV より優先させる
+            fallbackDefaults.set(data, forKey: Self.localFallbackKey)
+            fallbackDefaults.set(true, forKey: Self.fallbackIsNewerKey)
+        } else {
+            kvStore.set(data, forKey: Self.iCloudKey)
+            kvStore.synchronize()
+            fallbackDefaults.removeObject(forKey: Self.fallbackIsNewerKey)
+        }
+    }
+
+    /// 読み出し結果を一覧に変換する。デコードできないときは記録して nil を返す（呼び出し側は反映しない）。
+    private func decodedLocations(_ result: KVReadResult, missingAs missingValue: [FavoriteLocation]?) -> [FavoriteLocation]? {
+        switch result {
+        case .decoded(let decoded):
+            isKVDataUnreadable = false
+            return decoded
+        case .missing:
+            return missingValue
+        case .undecodable:
+            isKVDataUnreadable = true
+            return nil
+        }
     }
 
     // MARK: - Local Writes（退避と削除の反映のみ）
@@ -306,12 +434,19 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
 
     /// KV ストアのお気に入りを読み込む。キーがないかデコードに失敗したときは nil を返す。
     static func loadFromKVStore(_ kvStore: any UbiquitousKeyValueStoring) -> [FavoriteLocation]? {
-        guard let data = kvStore.data(forKey: iCloudKey) else { return nil }
+        if case .decoded(let decoded) = readKV(kvStore) {
+            return decoded
+        }
+        return nil
+    }
+
+    private static func readKV(_ kvStore: any UbiquitousKeyValueStoring) -> KVReadResult {
+        guard let data = kvStore.data(forKey: iCloudKey) else { return .missing }
         do {
-            return try FavoriteLocationCodec.decode(data)
+            return .decoded(try FavoriteLocationCodec.decode(data))
         } catch {
             iCloudLogger.error("Failed to decode favorites from iCloud KVStore: \(error)")
-            return nil
+            return .undecodable
         }
     }
 

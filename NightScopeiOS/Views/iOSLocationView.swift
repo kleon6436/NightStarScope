@@ -474,12 +474,16 @@ private struct iOSFavoritesSection: View {
                             .accessibilityLabel(
                                 L10n.format("お気に入りの場所: %@", favorite.name)
                             )
-                            .swipeActions(edge: .trailing) {
+                            // swipeActions は List の行でしか効かないため、長押しメニューで削除できるようにする。
+                            .contextMenu {
                                 Button(role: .destructive) {
                                     viewModel.removeFavorite(favorite)
                                 } label: {
                                     Label("削除", systemImage: "trash")
                                 }
+                            }
+                            .accessibilityAction(named: Text("削除")) {
+                                viewModel.removeFavorite(favorite)
                             }
 
                             if favorite.id != viewModel.favorites.last?.id {

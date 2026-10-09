@@ -821,6 +821,128 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         XCTAssertTrue(reconciler.localOnly.isEmpty)
     }
 
+    // MARK: - 15: serverChange の三方向マージ
+
+    /// 15a: 他の端末がこの端末の追加を見る前に書いた一覧が届いても、追加した地点を失わず KV に書き戻す。
+    func test_serverChange_keepsLocalAddNotYetSeenByOtherDevice() async throws {
+        let pointX = FavoriteLocation(name: "X", latitude: 36.0, longitude: 138.0, timeZoneIdentifier: "Asia/Tokyo")
+        let env = try makeEnvironment(kv: [pointA], local: [])
+        let store = env.makeICloudStore()
+
+        store.save([pointA, pointX])
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointA, pointC])
+        }
+
+        XCTAssertEqual(store.loadAll(), [pointA, pointC, pointX])
+        XCTAssertEqual(env.kvStore.favorites, [pointA, pointC, pointX])
+    }
+
+    /// 15b: この端末で削除した地点を含む古い一覧が届いても、削除をやり直して KV に書き戻す。
+    func test_serverChange_reappliesLocalDeleteNotYetSeenByOtherDevice() async throws {
+        let env = try makeEnvironment(kv: [pointA, pointB], local: [])
+        let store = env.makeICloudStore()
+
+        store.save([pointA])
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointA, pointB, pointC])
+        }
+
+        XCTAssertEqual(store.loadAll(), [pointA, pointC])
+        XCTAssertEqual(env.kvStore.favorites, [pointA, pointC])
+    }
+
+    /// 15c: 届いた一覧で確認できた追加は、その後に他の端末で削除されれば削除を受け入れる。
+    func test_serverChange_confirmedLocalAdd_acceptsLaterRemoteDeletion() async throws {
+        let env = try makeEnvironment(kv: [pointA], local: [])
+        let store = env.makeICloudStore()
+
+        store.save([pointA, pointC])
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointA, pointC])
+        }
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointA])
+        }
+
+        XCTAssertEqual(store.loadAll(), [pointA])
+        XCTAssertEqual(env.kvStore.favorites, [pointA])
+    }
+
+    /// 15d: 保留期間を過ぎた追加は統合し直さず、届いた一覧をそのまま反映する（KV に書かない）。
+    func test_serverChange_afterPendingWindow_acceptsRemoteList() async throws {
+        var current = Date(timeIntervalSince1970: 1_000_000)
+        let env = try makeEnvironment(kv: [pointA], local: [])
+        let store = iCloudFavoriteLocationStore(
+            kvStore: env.kvStore,
+            fallbackDefaults: env.defaults,
+            notificationCenter: env.center,
+            now: { current }
+        )
+
+        store.save([pointA, pointC])
+        current += iCloudFavoriteLocationStore.pendingChangeWindow + 1
+        let setCountBeforeChange = env.kvStore.setCount
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointA])
+        }
+
+        XCTAssertEqual(store.loadAll(), [pointA])
+        XCTAssertEqual(env.kvStore.setCount, setCountBeforeChange)
+    }
+
+    // MARK: - 16: 60KB 超過とデコード失敗
+
+    /// 16a: 60KB を超えて fallback にだけ保存した一覧は、再起動後も KV より優先して表示する。上限内に戻ればフラグを消す。
+    func test_overLimitSave_isRestoredOnRelaunch_andFlagClearsUnderLimit() throws {
+        let many = (0..<600).map { index in
+            FavoriteLocation(
+                name: "地点\(index)",
+                latitude: 10.0 + Double(index) * 0.01,
+                longitude: 120.0,
+                timeZoneIdentifier: "Asia/Tokyo"
+            )
+        }
+        let env = try makeEnvironment(kv: [pointA], local: [])
+        let store = env.makeICloudStore()
+
+        store.save(many)
+
+        XCTAssertEqual(env.kvStore.favorites, [pointA])
+        XCTAssertTrue(env.defaults.bool(forKey: iCloudFavoriteLocationStore.fallbackIsNewerKey))
+        XCTAssertEqual(env.makeICloudStore().loadAll(), many, "再起動で KV の古い一覧に巻き戻らない")
+
+        let relaunched = env.makeICloudStore()
+        relaunched.save([pointB])
+
+        XCTAssertEqual(env.kvStore.favorites, [pointB])
+        XCTAssertFalse(env.defaults.bool(forKey: iCloudFavoriteLocationStore.fallbackIsNewerKey))
+        XCTAssertEqual(env.makeICloudStore().loadAll(), [pointB])
+    }
+
+    /// 16b: KV のデータがデコードできない間は KV を上書きせず、この端末の fallback で表示する。
+    /// デコードできる一覧が届いた後は通常どおり書き込む。
+    func test_undecodableKVData_isNotOverwrittenUntilReadableDataArrives() async throws {
+        let env = try makeEnvironment(kv: nil, local: [])
+        let broken = Data("not a favorites list".utf8)
+        env.kvStore.set(broken, forKey: FakeUbiquitousKeyValueStore.key)
+        let store = env.makeICloudStore()
+        XCTAssertEqual(store.loadAll(), [])
+
+        store.save([pointA])
+
+        XCTAssertEqual(store.loadAll(), [pointA])
+        XCTAssertEqual(env.kvStore.data(forKey: FakeUbiquitousKeyValueStore.key), broken)
+        XCTAssertEqual(env.makeICloudStore().loadAll(), [pointA], "再起動後もこの端末の一覧を表示する")
+
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointB])
+        }
+        store.save([pointB, pointC])
+
+        XCTAssertEqual(env.kvStore.favorites, [pointB, pointC])
+    }
+
     // MARK: - トグルの変更
 
     /// トグルを切り替えると objectWillChange が1回だけ届き、再起動待ちになる。

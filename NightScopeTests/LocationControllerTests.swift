@@ -939,4 +939,250 @@ final class LocationControllerTests: XCTestCase {
         let callCount = await resolver.getCallCount()
         XCTAssertEqual(callCount, 2)
     }
+
+    // MARK: - 既定地点のタイムゾーン
+
+    func test_LocationController_init_withoutPersistedLocation_usesTokyoTimeZone() {
+        let sut = LocationController(
+            storage: InMemoryLocationStorage(),
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: MockLocationNameResolver(resolvedName: "東京")
+        )
+
+        XCTAssertEqual(sut.locationName, L10n.tr("東京"))
+        XCTAssertEqual(sut.selectedTimeZone.identifier, "Asia/Tokyo")
+    }
+
+    // MARK: - 復元時の暫定タイムゾーン解決
+
+    func test_LocationController_init_resolvesProvisionalTimeZoneWithoutOverwritingStoredName() async {
+        let storage = InMemoryLocationStorage()
+        storage.latitude = -6.2
+        storage.longitude = 147.0
+        storage.name = "保存した地点"
+        let resolver = MockLocationNameResolver(
+            resolvedName: "逆ジオコーディング名",
+            timeZoneIdentifier: "Pacific/Port_Moresby"
+        )
+
+        let sut = LocationController(
+            storage: storage,
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: resolver
+        )
+        let restoredUpdateID = sut.locationUpdateID
+        XCTAssertTrue(ApproximateTimeZoneResolver.isProvisionalIdentifier(sut.selectedTimeZone.identifier))
+
+        await waitUntil {
+            sut.selectedTimeZone.identifier == "Pacific/Port_Moresby"
+        }
+
+        XCTAssertEqual(sut.locationName, "保存した地点")
+        XCTAssertEqual(storage.timeZoneIdentifier, "Pacific/Port_Moresby")
+        XCTAssertNotEqual(sut.locationUpdateID, restoredUpdateID)
+    }
+
+    func test_LocationController_init_withConfirmedTimeZoneAndName_skipsResolution() async {
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 35.0
+        storage.longitude = 139.0
+        storage.name = "保存した地点"
+        storage.timeZoneIdentifier = "Asia/Tokyo"
+        let resolver = SequencedLocationNameResolver(resolvedNames: ["別名"], delaysInNanoseconds: [])
+
+        let sut = LocationController(
+            storage: storage,
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: resolver
+        )
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(sut.locationName, "保存した地点")
+        let callCount = await resolver.getCallCount()
+        XCTAssertEqual(callCount, 0)
+    }
+
+    // MARK: - 名前・タイムゾーン付きの地点選択
+
+    func test_LocationController_selectCoordinateWithNameAndTimeZone_appliesImmediatelyWithoutResolution() async {
+        let storage = InMemoryLocationStorage()
+        let resolver = SequencedLocationNameResolver(resolvedNames: ["逆ジオコーディング名"], delaysInNanoseconds: [])
+        let sut = LocationController(
+            storage: storage,
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: resolver
+        )
+        let initialUpdateID = sut.locationUpdateID
+        let coordinate = CLLocationCoordinate2D(latitude: -31.95, longitude: 115.86)
+
+        sut.selectCoordinate(coordinate, name: "パースの観測地", timeZoneIdentifier: "Australia/Perth")
+
+        XCTAssertNotEqual(sut.locationUpdateID, initialUpdateID)
+        XCTAssertEqual(sut.locationName, "パースの観測地")
+        XCTAssertEqual(sut.selectedTimeZone.identifier, "Australia/Perth")
+        XCTAssertEqual(storage.timeZoneIdentifier, "Australia/Perth")
+        XCTAssertEqual(sut.selectedLocation.latitude, coordinate.latitude, accuracy: 0.000001)
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(sut.locationName, "パースの観測地")
+        let callCount = await resolver.getCallCount()
+        XCTAssertEqual(callCount, 0)
+    }
+
+    func test_LocationController_selectCoordinateWithNameOnly_resolvesTimeZoneButKeepsName() async {
+        let storage = InMemoryLocationStorage()
+        let resolver = MockLocationNameResolver(resolvedName: "逆ジオコーディング名", timeZoneIdentifier: "America/Phoenix")
+        let sut = LocationController(
+            storage: storage,
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: resolver
+        )
+        let coordinate = CLLocationCoordinate2D(latitude: 33.4484, longitude: -112.0740)
+
+        sut.selectCoordinate(coordinate, name: "お気に入りの砂漠", timeZoneIdentifier: "Invalid/Zone")
+
+        await waitUntil {
+            sut.selectedTimeZone.identifier == "America/Phoenix"
+        }
+        XCTAssertEqual(sut.locationName, "お気に入りの砂漠")
+        XCTAssertEqual(storage.timeZoneIdentifier, "America/Phoenix")
+    }
+
+    func test_LocationController_selectCoordinateWithoutName_usesResolvedName() async {
+        let resolver = MockLocationNameResolver(resolvedName: "渋谷区", timeZoneIdentifier: nil)
+        let sut = LocationController(
+            storage: InMemoryLocationStorage(),
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: resolver
+        )
+
+        sut.selectCoordinate(
+            CLLocationCoordinate2D(latitude: 35.6580, longitude: 139.7016),
+            name: nil,
+            timeZoneIdentifier: "Asia/Tokyo"
+        )
+
+        await waitUntil { sut.locationName == "渋谷区" }
+        XCTAssertEqual(sut.selectedTimeZone.identifier, "Asia/Tokyo")
+    }
+
+    // MARK: - 現在地の鮮度・精度
+
+    func test_LocationController_didUpdateLocations_ignoresStaleOrInaccurateFixAndUsesBestOnTimeout() async {
+        let sut = LocationController(
+            storage: InMemoryLocationStorage(),
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: MockLocationNameResolver(resolvedName: "現在地"),
+            locationRequestTimeout: .milliseconds(150)
+        )
+        let stale = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: 135.0),
+            altitude: 0,
+            horizontalAccuracy: 10,
+            verticalAccuracy: 10,
+            timestamp: Date().addingTimeInterval(-600)
+        )
+        let inaccurate = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: 131.0),
+            altitude: 0,
+            horizontalAccuracy: 5_000,
+            verticalAccuracy: 10,
+            timestamp: Date()
+        )
+        sut.isLocating = true
+
+        sut.locationManager(CLLocationManager(), didUpdateLocations: [stale])
+        sut.locationManager(CLLocationManager(), didUpdateLocations: [inaccurate])
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertTrue(sut.isLocating, "基準を満たさない位置では確定しない")
+        XCTAssertEqual(sut.selectedLocation.latitude, 35.6762, accuracy: 0.000001)
+
+        sut.startLocatingTimeout()
+        await waitUntil { !sut.isLocating }
+
+        XCTAssertNil(sut.locationError, "タイムアウト時は受け取った位置を使う")
+        XCTAssertEqual(sut.selectedLocation.latitude, 33.0, accuracy: 0.000001)
+        XCTAssertEqual(sut.selectedLocation.longitude, 131.0, accuracy: 0.000001)
+    }
+
+    func test_LocationController_didUpdateLocations_invalidAccuracyFailsOnTimeout() async {
+        let sut = LocationController(
+            storage: InMemoryLocationStorage(),
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: MockLocationNameResolver(resolvedName: "現在地"),
+            locationRequestTimeout: .milliseconds(50)
+        )
+        let invalid = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: 131.0),
+            altitude: 0,
+            horizontalAccuracy: -1,
+            verticalAccuracy: 10,
+            timestamp: Date()
+        )
+        sut.isLocating = true
+
+        sut.locationManager(CLLocationManager(), didUpdateLocations: [invalid])
+        sut.startLocatingTimeout()
+        await waitUntil { !sut.isLocating }
+
+        XCTAssertEqual(sut.locationError, .failed)
+        XCTAssertEqual(sut.selectedLocation.latitude, 35.6762, accuracy: 0.000001)
+    }
+
+    // MARK: - タイムゾーン推定
+
+    func test_ApproximateTimeZoneResolver_australianRegion_usesStateTimeZones() {
+        let cases: [(CLLocationCoordinate2D, String)] = [
+            (CLLocationCoordinate2D(latitude: -31.95, longitude: 115.86), "Australia/Perth"),
+            (CLLocationCoordinate2D(latitude: -27.47, longitude: 153.03), "Australia/Brisbane"),
+            (CLLocationCoordinate2D(latitude: -20.73, longitude: 139.49), "Australia/Brisbane"),
+            (CLLocationCoordinate2D(latitude: -12.46, longitude: 130.84), "Australia/Darwin"),
+            (CLLocationCoordinate2D(latitude: -34.93, longitude: 138.60), "Australia/Adelaide"),
+            (CLLocationCoordinate2D(latitude: -33.87, longitude: 151.21), "Australia/Sydney"),
+            (CLLocationCoordinate2D(latitude: -42.88, longitude: 147.33), "Australia/Hobart"),
+            (CLLocationCoordinate2D(latitude: -31.55, longitude: 159.08), "Australia/Lord_Howe")
+        ]
+        for (coordinate, expected) in cases {
+            XCTAssertEqual(
+                ApproximateTimeZoneResolver.exactIdentifier(for: coordinate, regionIdentifier: "AU"),
+                expected,
+                "\(coordinate.latitude), \(coordinate.longitude)"
+            )
+        }
+    }
+
+    func test_ApproximateTimeZoneResolver_australianRegion_returnsNilNearUncertainBorder() {
+        // クイーンズランドとニューサウスウェールズの州境（河川沿い）付近
+        let coordinate = CLLocationCoordinate2D(latitude: -28.6, longitude: 151.5)
+
+        XCTAssertNil(ApproximateTimeZoneResolver.exactIdentifier(for: coordinate, regionIdentifier: "AU"))
+    }
+
+    func test_ApproximateTimeZoneResolver_heuristics_preferSpecificBoxes() {
+        let cases: [(CLLocationCoordinate2D, String)] = [
+            (CLLocationCoordinate2D(latitude: 25.20, longitude: 55.27), "Asia/Dubai"),
+            (CLLocationCoordinate2D(latitude: 35.69, longitude: 51.39), "Asia/Tehran"),
+            (CLLocationCoordinate2D(latitude: 31.77, longitude: 35.21), "Asia/Jerusalem"),
+            (CLLocationCoordinate2D(latitude: 30.04, longitude: 31.24), "Africa/Cairo"),
+            (CLLocationCoordinate2D(latitude: 13.75, longitude: 100.50), "Asia/Bangkok"),
+            (CLLocationCoordinate2D(latitude: 16.87, longitude: 96.20), "Asia/Yangon"),
+            (CLLocationCoordinate2D(latitude: 33.69, longitude: 73.05), "Asia/Karachi"),
+            (CLLocationCoordinate2D(latitude: 34.53, longitude: 69.17), "Asia/Kabul"),
+            (CLLocationCoordinate2D(latitude: 40.42, longitude: -3.70), "Europe/Madrid"),
+            (CLLocationCoordinate2D(latitude: 51.50, longitude: -0.13), "Europe/London"),
+            (CLLocationCoordinate2D(latitude: 51.25, longitude: 22.57), "Europe/Warsaw"),
+            (CLLocationCoordinate2D(latitude: 44.80, longitude: 20.46), "Europe/Belgrade"),
+            (CLLocationCoordinate2D(latitude: 53.90, longitude: 27.56), "Europe/Minsk"),
+            (CLLocationCoordinate2D(latitude: 37.98, longitude: 23.73), "Europe/Athens"),
+            (CLLocationCoordinate2D(latitude: -31.95, longitude: 115.86), "Australia/Perth")
+        ]
+        for (coordinate, expected) in cases {
+            XCTAssertEqual(
+                ApproximateTimeZoneResolver.approximateIdentifier(for: coordinate),
+                expected,
+                "\(coordinate.latitude), \(coordinate.longitude)"
+            )
+        }
+    }
 }
