@@ -6817,6 +6817,17 @@
         }
       }
     },
+    "現在地は光害データの収録範囲外です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current location is outside the light pollution data coverage."
+          }
+        }
+      }
+    },
     "現在地の光害データが取得できませんでした。" : {
       "extractionState" : "manual",
       "localizations" : {

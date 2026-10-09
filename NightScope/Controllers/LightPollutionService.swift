@@ -5,9 +5,15 @@ import MapKit
 /// 光害データ取得時の代表的なエラー。
 enum LightPollutionServiceError: Error, LocalizedError {
     case noData
+    case outOfCoverage
 
     var errorDescription: String? {
-        L10n.tr("現在地の光害データが取得できませんでした。")
+        switch self {
+        case .noData:
+            return L10n.tr("現在地の光害データが取得できませんでした。")
+        case .outOfCoverage:
+            return L10n.tr("現在地は光害データの収録範囲外です。")
+        }
     }
 }
 
@@ -20,6 +26,9 @@ protocol LightPollutionProviding: AnyObject, ObservableObject {
     var isLoadingPublisher: Published<Bool>.Publisher { get }
     var fetchFailed: Bool { get }
     var fetchFailedPublisher: Published<Bool>.Publisher { get }
+    /// 収録範囲外（極域など）。取得失敗ではなくデータなしとして扱う。
+    var isOutOfCoverage: Bool { get }
+    var isOutOfCoveragePublisher: Published<Bool>.Publisher { get }
 
     func fetch(latitude: Double, longitude: Double) async
     func fetchBortle(latitude: Double, longitude: Double) async throws -> Double
@@ -330,6 +339,7 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     struct FetchResult {
         let bortleClass: Double?
         let fetchFailed: Bool
+        var isOutOfCoverage = false
         let lastFetchedCoordinate: (lat: Double, lon: Double)?
         let fetchedAt: Date
     }
@@ -340,6 +350,8 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
     @Published var fetchFailed = false
     var fetchFailedPublisher: Published<Bool>.Publisher { $fetchFailed }
+    @Published var isOutOfCoverage = false
+    var isOutOfCoveragePublisher: Published<Bool>.Publisher { $isOutOfCoverage }
 
     private var lastFetchResult: FetchResult?
     /// 取得の世代。観測地変更や新しい取得で進め、待機中だった古い取得の結果を反映しないために使う。
@@ -370,6 +382,7 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
         fetchGeneration += 1
         isLoading = false
         fetchFailed = false
+        isOutOfCoverage = false
         bortleClass = nil
     }
 
@@ -379,6 +392,7 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
         let generation = fetchGeneration
         isLoading = true
         fetchFailed = false
+        isOutOfCoverage = false
         let result = await fetchSnapshot(latitude: latitude, longitude: longitude)
         // 待機中に観測地が変わった、または新しい取得が始まった場合は古い結果を捨てる
         guard generation == fetchGeneration else { return }
@@ -405,6 +419,14 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
                 lastFetchedCoordinate: (latitude, longitude),
                 fetchedAt: Date()
             )
+        } catch LightPollutionServiceError.outOfCoverage {
+            return FetchResult(
+                bortleClass: nil,
+                fetchFailed: false,
+                isOutOfCoverage: true,
+                lastFetchedCoordinate: (latitude, longitude),
+                fetchedAt: Date()
+            )
         } catch {
             return FetchResult(
                 bortleClass: nil,
@@ -419,6 +441,7 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     func applyFetchResult(_ result: FetchResult) {
         bortleClass = result.bortleClass
         fetchFailed = result.fetchFailed
+        isOutOfCoverage = result.isOutOfCoverage
         lastFetchResult = result
         isLoading = false
     }
@@ -438,7 +461,7 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
         }
         gridData = grid
         guard Constants.coveredLatitudeRange.contains(latitude) else {
-            throw LightPollutionServiceError.noData
+            throw LightPollutionServiceError.outOfCoverage
         }
         let brightness = grid.brightness(latitude: latitude, longitude: longitude)
         return scaleConverter.bortleClass(for: brightness)

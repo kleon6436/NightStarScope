@@ -248,8 +248,8 @@ final class StarMapViewModel: ObservableObject {
         if elapsed < minUpdateInterval {
             // 前回から時間が短い → trailing-edge debounce でインターバル後に最終値を計算
             trailingTask?.cancel()
-            // 入力が変わった時点で飛行中の計算結果は古いため、適用されないよう破棄する。
-            updateTask?.cancel()
+            // 飛行中の計算はここではキャンセルしない。連続操作中に毎回破棄すると、
+            // 操作が止まるまで一度もスナップショットが適用されず星図が固まる。
             let remaining = minUpdateInterval - elapsed
             trailingTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))

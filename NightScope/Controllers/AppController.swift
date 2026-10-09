@@ -786,13 +786,16 @@ final class AppController: ObservableObject {
 
     private func handleSelectedTimeZoneChanged(to newTimeZone: TimeZone) {
         let previousTimeZone = lastObservedTimeZone
-        lastObservedTimeZone = newTimeZone
-
+        let newCoordinate = locationController.selectedLocation
+        // 「今夜を追っていたか」は旧座標 + 旧タイムゾーンの組で判定する。
         let normalizedDate = selectedDateAfterLocationChange(
             from: previousTimeZone,
             to: newTimeZone,
-            newCoordinate: locationController.selectedLocation
+            newCoordinate: newCoordinate
         )
+        // 座標も同時に進め、後続の位置ハンドラが「旧座標 + 新タイムゾーン」の混在で判定しないようにする。
+        lastObservedTimeZone = newTimeZone
+        lastObservedCoordinate = newCoordinate
         guard normalizedDate != selectedDate else { return }
         selectedDate = normalizedDate
     }

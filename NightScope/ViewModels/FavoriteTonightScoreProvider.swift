@@ -20,6 +20,8 @@ struct FavoriteTonightScore: Equatable, Sendable {
 final class FavoriteTonightScoreProvider: ObservableObject {
     /// 計算結果を再利用する有効期間（秒）。
     static let cacheLifetime: TimeInterval = 3600
+    /// 取得に失敗した地点を再試行するまでの待ち時間（秒）。`force` のときは無視する。
+    static let failureRetryInterval: TimeInterval = 300
 
     @Published private(set) var scoresByFavoriteID: [UUID: FavoriteTonightScore] = [:]
     @Published private(set) var isRefreshing = false
@@ -30,6 +32,8 @@ final class FavoriteTonightScoreProvider: ObservableObject {
     private let referenceDateProvider: () -> Date
     /// 更新要求が重なった際に古い結果で上書きしないための世代カウンタ。
     private var refreshGeneration = 0
+    /// 地点ごとの直近の取得失敗時刻。バックオフ判定に使う。
+    private var lastFailureByFavoriteID: [UUID: Date] = [:]
 
     init(
         weatherService: any WeatherProviding,
@@ -58,8 +62,13 @@ final class FavoriteTonightScoreProvider: ObservableObject {
         if scoresByFavoriteID.keys.contains(where: { !favoriteIDs.contains($0) }) {
             scoresByFavoriteID = scoresByFavoriteID.filter { favoriteIDs.contains($0.key) }
         }
+        lastFailureByFavoriteID = lastFailureByFavoriteID.filter { favoriteIDs.contains($0.key) }
 
         let targets = favorites.filter { favorite in
+            if !force, let failedAt = lastFailureByFavoriteID[favorite.id],
+               referenceDate.timeIntervalSince(failedAt) < Self.failureRetryInterval {
+                return false
+            }
             guard !force, let cached = scoresByFavoriteID[favorite.id] else { return true }
             return referenceDate.timeIntervalSince(cached.computedAt) >= Self.cacheLifetime
                 || cached.observationDate != observationDate(for: favorite, referenceDate: referenceDate)
@@ -91,10 +100,20 @@ final class FavoriteTonightScoreProvider: ObservableObject {
             )
             guard generation == refreshGeneration, !Task.isCancelled else { return }
             // 天気の取得に失敗した結果は正規の値として保存しない。
-            guard !matrix.weatherFailedLocationIDs.contains(target.id) else { continue }
-            guard let tonight = matrix.dates.first else { continue }
+            // 既存値は同じ観測夜のものだけ残し、過去の夜の値は「今夜」として出さないよう取り除く。
+            guard !matrix.weatherFailedLocationIDs.contains(target.id),
+                  let tonight = matrix.dates.first,
+                  let index = matrix.cellsByID[ComparisonCell.makeID(locationID: target.id, date: tonight)]?.index
+            else {
+                lastFailureByFavoriteID[target.id] = referenceDate
+                if let cached = scoresByFavoriteID[target.id],
+                   cached.observationDate != observationDate(for: target, referenceDate: referenceDate) {
+                    scoresByFavoriteID[target.id] = nil
+                }
+                continue
+            }
             let cellID = ComparisonCell.makeID(locationID: target.id, date: tonight)
-            guard let index = matrix.cellsByID[cellID]?.index else { continue }
+            lastFailureByFavoriteID[target.id] = nil
             scoresByFavoriteID[target.id] = FavoriteTonightScore(
                 score: index.score,
                 tier: index.tier,

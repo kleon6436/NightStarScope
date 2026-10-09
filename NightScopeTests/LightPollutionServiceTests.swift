@@ -317,18 +317,24 @@ final class LightPollutionServiceTests: XCTestCase {
         return BortleGridData(data: data)
     }
 
-    func test_fetch_latitudeOutsideFalchiCoverage_returnsNoData() async {
+    func test_fetch_latitudeOutsideFalchiCoverage_setsOutOfCoverageNotFailed() async {
         let grid = makeSingleCellGrid(brightness: 0.0)
         let service = LightPollutionService(gridData: grid)
 
         // ロングイールビーン 78.2N: Falchi データの収録範囲 (-60〜75) 外
         await service.fetch(latitude: 78.2, longitude: 15.6)
-        XCTAssertTrue(service.fetchFailed)
+        XCTAssertTrue(service.isOutOfCoverage)
+        XCTAssertFalse(service.fetchFailed)
         XCTAssertNil(service.bortleClass)
 
         await service.fetch(latitude: -75.0, longitude: 0)
-        XCTAssertTrue(service.fetchFailed)
+        XCTAssertTrue(service.isOutOfCoverage)
+        XCTAssertFalse(service.fetchFailed)
         XCTAssertNil(service.bortleClass)
+
+        await service.fetch(latitude: 35.6762, longitude: 139.6503)
+        XCTAssertFalse(service.isOutOfCoverage)
+        XCTAssertNotNil(service.bortleClass)
     }
 
     func test_fetch_tokyo_stillReturnsValidBortle() async {

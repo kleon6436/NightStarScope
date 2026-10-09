@@ -51,6 +51,7 @@ final class SidebarViewModel: ObservableObject {
     @Published private(set) var lightPollutionBortleClass: Double?
     @Published private(set) var isLightPollutionLoading: Bool
     @Published private(set) var hasLightPollutionFetchFailed: Bool
+    @Published private(set) var isLightPollutionOutOfCoverage: Bool
     @Published private(set) var selectedTimeZone: TimeZone
     @Published private(set) var favorites: [FavoriteLocation] = []
     /// お気に入り地点ごとの今夜の星空指数。未取得の地点はキーを持たない。
@@ -115,6 +116,7 @@ final class SidebarViewModel: ObservableObject {
         self.lightPollutionBortleClass = lightPollutionService.bortleClass
         self.isLightPollutionLoading = lightPollutionService.isLoading
         self.hasLightPollutionFetchFailed = lightPollutionService.fetchFailed
+        self.isLightPollutionOutOfCoverage = lightPollutionService.isOutOfCoverage
         self.selectedTimeZone = locationController.selectedTimeZone
         self.favorites = favoriteStore.loadAll()
 
@@ -167,6 +169,9 @@ final class SidebarViewModel: ObservableObject {
 
         lightPollutionService.fetchFailedPublisher
             .assign(to: &$hasLightPollutionFetchFailed)
+
+        lightPollutionService.isOutOfCoveragePublisher
+            .assign(to: &$isLightPollutionOutOfCoverage)
 
         // FavoriteTonightScoreProvider も @MainActor なので receive(on:) は不要。
         tonightScoreProvider?.$scoresByFavoriteID

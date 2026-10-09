@@ -6,6 +6,7 @@ import Combine
 final class StarGazingIndexCardViewModel: ObservableObject {
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var fetchFailed: Bool = false
+    @Published private(set) var isOutOfCoverage: Bool = false
 
     private let lightPollutionService: LightPollutionService
     private var cancellables = Set<AnyCancellable>()
@@ -22,5 +23,8 @@ final class StarGazingIndexCardViewModel: ObservableObject {
 
         lightPollutionService.$fetchFailed
             .assign(to: &$fetchFailed)
+
+        lightPollutionService.$isOutOfCoverage
+            .assign(to: &$isOutOfCoverage)
     }
 }

@@ -161,16 +161,18 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         weatherService.registerFailure(favorite: favorite)
         await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
 
+        var now = baseDate
         let provider = FavoriteTonightScoreProvider(
             weatherService: weatherService,
             lightPollutionService: MockLightPollutionService(),
             calculationService: calculationService,
-            referenceDateProvider: { self.baseDate }
+            referenceDateProvider: { now }
         )
 
-        // 天気取得に失敗した地点はスコアを保存しない（次回の更新で再取得される）。
+        // 天気取得に失敗した地点はスコアを保存しない（バックオフ後の更新で再取得される）。
         await provider.refreshIfNeeded(favorites: [favorite])
         XCTAssertNil(provider.score(for: favorite.id))
+        now = baseDate.addingTimeInterval(FavoriteTonightScoreProvider.failureRetryInterval + 1)
 
         // 成功した値は、その後の失敗で上書きされない。
         weatherService.register(favorite: favorite, dates: [baseDate])
@@ -183,6 +185,69 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
         await provider.refreshIfNeeded(favorites: [favorite], force: true)
         XCTAssertEqual(provider.score(for: favorite.id), stored)
+    }
+
+    func test_refreshIfNeeded_failedFavoriteIsNotRetriedWithinBackoffUnlessForced() async {
+        let favorite = makeFavorite(name: "Flaky", latitude: 35.0, longitude: 135.0)
+        let weatherService = MockTonightWeatherService()
+        let calculationService = MockNightCalculationService()
+        weatherService.registerFailure(favorite: favorite)
+
+        var now = baseDate
+        let provider = FavoriteTonightScoreProvider(
+            weatherService: weatherService,
+            lightPollutionService: MockLightPollutionService(),
+            calculationService: calculationService,
+            referenceDateProvider: { now }
+        )
+
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertEqual(weatherService.fetchCount, 1)
+
+        now = baseDate.addingTimeInterval(FavoriteTonightScoreProvider.failureRetryInterval - 1)
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertEqual(weatherService.fetchCount, 1, "バックオフ中は再試行しない")
+
+        await provider.refreshIfNeeded(favorites: [favorite], force: true)
+        XCTAssertEqual(weatherService.fetchCount, 2, "force ならバックオフを無視する")
+
+        now = baseDate.addingTimeInterval(FavoriteTonightScoreProvider.failureRetryInterval * 3)
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertEqual(weatherService.fetchCount, 3, "バックオフ後は再試行する")
+    }
+
+    func test_refreshIfNeeded_failureDropsEntryFromPreviousObservationNight() async {
+        let favorite = makeFavorite(name: "Tokyo", latitude: 35.0, longitude: 135.0)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TestTimeZones.tokyo
+        let nov14 = calendar.date(from: DateComponents(year: 2023, month: 11, day: 14)) ?? baseDate
+        let beforeSunrise = calendar.date(
+            from: DateComponents(year: 2023, month: 11, day: 15, hour: 5, minute: 50)
+        ) ?? baseDate
+        let afterSunrise = calendar.date(
+            from: DateComponents(year: 2023, month: 11, day: 15, hour: 6, minute: 40)
+        ) ?? baseDate
+
+        let weatherService = MockTonightWeatherService()
+        weatherService.register(favorite: favorite, dates: [nov14])
+        let calculationService = MockNightCalculationService()
+        await calculationService.enqueueUpcomingNights([makeNightSummary(date: nov14, withWindow: true)])
+
+        var now = beforeSunrise
+        let provider = FavoriteTonightScoreProvider(
+            weatherService: weatherService,
+            lightPollutionService: MockLightPollutionService(),
+            calculationService: calculationService,
+            referenceDateProvider: { now }
+        )
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertNotNil(provider.score(for: favorite.id))
+
+        // 観測夜が切り替わった後に取得が失敗したら、前の夜の値を「今夜」として残さない。
+        weatherService.registerFailure(favorite: favorite)
+        now = afterSunrise
+        await provider.refreshIfNeeded(favorites: [favorite])
+        XCTAssertNil(provider.score(for: favorite.id))
     }
 
     func test_refreshIfNeeded_prunesRemovedFavorites() async {

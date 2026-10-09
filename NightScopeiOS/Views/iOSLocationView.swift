@@ -258,6 +258,10 @@ struct iOSLocationView: View {
                     Text(L10n.format("ボルトル%d級", Int(bortle.rounded())))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } else if sidebarViewModel.isLightPollutionOutOfCoverage {
+                    Text(L10n.tr("データなし"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else if sidebarViewModel.hasLightPollutionFetchFailed {
                     Button("再試行") {
                         sidebarViewModel.retryLightPollution()
