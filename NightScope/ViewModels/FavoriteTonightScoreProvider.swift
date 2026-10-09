@@ -66,21 +66,21 @@ final class FavoriteTonightScoreProvider: ObservableObject {
             }
         }
 
-        let matrix = await ComparisonController.computeMatrix(
-            referenceDate: referenceDate,
-            locations: targets,
-            dayCount: 1,
-            weatherService: weatherService,
-            lightPollutionService: lightPollutionService,
-            calculationService: calculationService
-        )
-
-        guard generation == refreshGeneration, !Task.isCancelled else { return }
-        guard let tonight = matrix.dates.first else { return }
-
+        // 「今夜」（観測日）は地点ごとに異なる（時差や深夜〜明け方の前夜）ため、地点ごとに 1 列の行列を作る。
+        // まとめて計算すると列が最も早い観測日にそろい、他の地点で終わった夜の指数を出してしまう。
         // 取得に失敗した地点は既存値を残し、成功した地点だけを差し替える。
         var updated = scoresByFavoriteID
         for target in targets {
+            let matrix = await ComparisonController.computeMatrix(
+                referenceDate: referenceDate,
+                locations: [target],
+                dayCount: 1,
+                weatherService: weatherService,
+                lightPollutionService: lightPollutionService,
+                calculationService: calculationService
+            )
+            guard generation == refreshGeneration, !Task.isCancelled else { return }
+            guard let tonight = matrix.dates.first else { continue }
             let cellID = ComparisonCell.makeID(locationID: target.id, date: tonight)
             guard let index = matrix.cellsByID[cellID]?.index else { continue }
             updated[target.id] = FavoriteTonightScore(

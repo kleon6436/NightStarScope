@@ -6,23 +6,16 @@ import CoreLocation
 @MainActor
 final class ComparisonControllerTests: XCTestCase {
     func test_refresh_buildsCellsForFavoriteLocations() async {
+        // 2023-11-15 07:13 JST。東京の日の出（約 06:17）の後なので、観測日（先頭列）は 11/15。
         let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
         let favorite = FavoriteLocation(name: "Tokyo", latitude: 35.6762, longitude: 139.6503, timeZoneIdentifier: "Asia/Tokyo")
         let store = InMemoryFavoriteStore(favorites: [favorite])
         let weatherService = MockComparisonWeatherService()
         let lightPollutionService = MockLightPollutionService(bortleByCoordinate: ["35.6762,139.6503": 3.0])
         let calculationService = MockNightCalculationService()
-        // セルは列と同じ年月日の夜で対応付くため、列の暦日を東京の 0 時へ写した日付で夜を作る
-        let night1 = makeNightSummary(
-            date: localDay(ofColumnFor: baseDate, offset: 0, in: TestTimeZones.tokyo),
-            withWindow: true,
-            timeZoneIdentifier: "Asia/Tokyo"
-        )
-        let night2 = makeNightSummary(
-            date: localDay(ofColumnFor: baseDate, offset: 1, in: TestTimeZones.tokyo),
-            withWindow: true,
-            timeZoneIdentifier: "Asia/Tokyo"
-        )
+        // セルは列と同じ年月日の夜で対応付く。先頭列は端末のタイムゾーンによらず東京の観測日になる。
+        let night1 = makeNightSummary(date: tokyoDay(2023, 11, 15), withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
+        let night2 = makeNightSummary(date: tokyoDay(2023, 11, 16), withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
         await calculationService.enqueueUpcomingNights([night1, night2])
         weatherService.resultByLocationKey["35.6762,139.6503|Asia/Tokyo"] = weatherService.makeResult(
             dates: [night1.date, night2.date],
@@ -40,6 +33,7 @@ final class ComparisonControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.matrix.locations.count, 1)
         XCTAssertEqual(controller.matrix.dates.count, 2)
+        XCTAssertEqual(columnDay(controller.matrix.dates[0], in: controller.matrix), DateComponents(year: 2023, month: 11, day: 15))
         XCTAssertEqual(controller.cell(for: favorite.id, date: controller.matrix.dates[0])?.loadState, .loaded)
         XCTAssertNotNil(controller.cell(for: favorite.id, date: controller.matrix.dates[0])?.index)
         XCTAssertEqual(controller.cell(for: favorite.id, date: controller.matrix.dates[0])?.nightSummary?.date, night1.date)
@@ -47,6 +41,7 @@ final class ComparisonControllerTests: XCTestCase {
     }
 
     func test_bestCell_returnsHighestScoreForDate() async {
+        // 2023-11-16 11:00 JST（日中）なので、観測日（先頭列）は 11/16。
         let baseDate = Date(timeIntervalSince1970: 1_700_100_000)
         let favorites = [
             FavoriteLocation(name: "Dark", latitude: 35.0, longitude: 135.0, timeZoneIdentifier: "Asia/Tokyo"),
@@ -58,7 +53,7 @@ final class ComparisonControllerTests: XCTestCase {
             bortleByCoordinate: ["35.0000,135.0000": 3.0, "34.0000,135.0000": 7.0]
         )
         let calculationService = MockNightCalculationService()
-        let nightDate = localDay(ofColumnFor: baseDate, offset: 0, in: TestTimeZones.tokyo)
+        let nightDate = tokyoDay(2023, 11, 16)
         let darkNight = makeNightSummary(date: nightDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
         let brightNight = makeNightSummary(date: nightDate, withWindow: true, timeZoneIdentifier: "Asia/Tokyo")
         await calculationService.enqueueUpcomingNights([darkNight])
@@ -76,6 +71,8 @@ final class ComparisonControllerTests: XCTestCase {
         controller.dayCount = 1
         await controller.refresh(referenceDate: baseDate)
 
+        XCTAssertEqual(controller.cell(for: favorites[0].id, date: controller.matrix.dates[0])?.loadState, .loaded)
+        XCTAssertEqual(controller.cell(for: favorites[1].id, date: controller.matrix.dates[0])?.loadState, .loaded)
         XCTAssertEqual(controller.bestCell(for: controller.matrix.dates[0])?.locationID, favorites[0].id)
     }
 
@@ -102,7 +99,7 @@ final class ComparisonControllerTests: XCTestCase {
                 lightPollutionService: MockLightPollutionService(bortleByCoordinate: ["35.6762,139.6503": 3.0]),
                 calculationService: calculationService
             )
-            // 端末のタイムゾーンによらず東京の当日が列に入るよう、4 日分の列を作る
+            // 先頭列は参照日時の東京の観測日。当日を含む余裕を持たせて 4 日分の列を作る
             controller.dayCount = 4
             await controller.refresh(referenceDate: referenceDate)
             guard let column = controller.matrix.dates.first(where: {
@@ -185,11 +182,112 @@ final class ComparisonControllerTests: XCTestCase {
         XCTAssertEqual(matrix.weatherFailedLocationIDs, [favorites[0].id])
     }
 
-    /// 列の暦日を、地点のタイムゾーンでの同じ年月日の 0 時へ写す。
-    private func localDay(ofColumnFor referenceDate: Date, offset: Int, in timeZone: TimeZone) -> Date {
-        let columnCalendar = ObservationTimeZone.gregorianCalendar(timeZone: .current)
-        let column = columnCalendar.date(byAdding: .day, value: offset, to: columnCalendar.startOfDay(for: referenceDate))!
-        return ObservationTimeZone.preservingCalendarDay(column, from: .current, to: timeZone)
+    /// 東京の指定日の 0 時。
+    private func tokyoDay(_ year: Int, _ month: Int, _ day: Int, hour: Int = 0) -> Date {
+        ObservationTimeZone.gregorianCalendar(timeZone: TestTimeZones.tokyo)
+            .date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    }
+
+    /// 列の日付が表す暦日（列のタイムゾーンでの年月日）。
+    private func columnDay(_ date: Date, in matrix: ComparisonMatrix) -> DateComponents {
+        ObservationTimeZone.gregorianCalendar(timeZone: matrix.columnTimeZone)
+            .dateComponents([.year, .month, .day], from: date)
+    }
+
+    // MARK: - 先頭列は各地点の観測日（深夜〜明け方は進行中の前夜）
+
+    /// 東京の 02:00（8/13 の日の出 04:58 より前）は、先頭列が進行中の前夜（8/12）になる。
+    /// 列のタイムゾーン（端末）によらず、地点の観測日の年月日がそのまま先頭列の暦日になる。
+    func test_makeDates_afterLocalMidnightBeforeSunrise_startsAtPreviousNight() {
+        let tokyo = FavoriteLocation(name: "Tokyo", latitude: 35.6762, longitude: 139.6503, timeZoneIdentifier: "Asia/Tokyo")
+        let afterMidnight = tokyoDay(2026, 8, 13, hour: 2)
+        let afterSunrise = tokyoDay(2026, 8, 13, hour: 7)
+
+        for columnTimeZone in [TestTimeZones.tokyo, TimeZone(identifier: "America/Los_Angeles")!, TimeZone(identifier: "UTC")!] {
+            let calendar = ObservationTimeZone.gregorianCalendar(timeZone: columnTimeZone)
+            func day(_ date: Date) -> DateComponents { calendar.dateComponents([.year, .month, .day], from: date) }
+
+            let nightDates = ComparisonController.makeDates(
+                referenceDate: afterMidnight,
+                dayCount: 3,
+                timeZone: columnTimeZone,
+                locations: [tokyo]
+            )
+            XCTAssertEqual(nightDates.map(day), [
+                DateComponents(year: 2026, month: 8, day: 12),
+                DateComponents(year: 2026, month: 8, day: 13),
+                DateComponents(year: 2026, month: 8, day: 14)
+            ], columnTimeZone.identifier)
+            XCTAssertEqual(nightDates.first, calendar.startOfDay(for: nightDates[0]), columnTimeZone.identifier)
+
+            let morningDates = ComparisonController.makeDates(
+                referenceDate: afterSunrise,
+                dayCount: 1,
+                timeZone: columnTimeZone,
+                locations: [tokyo]
+            )
+            XCTAssertEqual(morningDates.map(day), [DateComponents(year: 2026, month: 8, day: 13)], columnTimeZone.identifier)
+        }
+
+        // 地点がなければ列のタイムゾーンの暦日の今日から始める
+        let tokyoCalendar = ObservationTimeZone.gregorianCalendar(timeZone: TestTimeZones.tokyo)
+        XCTAssertEqual(
+            ComparisonController.makeDates(referenceDate: afterMidnight, dayCount: 1, timeZone: TestTimeZones.tokyo),
+            [tokyoCalendar.startOfDay(for: afterMidnight)]
+        )
+    }
+
+    /// 深夜 02:00 のダッシュボードでは、先頭列に進行中の前夜（8/12 の夜）が入る。
+    func test_computeMatrix_afterLocalMidnight_firstColumnIsInProgressNight() async {
+        let favorite = FavoriteLocation(name: "Tokyo", latitude: 35.6762, longitude: 139.6503, timeZoneIdentifier: "Asia/Tokyo")
+        let controller = ComparisonController(
+            favoriteStore: InMemoryFavoriteStore(favorites: [favorite]),
+            weatherService: MockComparisonWeatherService(),
+            lightPollutionService: MockLightPollutionService(bortleByCoordinate: [:]),
+            calculationService: DailyNightCalculationService()
+        )
+        controller.dayCount = 2
+
+        let matrix = await controller.computeMatrix(referenceDate: tokyoDay(2026, 8, 13, hour: 2), locations: [favorite])
+
+        XCTAssertEqual(matrix.dates.map { columnDay($0, in: matrix) }, [
+            DateComponents(year: 2026, month: 8, day: 12),
+            DateComponents(year: 2026, month: 8, day: 13)
+        ])
+        let firstCell = matrix.cellsByID[ComparisonCell.makeID(locationID: favorite.id, date: matrix.dates[0])]
+        XCTAssertEqual(firstCell?.loadState, .loaded)
+        XCTAssertEqual(firstCell?.nightSummary?.date, tokyoDay(2026, 8, 12))
+    }
+
+    /// 地点ごとに観測日が異なる場合は、最も早い観測日から列を始める。
+    /// 1_790_000_000（2026-09-21 14:13 UTC）は、パゴパゴ 09-21 03:13（日の出 06:13 前 → 観測日 09-20）、
+    /// キリティマティ 09-22 04:13（日の出 06:20 前 → 観測日 09-21）。
+    func test_computeMatrix_startsAtEarliestObservationDateAmongLocations() async {
+        let favorites = [
+            FavoriteLocation(name: "East", latitude: 1.87, longitude: -157.4, timeZoneIdentifier: "Pacific/Kiritimati"),
+            FavoriteLocation(name: "West", latitude: -14.27, longitude: -170.7, timeZoneIdentifier: "Pacific/Pago_Pago")
+        ]
+        let controller = ComparisonController(
+            favoriteStore: InMemoryFavoriteStore(favorites: favorites),
+            weatherService: MockComparisonWeatherService(),
+            lightPollutionService: MockLightPollutionService(bortleByCoordinate: [:]),
+            calculationService: DailyNightCalculationService()
+        )
+        controller.dayCount = 2
+
+        let matrix = await controller.computeMatrix(referenceDate: Date(timeIntervalSince1970: 1_790_000_000), locations: favorites)
+
+        XCTAssertEqual(matrix.dates.map { columnDay($0, in: matrix) }, [
+            DateComponents(year: 2026, month: 9, day: 20),
+            DateComponents(year: 2026, month: 9, day: 21)
+        ])
+        // 東側（キリティマティ）の進行中の夜（09-21）も 2 列目に入る
+        let kiritimati = TimeZone(identifier: "Pacific/Kiritimati")!
+        let eastNight = matrix.cellsByID[ComparisonCell.makeID(locationID: favorites[0].id, date: matrix.dates[1])]?.nightSummary
+        XCTAssertEqual(
+            eastNight.map { ObservationTimeZone.gregorianCalendar(timeZone: kiritimati).dateComponents([.year, .month, .day], from: $0.date) },
+            DateComponents(year: 2026, month: 9, day: 21)
+        )
     }
 
     func test_refresh_withNoFavorites_keepsMatrixEmpty() async {

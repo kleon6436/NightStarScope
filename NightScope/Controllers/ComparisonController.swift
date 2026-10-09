@@ -34,7 +34,13 @@ final class ComparisonController: ObservableObject {
 
         let locations = locations ?? favoriteStore.loadAll()
         let columnTimeZone = TimeZone.current
-        let dates = Self.makeDates(referenceDate: referenceDate, dayCount: dayCount, timeZone: columnTimeZone)
+        // 計算結果の行列と同じ列（各地点の観測日にそろえた暦日）にし、読み込み中に列がずれないようにする
+        let dates = Self.makeDates(
+            referenceDate: referenceDate,
+            dayCount: dayCount,
+            timeZone: columnTimeZone,
+            locations: locations
+        )
         matrix = ComparisonMatrix(
             locations: locations,
             dates: dates,

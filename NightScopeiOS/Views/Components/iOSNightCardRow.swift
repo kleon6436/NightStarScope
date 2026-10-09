@@ -13,6 +13,8 @@ struct iOSNightCardRow: View {
     let isSelected: Bool
     /// true のとき時間別の雲量ストリップを行の下に開く。
     var showsHourlyStrip: Bool = false
+    /// アプリ全体の「今夜」にあたる観測日。nil なら暦日の今日で「今夜」「明夜」を判定する。
+    var currentObservationDate: Date? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -35,7 +37,8 @@ struct iOSNightCardRow: View {
             isReliableWeather: isReliableWeather,
             hasPartialWeather: hasPartialWeather,
             isForecastOutOfRange: isForecastOutOfRange,
-            hasWeatherLoadError: hasWeatherLoadError
+            hasWeatherLoadError: hasWeatherLoadError,
+            currentObservationDate: currentObservationDate
         )
     }
 

@@ -285,10 +285,14 @@ struct NightSummary {
         }
         guard let nextDay = ObservationTimeZone.date(byAdding: .day, value: 1, to: date, timeZone: timeZone),
               ObservationTimeZone.isDate(nextDay, inSameDayAs: referenceDate, timeZone: timeZone),
-              let nightEnd = morningDarkEnd ?? events.last?.date else {
+              let lastNightEvent = events.last(where: {
+                  $0.sunAltitude < MilkyWayCalculator.standardSunsetAltitude
+              }) else {
             return false
         }
-        return referenceDate <= nightEnd
+        // アプリ全体の「今日」と同じく日の出で切り替える
+        let nightEnd = lastNightEvent.date.addingTimeInterval(MilkyWayCalculator.Constants.sampleIntervalSeconds)
+        return referenceDate < nightEnd
     }
 
     private func makeWeatherByHour(nighttimeHours: [HourlyWeather], calendar: Calendar) -> WeatherByHour {

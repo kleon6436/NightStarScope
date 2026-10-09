@@ -186,6 +186,11 @@ final class UpcomingNightsGridViewModel: ObservableObject {
         )
     }
 
+    /// 現在の観測日（アプリ全体の「今日」）。予報カードの「今夜」「明夜」の判定に使う。
+    func currentObservationDate() -> Date {
+        detailViewModel.currentObservationDate()
+    }
+
     /// 選択日を「今日」（現在の観測日）へ戻す。深夜〜明け方は進行中の前夜を選ぶ。
     func selectToday(referenceDate: Date? = nil) {
         setSelectedDate(detailViewModel.currentObservationDate(referenceDate: referenceDate))

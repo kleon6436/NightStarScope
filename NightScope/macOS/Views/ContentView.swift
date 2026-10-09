@@ -71,6 +71,9 @@ struct ContentView: View {
         .focusedValue(\.currentLocationAction, {
             rootStore.appController.locationController.requestCurrentLocation()
         })
+        .focusedValue(\.currentObservationDateProvider, {
+            rootStore.detailViewModel.currentObservationDate()
+        })
     }
 }
 

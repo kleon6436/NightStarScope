@@ -163,12 +163,21 @@ final class AppController: ObservableObject {
         // 起動直後の「今日」も観測日で選ぶ。深夜〜明け方の起動では進行中の前夜を選ぶ。
         // Stage 0 の例外として日没・日の出の探索（2 夜分）だけを行う。ファイル I/O は伴わない。
         let launchDate = now()
-        self.selectedDate = StarMapDateLogic.currentObservationDate(
-            for: launchDate,
-            location: self.locationController.selectedLocation,
-            timeZone: self.locationController.selectedTimeZone
+        let launchLocation = self.locationController.selectedLocation
+        let launchTimeZone = self.locationController.selectedTimeZone
+        let launchBoundaries = StarMapDateLogic.observationDayBoundaries(
+            containing: launchDate,
+            location: launchLocation,
+            timeZone: launchTimeZone
         )
+        self.selectedDate = launchBoundaries.observationDate(for: launchDate)
         self.lastActiveReferenceDate = launchDate
+        // onStart や画面描画での観測日判定が同じ探索を繰り返さないよう、境界をキャッシュしておく
+        self.observationDayBoundariesCache = (
+            coordinate: launchLocation,
+            timeZoneIdentifier: launchTimeZone.identifier,
+            boundaries: launchBoundaries
+        )
         publishObservationState()
         setupObservers()
         // Stage 1 相当。星図を開く前に星カタログを先読みしてデコードを済ませる。
