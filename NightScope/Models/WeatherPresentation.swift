@@ -15,6 +15,7 @@ enum WeatherPresentation {
         case 3:          return .secondary
         case 45, 48:     return .secondary
         case 51...65:    return .blue
+        case 68:         return .cyan
         case 71...77:    return Color.blue.opacity(0.7)
         case 80...82:    return .blue
         case 85, 86:     return Color.blue.opacity(0.7)

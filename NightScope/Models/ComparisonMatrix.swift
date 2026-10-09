@@ -47,8 +47,19 @@ struct ComparisonCell: Identifiable {
 /// 観測地点と日付を二次元に並べた比較データ。
 struct ComparisonMatrix {
     let locations: [FavoriteLocation]
+    /// 列の日付。`columnTimeZone` の 0 時で、暦日（年月日）を表す。
+    /// 各地点のセルは、その地点のタイムゾーンで同じ年月日の夜を持つ。
     let dates: [Date]
     let cellsByID: [String: ComparisonCell]
+    /// 天気の取得に失敗した地点の ID。
+    var weatherFailedLocationIDs: Set<UUID> = []
+    /// 列の日付（暦日）を解釈するタイムゾーン。
+    var columnTimeZone: TimeZone = .current
 
     static let empty = ComparisonMatrix(locations: [], dates: [], cellsByID: [:])
+
+    /// 列の暦日を、指定タイムゾーンでの同じ年月日の 0 時へ写す。
+    func localDay(for columnDate: Date, in timeZone: TimeZone) -> Date {
+        ObservationTimeZone.preservingCalendarDay(columnDate, from: columnTimeZone, to: timeZone)
+    }
 }

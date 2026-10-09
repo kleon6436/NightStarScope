@@ -107,17 +107,15 @@ struct ViewingWindowCardContent: View {
     }
 }
 
-/// 観測に適した時間帯がない場合の空状態カード。
+/// 観測に適した時間帯がない場合の空状態カード内容。
+/// 見出し (CardHeader) は埋め込み先のカードが描くため、ここでは描かない。
 struct ViewingWindowsEmptyStateCardContent: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            CardHeader(icon: AppIcons.Astronomy.sparkles, iconColor: .indigo, title: "天の川")
-            ContentUnavailableView(
-                L10n.tr("観測に適した時間帯がありません"),
-                systemImage: AppIcons.Status.warning,
-                description: Text(L10n.tr("銀河系中心が地平線上にある時間帯と天文薄明が重なりませんでした"))
-            )
-        }
+        ContentUnavailableView(
+            L10n.tr("観測に適した時間帯がありません"),
+            systemImage: AppIcons.Status.warning,
+            description: Text(L10n.tr("銀河系中心が地平線上にある時間帯と天文薄明が重なりませんでした"))
+        )
     }
 }
 
@@ -140,7 +138,7 @@ private struct DirectionIndicator: View {
                 width: radius * 2, height: radius * 2
             ))
             ctx.stroke(ring,
-                       with: .color(Color.white.opacity(CardVisual.trackOpacity)),
+                       with: .color(Color.primary.opacity(CardVisual.trackOpacity)),
                        style: StrokeStyle(lineWidth: 1.5))
 
             // Cardinal tick marks (N/E/S/W)
@@ -159,7 +157,7 @@ private struct DirectionIndicator: View {
                 tick.addLine(to: innerPt)
                 let isNorth = deg == 0
                 ctx.stroke(tick,
-                           with: .color(Color.white.opacity(isNorth ? 0.6 : 0.3)),
+                           with: .color(Color.primary.opacity(isNorth ? 0.6 : 0.3)),
                            style: StrokeStyle(lineWidth: isNorth ? 2 : 1, lineCap: .round))
             }
 
@@ -200,7 +198,7 @@ private struct DirectionIndicator: View {
             // Center dot
             var dot = Path()
             dot.addEllipse(in: CGRect(x: center.x - 2, y: center.y - 2, width: 4, height: 4))
-            ctx.fill(dot, with: .color(Color.white.opacity(0.5)))
+            ctx.fill(dot, with: .color(Color.primary.opacity(0.5)))
         }
     }
 }

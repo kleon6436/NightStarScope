@@ -15,17 +15,20 @@ final class MapSnapshotCache {
     }
 
     /// 同一条件の要求は既存タスクとキャッシュを再利用する。
+    /// ライト／ダークで地図の配色が異なるため、外観もキャッシュキーに含める。
     func snapshot(
         latitude: Double,
         longitude: Double,
         sizePoints: CGSize,
-        spanDegrees: Double
+        spanDegrees: Double,
+        appearanceName: NSAppearance.Name
     ) async -> NSImage? {
         let key = cacheKey(
             latitude: latitude,
             longitude: longitude,
             sizePoints: sizePoints,
-            spanDegrees: spanDegrees
+            spanDegrees: spanDegrees,
+            appearanceName: appearanceName
         )
 
         if let cached = cache.object(forKey: key as NSString) {
@@ -42,7 +45,8 @@ final class MapSnapshotCache {
                 latitude: latitude,
                 longitude: longitude,
                 sizePoints: sizePoints,
-                spanDegrees: spanDegrees
+                spanDegrees: spanDegrees,
+                appearanceName: appearanceName
             )
         }
 
@@ -61,9 +65,12 @@ final class MapSnapshotCache {
         latitude: Double,
         longitude: Double,
         sizePoints: CGSize,
-        spanDegrees: Double
+        spanDegrees: Double,
+        appearanceName: NSAppearance.Name
     ) async -> NSImage? {
         let options = MKMapSnapshotter.Options()
+        // 指定しないとアプリ全体の外観で描かれ、表示中の配色と食い違うことがある
+        options.appearance = NSAppearance(named: appearanceName)
         options.region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
             span: MKCoordinateSpan(latitudeDelta: spanDegrees, longitudeDelta: spanDegrees)
@@ -97,13 +104,14 @@ final class MapSnapshotCache {
         )
     }
 
-    /// 座標・サイズ・スパンからキャッシュキーを作る。
+    /// 座標・サイズ・スパン・外観からキャッシュキーを作る。
     private func cacheKey(
         latitude: Double,
         longitude: Double,
         sizePoints: CGSize,
-        spanDegrees: Double
+        spanDegrees: Double,
+        appearanceName: NSAppearance.Name
     ) -> String {
-        "\(latitude.bitPattern)_\(longitude.bitPattern)_\(Int(sizePoints.width))x\(Int(sizePoints.height))_\(spanDegrees.bitPattern)"
+        "\(latitude.bitPattern)_\(longitude.bitPattern)_\(Int(sizePoints.width))x\(Int(sizePoints.height))_\(spanDegrees.bitPattern)_\(appearanceName.rawValue)"
     }
 }

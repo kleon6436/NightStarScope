@@ -145,7 +145,8 @@ final class LightPollutionTileOverlay: MKTileOverlay {
             // そのため `lonF - 0.5` でセル中心を正しく参照する。
             let longitudeSamples = (0..<size).map { px in
                 let lon = minLon + lonSpan * (Double(px) + 0.5) / sizeD
-                let lonF = (lon + 180.0) / 360.0 * Double(lonCells) - 0.5
+                // BortleGridData.brightness と同じく端ではセル範囲に丸め、隣接セルとの誤った補間を防ぐ。
+                let lonF = min(max((lon + 180.0) / 360.0 * Double(lonCells) - 0.5, 0), Double(lonCells - 1))
                 let lon0 = clampedIndex(Int(lonF.rounded(.down)), upperBound: lonCells)
                 let lon1 = clampedIndex(lon0 + 1, upperBound: lonCells)
                 return LongitudeSample(lon0: lon0, lon1: lon1, fraction: lonF - lonF.rounded(.down))
@@ -156,7 +157,7 @@ final class LightPollutionTileOverlay: MKTileOverlay {
                 let mercY = mercYTop + (mercYBottom - mercYTop) * (Double(py) + 0.5) / sizeD
                 let lat = atan(sinh(mercY)) * 180.0 / .pi
                 // セル中心補正
-                let latF = (lat + 90.0) / 180.0 * Double(latCells) - 0.5
+                let latF = min(max((lat + 90.0) / 180.0 * Double(latCells) - 0.5, 0), Double(latCells - 1))
                 let lat0 = clampedIndex(Int(latF.rounded(.down)), upperBound: latCells)
                 let lat1 = clampedIndex(lat0 + 1, upperBound: latCells)
                 let dt = latF - latF.rounded(.down)

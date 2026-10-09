@@ -366,8 +366,11 @@ final class SidebarViewModel: ObservableObject {
     func selectFavorite(_ favorite: FavoriteLocation) {
         pendingLocationUpdateBehavior = .clearSearch
         resetSearchPresentation()
+        // 保存済みの名前とタイムゾーンをそのまま使う（暫定名・推定タイムゾーンで上書きしない）。
         locationController.selectCoordinate(
-            CLLocationCoordinate2D(latitude: favorite.latitude, longitude: favorite.longitude)
+            CLLocationCoordinate2D(latitude: favorite.latitude, longitude: favorite.longitude),
+            name: favorite.name,
+            timeZoneIdentifier: favorite.timeZoneIdentifier
         )
         locationController.currentLocationCenterTrigger += 1
     }

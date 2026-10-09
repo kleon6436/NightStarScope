@@ -20,18 +20,21 @@ enum GeoStateValidator {
     /// 無効な緯度経度を除外し、経度を [-180, 180] に正規化する。
     static func sanitizedCoordinate(_ coordinate: CLLocationCoordinate2D?) -> CLLocationCoordinate2D? {
         guard let coordinate,
-              CLLocationCoordinate2DIsValid(coordinate),
               coordinate.latitude.isFinite,
               coordinate.longitude.isFinite,
-              abs(coordinate.latitude) <= 90,
-              abs(coordinate.longitude) <= 180 else {
+              abs(coordinate.latitude) <= 90 else {
             return nil
         }
 
-        return CLLocationCoordinate2D(
+        // 経度は検証前に折り返す（±180 をまたいだ値も有効な地点として扱う）。
+        let normalized = CLLocationCoordinate2D(
             latitude: max(-Constants.maximumLatitude, min(coordinate.latitude, Constants.maximumLatitude)),
             longitude: normalizedLongitude(coordinate.longitude)
         )
+        guard CLLocationCoordinate2DIsValid(normalized) else {
+            return nil
+        }
+        return normalized
     }
 
     /// 表示範囲の広がりを最小・最大値の範囲に丸める。

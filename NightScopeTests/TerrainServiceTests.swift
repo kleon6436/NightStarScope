@@ -56,9 +56,11 @@ final class TerrainServiceTests: XCTestCase {
 
         let profile = await service.fetchProfile(latitude: 0, longitude: 179.95)
 
-        guard let eastAngle = profile?.horizonAngles.first else {
+        // horizonAngles[i] は方位 i×5° (0 = 北) なので、東は index 18。
+        guard let horizonAngles = profile?.horizonAngles, horizonAngles.count == 72 else {
             return XCTFail("地平プロファイルを取得できませんでした")
         }
+        let eastAngle = horizonAngles[18]
         XCTAssertGreaterThan(eastAngle, 0.0, "日付変更線を跨いでも東方向の地形を拾うはず")
     }
 
@@ -80,12 +82,23 @@ final class TerrainServiceTests: XCTestCase {
     func test_adaptiveSampleDistances_filtersWithinMax() {
         let distances = TerrainService.adaptiveSampleDistances(maxDistance: 10_000)
         XCTAssertTrue(distances.allSatisfy { $0 <= 10_000 })
-        XCTAssertEqual(distances.count, 5)  // 500, 1000, 2000, 4000, 8000
+        XCTAssertEqual(distances.first ?? 0, 250, accuracy: 0.001)
+        XCTAssertGreaterThan(distances.last ?? 0, 9_000, "上限付近までサンプルするはず")
     }
 
     func test_adaptiveSampleDistances_fullRange() {
         let distances = TerrainService.adaptiveSampleDistances(maxDistance: 100_000)
-        XCTAssertEqual(distances.count, 11)
+        XCTAssertGreaterThan(distances.last ?? 0, 98_000, "100km 近くまでサンプルするはず")
+        // 尾根の取りこぼしを防ぐため、サンプル間隔は 250m〜1.5km に収まる
+        let steps = zip(distances.dropFirst(), distances).map { $0 - $1 }
+        XCTAssertTrue(steps.allSatisfy { $0 >= 250 - 0.001 && $0 <= 1_500 + 0.001 })
+        // 1 方位あたりのコストを抑える (72 方位 × 約 100 点)
+        XCTAssertLessThanOrEqual(distances.count, 120)
+    }
+
+    func test_curvatureDrop_includesStandardRefraction() {
+        // 10km 先: d²/(2R) = 7.85m、大気差 k=0.13 で 6.83m
+        XCTAssertEqual(TerrainService.curvatureDrop(distance: 10_000), 6.83, accuracy: 0.01)
     }
 
     func test_fetchProfile_highResFallsBackToGlobal() async {

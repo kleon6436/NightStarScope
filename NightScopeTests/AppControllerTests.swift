@@ -1181,6 +1181,60 @@ final class AppControllerTests: XCTestCase {
         XCTAssertEqual(components.minute, 0)
     }
 
+    /// タイムゾーンの変更通知（willSet で流れる）では、流れてきた新しいタイムゾーンを基準にする。
+    /// 古いタイムゾーンを記録したままだと、東側の地点へ移った直後に選んだ日付が場所変更処理で 1 日前へずれる。
+    func test_selectedDate_afterMovingEastAndSelectingLocalDate_keepsSelectedLocalDay() async {
+        let tokyo = TestTimeZones.tokyo
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 34.0522
+        storage.longitude = -118.2437
+        storage.name = "ロサンゼルス"
+        storage.timeZoneIdentifier = losAngeles.identifier
+
+        let locationController = LocationController(
+            storage: storage,
+            searchService: NoopLocationSearchService(),
+            locationNameResolver: FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "東京", timeZoneIdentifier: tokyo.identifier)
+            )
+        )
+        let appController = AppController(
+            locationController: locationController,
+            calculationService: MockNightCalculationService()
+        )
+        appController.selectedDate = ObservationTimeZone.gregorianCalendar(timeZone: losAngeles).date(
+            from: DateComponents(year: 2026, month: 8, day: 11)
+        )!
+
+        // ダッシュボードからの選択と同じ順序: 観測地（名前・タイムゾーン確定済み）→ 観測地の暦日で日付
+        locationController.selectCoordinate(
+            CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+            name: "東京",
+            timeZoneIdentifier: tokyo.identifier
+        )
+        let tokyoNight = ObservationTimeZone.gregorianCalendar(timeZone: tokyo).date(
+            from: DateComponents(year: 2026, month: 8, day: 12)
+        )!
+        appController.selectObservationDate(tokyoNight, timeZone: tokyo)
+
+        // 場所変更処理が終わるまで待つ
+        await waitUntil(timeout: 2.0) {
+            locationController.selectedTimeZone.identifier == tokyo.identifier
+                && appController.nightSummary != nil
+                && !appController.isCalculating
+                && !appController.isUpcomingLoading
+        }
+
+        let components = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
+            .dateComponents([.year, .month, .day, .hour, .minute], from: appController.selectedDate)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 8)
+        XCTAssertEqual(components.day, 12)
+        XCTAssertEqual(components.hour, 0)
+        XCTAssertEqual(components.minute, 0)
+    }
+
     func test_NightCalculationService_calculateUpcomingNights_stopsAfterCancellation() async {
         let recorder = CalculationInvocationRecorder()
         let cancellation = TaskCancellationBox()
@@ -1305,6 +1359,46 @@ final class AppControllerForegroundRefreshTests: XCTestCase {
         XCTAssertEqual(weather.fetchCount, 2, "取得失敗の直後は 30 分以内でも取り直す")
     }
 
+    /// キャッシュから返した天気で場所変更を反映しても、自動更新の間引きは元の取得時刻を基準にする。
+    func test_sceneActivation_afterLocationRefreshFromStaleCache_refetchesWeather() async {
+        let clock = Clock()
+        let weather = CountingWeatherService()
+        let appController = makeAppController(weather: weather, clock: clock)
+
+        appController.onStart(referenceDate: clock.now)
+        await waitUntil { weather.fetchCount == 1 }
+
+        let cachedAt = clock.now.addingTimeInterval(-(AppController.automaticRefreshInterval + 60))
+        appController.applyLocationRefresh(
+            makePayload(appController: appController, cachedAt: cachedAt),
+            disposition: .applyAll
+        )
+        clock.now = clock.now.addingTimeInterval(60)
+        appController.handleSceneDidBecomeActive(referenceDate: clock.now)
+
+        await waitUntil { weather.fetchCount == 2 }
+        XCTAssertEqual(weather.fetchCount, 2, "キャッシュ由来の結果では取得時刻を延ばさない")
+    }
+
+    func test_sceneActivation_afterLocationRefreshWithFreshWeather_doesNotRefetch() async {
+        let clock = Clock()
+        let weather = CountingWeatherService()
+        let appController = makeAppController(weather: weather, clock: clock)
+
+        appController.onStart(referenceDate: clock.now)
+        await waitUntil { weather.fetchCount == 1 }
+
+        appController.applyLocationRefresh(
+            makePayload(appController: appController, cachedAt: nil),
+            disposition: .applyAll
+        )
+        clock.now = clock.now.addingTimeInterval(60)
+        appController.handleSceneDidBecomeActive(referenceDate: clock.now)
+        await settle()
+
+        XCTAssertEqual(weather.fetchCount, 1, "新しく取得した直後は取り直さない")
+    }
+
     func test_manualRefresh_isNotThrottled() async {
         let clock = Clock()
         let weather = CountingWeatherService()
@@ -1377,6 +1471,34 @@ final class AppControllerForegroundRefreshTests: XCTestCase {
                     try await Task.sleep(for: .seconds(delay))
                 }
             }
+        )
+    }
+
+    private func makePayload(appController: AppController, cachedAt: Date?) -> AppController.LocationRefreshPayload {
+        let tokyo = TestTimeZones.tokyo
+        let night = makeNightSummary(
+            date: ObservationTimeZone.startOfDay(for: appController.selectedDate, timeZone: tokyo),
+            timeZoneIdentifier: tokyo.identifier
+        )
+        return AppController.LocationRefreshPayload(
+            nightSummary: night,
+            upcomingNights: [],
+            weatherResult: WeatherFetchResult(
+                weatherByDate: [:],
+                errorMessage: nil,
+                lastModifiedDate: nil,
+                locationKey: "",
+                timeZoneIdentifier: tokyo.identifier,
+                cachedAt: cachedAt
+            ),
+            lightPollutionResult: LightPollutionService.FetchResult(
+                bortleClass: nil,
+                fetchFailed: false,
+                lastFetchedCoordinate: nil,
+                fetchedAt: Date()
+            ),
+            starGazingIndex: appController.makeStarGazingIndex(nightSummary: night, weatherByDate: [:], bortleClass: nil),
+            upcomingIndexes: [:]
         )
     }
 

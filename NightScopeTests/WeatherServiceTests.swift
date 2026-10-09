@@ -151,6 +151,97 @@ final class WeatherServiceTests: XCTestCase {
         XCTAssertEqual(WeatherConditionMapper.wmoCode(for: .foggy), 45)
     }
 
+    func test_weatherConditionMapper_blizzard_mapsToHeavySnow() {
+        let code = WeatherConditionMapper.wmoCode(for: .blizzard)
+        XCTAssertEqual(code, 75)
+        XCTAssertGreaterThanOrEqual(code, WeatherConditionMapper.wmoCode(for: .snow), "吹雪は通常の雪より深刻に扱う")
+    }
+
+    func test_weatherCode68_sleetAndFreezingRain_hasLabelIconAndColor() {
+        XCTAssertEqual(WeatherConditionMapper.wmoCode(for: .sleet), 68)
+        XCTAssertEqual(WeatherConditionMapper.wmoCode(for: .freezingRain), 68)
+
+        let summary = DayWeatherSummary(date: Date(), nighttimeHours: [makeHourlyWeather(code: 68)])
+        XCTAssertEqual(summary.weatherLabel, L10n.tr("みぞれ・着氷性の雨"))
+        XCTAssertNotEqual(summary.weatherLabel, L10n.tr("不明"))
+        XCTAssertEqual(summary.weatherIconName, "cloud.sleet.fill")
+        XCTAssertNotEqual(WeatherPresentation.color(forWeatherCode: 68), .secondary)
+    }
+
+    // MARK: - キャッシュの鮮度
+
+    func test_fetchWeatherSnapshot_cacheHit_doesNotRenewCacheTimestamp() async {
+        let service = WeatherKitService()
+        let tz = tokyoTimeZone
+        let locationKey = String(format: "%.4f,%.4f|%@", 35.6762, 139.6503, tz.identifier)
+        let date = makeDateInTokyo(year: 2024, month: 6, day: 15)
+        service.applyFetchResult(
+            WeatherFetchResult(
+                weatherByDate: [service.dateKey(date, timeZone: tz): DayWeatherSummary(date: date, nighttimeHours: [])],
+                errorMessage: nil,
+                lastModifiedDate: nil,
+                locationKey: locationKey,
+                timeZoneIdentifier: tz.identifier
+            )
+        )
+
+        let first = await service.fetchWeatherSnapshot(latitude: 35.6762, longitude: 139.6503, timeZone: tz)
+        guard let firstCachedAt = first.cachedAt else {
+            XCTFail("キャッシュから返した結果には元の取得時刻が入るはず")
+            return
+        }
+        // キャッシュ由来の結果を反映しても、取得時刻（TTL の起点）は延ばさない
+        service.applyFetchResult(first)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        let second = await service.fetchWeatherSnapshot(latitude: 35.6762, longitude: 139.6503, timeZone: tz)
+
+        XCTAssertEqual(second.cachedAt, firstCachedAt)
+    }
+
+    // MARK: - 夜間グルーピング
+
+    /// 0 時が夏時間で飛ぶ日（America/Santiago 2026-09-06）の夜も落とさない。
+    func test_nightlySummaries_keepsNightWhoseMidnightIsSkippedByDST() {
+        let santiago = TimeZone(identifier: "America/Santiago")!
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: santiago)
+        let coordinate = CLLocationCoordinate2D(latitude: -33.45, longitude: -70.66)
+        let start = calendar.date(from: DateComponents(year: 2026, month: 9, day: 5, hour: 12))!
+        let hours = (0..<72).map { offset in
+            makeHourlyWeather(code: 0, date: start.addingTimeInterval(Double(offset) * 3600))
+        }
+
+        let summaries = WeatherKitService.nightlySummaries(from: hours, coordinate: coordinate, timeZone: santiago)
+
+        let skippedDay = calendar.startOfDay(for: calendar.date(from: DateComponents(year: 2026, month: 9, day: 6, hour: 12))!)
+        let key = WeatherKitService().dateKey(skippedDay, timeZone: santiago)
+        XCTAssertEqual(key, "2026-09-06")
+        guard let summary = summaries[key] else {
+            XCTFail("0 時が飛ぶ日の夜が落ちている: \(summaries.keys.sorted())")
+            return
+        }
+        XCTAssertEqual(summary.date, skippedDay)
+        // 後続の日も 0 時（その日の始まり）に揃っている
+        if let next = summaries["2026-09-07"] {
+            XCTAssertEqual(next.date, calendar.startOfDay(for: next.date))
+        }
+    }
+
+    private func makeHourlyWeather(code: Int, date: Date = Date()) -> HourlyWeather {
+        HourlyWeather(
+            date: date,
+            temperatureCelsius: 10,
+            cloudCoverPercent: 0,
+            precipitationMM: 0,
+            windSpeedKmh: 0,
+            humidityPercent: 50,
+            dewpointCelsius: 0,
+            weatherCode: code,
+            visibilityMeters: nil,
+            windGustsKmh: nil,
+            windSpeedKmh500hpa: nil
+        )
+    }
+
     // MARK: - DayWeatherSummary.dewRiskLevel
 
     private func makeHourlyWeather(temperature: Double, dewpoint: Double) -> HourlyWeather {

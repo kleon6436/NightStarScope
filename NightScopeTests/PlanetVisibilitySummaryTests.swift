@@ -256,4 +256,71 @@ final class PlanetVisibilitySummaryTests: XCTestCase {
         // 270° = 西
         XCTAssertTrue(s.setAzimuthLabel().contains("270"))
     }
+
+    // MARK: - 空の明るさ（太陽高度）を考慮した可視判定
+
+    /// 白夜（太陽高度が -6° を下回らない夜）では、どの惑星も観測可能とみなさない。
+    func test_planetNightSummaries_whiteNight_noPlanetVisible() {
+        let longyearbyen = CLLocationCoordinate2D(latitude: 78.2232, longitude: 15.6469)
+        let osloTZ = TimeZone(identifier: "Europe/Oslo")!
+        let date = makeDate(year: 2026, month: 6, day: 21, timeZoneIdentifier: osloTZ.identifier)
+        let summaries = MilkyWayCalculator.planetNightSummaries(
+            date: date,
+            location: longyearbyen,
+            timeZone: osloTZ
+        )
+        XCTAssertEqual(summaries.count, 5)
+        for s in summaries {
+            XCTAssertFalse(s.hasDarkSkySamples, "\(s.name)")
+            XCTAssertFalse(s.isVisibleTonight, "\(s.name) peakAlt=\(s.peakAltitude)")
+            XCTAssertNotEqual(s.observationDifficulty, .nakedEye, "\(s.name)")
+        }
+    }
+
+    /// 最大高度（南中）時刻は、太陽高度が -6° 未満の暗い時間帯から選ばれる。
+    func test_planetNightSummaries_peakIsEvaluatedOnlyWhenSkyIsDark() {
+        // 夏至の東京: 18:00 台はまだ太陽が地平線上にある
+        let date = makeDate(year: 2026, month: 6, day: 21, timeZoneIdentifier: "Asia/Tokyo")
+        let summaries = MilkyWayCalculator.planetNightSummaries(
+            date: date,
+            location: tokyo,
+            timeZone: tokyoTZ
+        )
+        for s in summaries {
+            XCTAssertTrue(s.hasDarkSkySamples)
+            guard let transit = s.transitTime else { continue }
+            let jd = MilkyWayCalculator.julianDate(from: transit)
+            let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: tokyo.longitude)
+            let sun = MilkyWayCalculator.sunRaDec(jd: jd)
+            let sunAltitude = MilkyWayCalculator.altitude(ra: sun.ra, dec: sun.dec, latitude: tokyo.latitude, lst: lst)
+            XCTAssertLessThan(sunAltitude, MilkyWayCalculator.planetObservationSunAltitudeLimit, "\(s.name)")
+        }
+    }
+
+    // MARK: - 位相角を考慮した等級
+
+    /// 等級は PyEphem 4.2.1 の値と概ね一致する（内惑星 ±0.6 等、外惑星 ±0.3 等）。
+    func test_planetPositions_magnitudeMatchesPyEphem() {
+        // (JD, 水星以外の期待等級: 金星, 火星, 木星, 土星)
+        let cases: [(jd: Double, expected: [String: Double])] = [
+            (2461100.5, ["金星": -3.79, "火星": 1.19, "木星": -2.30, "土星": 1.04]),  // 2026-03-01 00:00 UTC
+            (2461337.5, ["金星": -3.70, "火星": 0.96, "木星": -1.82, "土星": 0.45]),  // 2026-10-24 00:00 UTC
+        ]
+        for c in cases {
+            let positions = MilkyWayCalculator.planetPositions(jd: c.jd, latitude: 35.68, lst: 0)
+            for position in positions {
+                guard let expected = c.expected[position.name] else { continue }
+                let tolerance = position.name == "金星" ? 0.6 : 0.3
+                XCTAssertEqual(position.magnitude, expected, accuracy: tolerance, "jd=\(c.jd) \(position.name)")
+            }
+        }
+    }
+
+    /// 内合付近の金星は細い三日月状のため、満ちた状態の等級（-7 等台）にはならない。
+    func test_planetPositions_venusNearInferiorConjunctionIsNotOverBright() throws {
+        let positions = MilkyWayCalculator.planetPositions(jd: 2461337.5, latitude: 35.68, lst: 0)  // 2026-10-24
+        let venus = try XCTUnwrap(positions.first { $0.name == "金星" })
+        XCTAssertGreaterThan(venus.magnitude, -5.0)
+        XCTAssertLessThan(venus.magnitude, -3.0)
+    }
 }

@@ -348,6 +348,69 @@ final class DashboardViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.bestLocationID(for: date.addingTimeInterval(3_600)))
     }
 
+    func test_refresh_whenWeatherFailedForAllLocations_setsLastError() async {
+        let favorites = [makeFavorite(name: "Alpha"), makeFavorite(name: "Beta")]
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        var matrix = makeMatrix(favorites: favorites, dates: [date], scores: [:])
+        matrix.weatherFailedLocationIDs = Set(favorites.map(\.id))
+        let controller = StubComparisonController(matrix: matrix)
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: InMemoryFavoriteStore(favorites: favorites))
+
+        await viewModel.refresh(referenceDate: date)
+
+        XCTAssertEqual(viewModel.lastError, L10n.tr("ダッシュボードのデータ取得に失敗しました"))
+    }
+
+    func test_refresh_whenWeatherFailedForSomeLocations_keepsLastErrorNil() async {
+        let favorites = [makeFavorite(name: "Alpha"), makeFavorite(name: "Beta")]
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        var matrix = makeMatrix(favorites: favorites, dates: [date], scores: [:])
+        matrix.weatherFailedLocationIDs = [favorites[0].id]
+        let controller = StubComparisonController(matrix: matrix)
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: InMemoryFavoriteStore(favorites: favorites))
+
+        await viewModel.refresh(referenceDate: date)
+
+        XCTAssertNil(viewModel.lastError)
+    }
+
+    /// セル選択では、列の日付（端末タイムゾーンの 0 時）ではなく地点の夜の日付を渡す。
+    func test_selectionDate_returnsNightDateInLocationTimeZone() async {
+        let tokyo = TestTimeZones.tokyo
+        let favorite = FavoriteLocation(
+            id: UUID(),
+            name: "Tokyo",
+            latitude: 35.0,
+            longitude: 135.0,
+            timeZoneIdentifier: tokyo.identifier,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let columnTimeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let column = ObservationTimeZone.gregorianCalendar(timeZone: columnTimeZone)
+            .date(from: DateComponents(year: 2026, month: 8, day: 12))!
+        let nightDate = ObservationTimeZone.gregorianCalendar(timeZone: tokyo)
+            .date(from: DateComponents(year: 2026, month: 8, day: 12))!
+        let night = makeNightSummary(date: nightDate, timeZoneIdentifier: tokyo.identifier)
+        let cell = ComparisonCell(locationID: favorite.id, date: column, nightSummary: night, loadState: .loaded)
+        let matrix = ComparisonMatrix(
+            locations: [favorite],
+            dates: [column],
+            cellsByID: [cell.id: cell],
+            columnTimeZone: columnTimeZone
+        )
+        let controller = StubComparisonController(matrix: matrix)
+        let viewModel = DashboardViewModel(comparisonController: controller, favoriteStore: InMemoryFavoriteStore(favorites: [favorite]))
+        await viewModel.refresh(referenceDate: column)
+
+        XCTAssertEqual(viewModel.selectionDate(for: favorite.id, columnDate: column), nightDate)
+
+        // 夜がまだないセルでも、列の年月日を地点のタイムゾーンで解釈する
+        let emptyMatrix = ComparisonMatrix(locations: [favorite], dates: [column], cellsByID: [:], columnTimeZone: columnTimeZone)
+        controller.matrix = emptyMatrix
+        await viewModel.refresh(referenceDate: column)
+        XCTAssertEqual(viewModel.selectionDate(for: favorite.id, columnDate: column), nightDate)
+    }
+
     func test_refresh_callsControllerWithFilteredLocationsOnly() async {
         let favorites = makeFavorites(count: 3)
         let store = InMemoryFavoriteStore(favorites: favorites)

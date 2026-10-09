@@ -195,6 +195,7 @@ struct DayWeatherSummary {
         case 61:         return AppIcons.Weather.cloudRainFill
         case 63:         return AppIcons.Weather.cloudRainFill
         case 65:         return AppIcons.Weather.cloudHeavyrainFill
+        case 68:         return AppIcons.Weather.cloudSleetFill
         case 71, 73, 75: return AppIcons.Weather.cloudSnowFill
         case 77:         return AppIcons.Weather.cloudSnowFill
         case 80, 81, 82: return AppIcons.Weather.cloudRainFill
@@ -217,6 +218,7 @@ struct DayWeatherSummary {
         case 61:       return L10n.tr("小雨")
         case 63:       return L10n.tr("雨")
         case 65:       return L10n.tr("大雨")
+        case 68:       return L10n.tr("みぞれ・着氷性の雨")
         case 71:       return L10n.tr("小雪")
         case 73:       return L10n.tr("雪")
         case 75:       return L10n.tr("大雪")

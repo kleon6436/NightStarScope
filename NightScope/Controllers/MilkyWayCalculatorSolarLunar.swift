@@ -24,8 +24,14 @@ extension MilkyWayCalculator {
 
     // MARK: - 太陽高度に基づく夜間区間
 
-    /// 観測日 12:00 から翌日 12:00 までで、太陽高度が `threshold` 度を下回る連続区間を返す。
-    /// 極夜では 24 時間区間、白夜では nil を返す。
+    /// 日没・日の出の標準的な太陽中心高度 (度)。
+    /// 根拠: 地平線での大気差 34′ + 太陽視半径 16′ (USNO / Meeus 15 章)。
+    static let standardSunsetAltitude: Double = -0.833
+
+    /// 観測日の南中（太陽高度最大）以降で、太陽高度が `threshold` 度を下回る連続区間を返す。
+    /// 極夜（終日 `threshold` 未満）では観測日 12:00 から翌日 12:00 までの 24 時間区間、白夜では nil を返す。
+    /// 根拠: 時計の 12:00 から探索すると、高緯度で 12:00 時点に既に日没後の場合に
+    ///       日の出前の短い区間を誤って返すため、太陽が最も高い時刻を探索の起点にする。
     private static func darknessInterval(
         date: Date,
         location: CLLocationCoordinate2D,
@@ -34,44 +40,58 @@ extension MilkyWayCalculator {
     ) -> DateInterval? {
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let observationDate = calendar.startOfDay(for: date)
-        let samplingStart = calendar.date(byAdding: .hour, value: 12, to: observationDate)
-            ?? observationDate.addingTimeInterval(12 * 60 * 60)
-        let samplingEnd = samplingStart.addingTimeInterval(Constants.secondsPerDay)
+        let nextObservationDate = calendar.date(byAdding: .day, value: 1, to: observationDate)
+            ?? observationDate.addingTimeInterval(Constants.secondsPerDay)
         let latRad = AngleMath.toRadians(location.latitude)
         let cosLat = cos(latRad)
         let sinLat = sin(latRad)
 
-        var darkStart: Date?
-        var previousAltitude: Double?
-
-        for minute in 0...24 * 60 {
-            let sampleDate = samplingStart.addingTimeInterval(Double(minute) * 60)
+        func sunAltitude(at sampleDate: Date) -> Double {
             let jd = julianDate(from: sampleDate)
             let lst = localSiderealTime(jd: jd, longitude: location.longitude)
             let sun = sunRaDec(jd: jd)
-            let (sunAltitude, _) = altAzFast(
-                ra: sun.ra,
-                dec: sun.dec,
-                cosLat: cosLat,
-                sinLat: sinLat,
-                lst: lst
-            )
-
-            if previousAltitude == nil, sunAltitude < threshold {
-                darkStart = samplingStart
-            } else if let previousAltitude {
-                if darkStart == nil, previousAltitude >= threshold, sunAltitude < threshold {
-                    darkStart = sampleDate
-                } else if let darkStart, previousAltitude < threshold, sunAltitude >= threshold {
-                    return DateInterval(start: darkStart, end: sampleDate)
-                }
-            }
-
-            previousAltitude = sunAltitude
+            return altAzFast(ra: sun.ra, dec: sun.dec, cosLat: cosLat, sinLat: sinLat, lst: lst).alt
         }
 
+        // 1) 観測日のうち太陽高度が最大となる時刻（≈南中）を 10 分刻みで探す
+        var anchor = observationDate
+        var maxAltitude = -Double.infinity
+        var scanDate = observationDate
+        while scanDate < nextObservationDate {
+            let altitude = sunAltitude(at: scanDate)
+            if altitude > maxAltitude {
+                maxAltitude = altitude
+                anchor = scanDate
+            }
+            scanDate = scanDate.addingTimeInterval(10 * 60)
+        }
+
+        // 2) 極夜: 終日しきい値未満なら 12:00〜翌日 12:00（時計時刻）の 24 時間区間
+        guard maxAltitude >= threshold else {
+            let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: observationDate)
+                ?? observationDate.addingTimeInterval(12 * 60 * 60)
+            let nextNoon = calendar.date(byAdding: .day, value: 1, to: noon)
+                ?? noon.addingTimeInterval(Constants.secondsPerDay)
+            return DateInterval(start: noon, end: nextNoon)
+        }
+
+        // 3) 南中から 24 時間、1 分刻みで沈む時刻と次に昇る時刻を探す
+        var darkStart: Date?
+        for minute in 1...24 * 60 {
+            let sampleDate = anchor.addingTimeInterval(Double(minute) * 60)
+            let altitude = sunAltitude(at: sampleDate)
+            if let darkStart {
+                if altitude >= threshold {
+                    return DateInterval(start: darkStart, end: sampleDate)
+                }
+            } else if altitude < threshold {
+                darkStart = sampleDate
+            }
+        }
+
+        // 白夜（沈まない）: nil / 極夜へ移行する日（昇らない）: 探索範囲の終端まで
         guard let darkStart else { return nil }
-        return DateInterval(start: darkStart, end: samplingEnd)
+        return DateInterval(start: darkStart, end: anchor.addingTimeInterval(Constants.secondsPerDay))
     }
 
     /// 指定日・場所の市民薄明 (太陽高度 -6°) の夜間区間を返す。
@@ -84,14 +104,19 @@ extension MilkyWayCalculator {
         darknessInterval(date: date, location: location, timeZone: timeZone, threshold: -6.0)
     }
 
-    /// 指定日・場所の日没〜日の出 (太陽高度 0°) の区間を返す。
+    /// 指定日・場所の日没〜日の出 (太陽中心高度 -0.833°) の区間を返す。
     /// 極夜では 24 時間区間、白夜では nil を返す。
     static func sunsetSunriseInterval(
         date: Date,
         location: CLLocationCoordinate2D,
         timeZone: TimeZone
     ) -> DateInterval? {
-        darknessInterval(date: date, location: location, timeZone: timeZone, threshold: 0.0)
+        darknessInterval(
+            date: date,
+            location: location,
+            timeZone: timeZone,
+            threshold: standardSunsetAltitude
+        )
     }
 
     /// 日没〜日の出の開始/終了 Date を返す。
@@ -110,14 +135,14 @@ extension MilkyWayCalculator {
         return (sunset: interval.start, sunrise: interval.end)
     }
 
-    /// 日没〜日の出の開始/終了を分単位で返す。
+    /// 日没〜日の出の開始/終了を、観測地タイムゾーンの時計時刻（0..<1440 分）で返す。
+    /// 夏時間の切り替え日でも経過秒ではなく実際の時計表示を返す。
+    /// 極夜（終日暗い）では日没・日の出が同じ時刻（12:00）になる。
     static func findSunsetSunriseMinutes(
         date: Date,
         location: CLLocationCoordinate2D,
         timeZone: TimeZone
     ) -> (sunsetMinutes: Double, sunriseMinutes: Double)? {
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let startOfDay = calendar.startOfDay(for: date)
         guard let times = findSunsetSunrise(
             date: date,
             location: location,
@@ -126,25 +151,55 @@ extension MilkyWayCalculator {
             return nil
         }
 
-        let sunsetMinutes = times.sunset.timeIntervalSince(startOfDay) / 60
-        let sunriseMinutes = times.sunrise.timeIntervalSince(startOfDay) / 60
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        func wallClockMinutes(_ date: Date) -> Double {
+            let components = calendar.dateComponents([.hour, .minute, .second], from: date)
+            return Double((components.hour ?? 0) * 60 + (components.minute ?? 0))
+                + Double(components.second ?? 0) / 60
+        }
         return (
-            sunsetMinutes: sunsetMinutes.truncatingRemainder(dividingBy: 1_440),
-            sunriseMinutes: sunriseMinutes.truncatingRemainder(dividingBy: 1_440)
+            sunsetMinutes: wallClockMinutes(times.sunset),
+            sunriseMinutes: wallClockMinutes(times.sunrise)
         )
     }
 
-    // 月の赤経・赤緯・位相 (簡易計算)
-    static func moonRaDec(jd: Double) -> (ra: Double, dec: Double, phase: Double) {
+    // 月の赤経・赤緯・位相・地平視差
+    // 根拠: Meeus「Astronomical Algorithms」47 章の主要周期項（出差・二均差・年差など）を採用し、
+    //       単純な中心差のみのモデルで最大 3° 超あった高度誤差を 0.1° 程度に抑える。
+    static func moonRaDec(jd: Double) -> (ra: Double, dec: Double, phase: Double, parallax: Double) {
         let d = jd - AngleMath.j2000JulianDate
 
         // 月の平均要素
         let L = (218.316 + 13.176396 * d).truncatingRemainder(dividingBy: 360.0)
-        let M = AngleMath.toRadians(134.963 + 13.064993 * d)
-        let F = AngleMath.toRadians(93.272 + 13.229350 * d)
+        let M = AngleMath.toRadians(134.963 + 13.064993 * d)       // 月の平均近点角 M'
+        let F = AngleMath.toRadians(93.272 + 13.229350 * d)        // 月の緯度引数
+        let D = AngleMath.toRadians(297.850 + 12.190749 * d)       // 月の平均離角
+        let Ms = AngleMath.toRadians(357.529 + 0.98560028 * d)     // 太陽の平均近点角
 
-        let lambdaRad = AngleMath.toRadians(L + 6.289 * sin(M))
-        let betaRad = AngleMath.toRadians(5.128 * sin(F))
+        let longitude = L
+            + 6.289 * sin(M)              // 中心差
+            + 1.274 * sin(2 * D - M)      // 出差
+            + 0.658 * sin(2 * D)          // 二均差
+            + 0.214 * sin(2 * M)
+            - 0.186 * sin(Ms)             // 年差
+            - 0.114 * sin(2 * F)
+            + 0.059 * sin(2 * D - 2 * M)
+            + 0.057 * sin(2 * D - Ms - M)
+            + 0.053 * sin(2 * D + M)
+            + 0.046 * sin(2 * D - Ms)
+            + 0.041 * sin(M - Ms)
+            - 0.035 * sin(D)
+            - 0.030 * sin(M + Ms)
+        let latitude = 5.128 * sin(F)
+            + 0.281 * sin(M + F)
+            + 0.278 * sin(M - F)
+            + 0.173 * sin(2 * D - F)
+            + 0.055 * sin(2 * D - M + F)
+            + 0.046 * sin(2 * D - M - F)
+            + 0.033 * sin(2 * D + F)
+
+        let lambdaRad = AngleMath.toRadians(longitude)
+        let betaRad = AngleMath.toRadians(latitude)
 
         let epsilonRad = AngleMath.toRadians(23.439)
 
@@ -154,7 +209,37 @@ extension MilkyWayCalculator {
         let elongation = AngleMath.normalizedDegrees(AngleMath.toDegrees(lambdaRad) - AngleMath.toDegrees(sunLambdaRad))
         let phase = elongation / 360.0
 
-        return (ra, dec, phase)
+        // 地平視差 (度)
+        let parallax = 0.9508
+            + 0.0518 * cos(M)
+            + 0.0095 * cos(2 * D - M)
+            + 0.0078 * cos(2 * D)
+            + 0.0028 * cos(2 * M)
+
+        return (ra, dec, phase, parallax)
+    }
+
+    /// 地心高度を観測地から見た高度（視差補正後）へ変換する (度)。
+    /// 根拠: 月は地球に近く、視差により最大約 1° 低く見える。
+    static func moonTopocentricAltitude(geocentricAltitude: Double, parallax: Double) -> Double {
+        let correction = AngleMath.toDegrees(
+            asin(sin(AngleMath.toRadians(parallax)) * cos(AngleMath.toRadians(geocentricAltitude)))
+        )
+        return geocentricAltitude - correction
+    }
+
+    /// 月の観測地での高度・方位角・位相をまとめて返す（視差補正込み）。
+    static func moonHorizontal(
+        jd: Double,
+        observer: HorizontalObserver
+    ) -> (alt: Double, az: Double, phase: Double) {
+        let moon = moonRaDec(jd: jd)
+        let (geocentricAltitude, azimuth) = observer.altAz(ra: moon.ra, dec: moon.dec)
+        return (
+            moonTopocentricAltitude(geocentricAltitude: geocentricAltitude, parallax: moon.parallax),
+            azimuth,
+            moon.phase
+        )
     }
 
     /// 黄道座標 (黄経 λ・黄緯 β・黄道傾斜角 ε, いずれも rad) を赤道座標 (度) に変換する。

@@ -114,11 +114,35 @@ enum StarMapComputation {
         )
     }
 
+    /// 天の川バンドのサンプリング間隔（銀経, 度）
+    static let milkyWayBandLongitudeStep: Double = 5
+
+    /// 天の川バンドで隣り合う（銀経が 1 ステップ差の）点のインデックス組を返す。
+    /// 銀経 355° → 0° の区間も閉じ、地平線下で間引かれた区間はつながない。
+    static func milkyWayBandSegmentIndexPairs(
+        for points: [MilkyWayBandPoint]
+    ) -> [(start: Int, end: Int)] {
+        guard points.count > 1 else { return [] }
+        let step = milkyWayBandLongitudeStep
+        var pairs: [(start: Int, end: Int)] = []
+        pairs.reserveCapacity(points.count)
+        for index in points.indices {
+            let nextIndex = (index + 1) % points.count
+            guard nextIndex != index else { continue }
+            var longitudeDelta = (points[nextIndex].li - points[index].li)
+                .truncatingRemainder(dividingBy: 360)
+            if longitudeDelta < 0 { longitudeDelta += 360 }
+            guard abs(longitudeDelta - step) < 1e-6 else { continue }
+            pairs.append((start: index, end: nextIndex))
+        }
+        return pairs
+    }
+
     private static func computeMilkyWayBandPoints(
         observer: MilkyWayCalculator.HorizontalObserver
     ) -> [MilkyWayBandPoint] {
         var result = [MilkyWayBandPoint]()
-        let step: Double = 5
+        let step = milkyWayBandLongitudeStep
 
         for longitude in stride(from: 0.0, to: 360.0, by: step) {
             // 銀河面が十分に見える区間だけを点列として残す。

@@ -68,7 +68,29 @@ final class LightPollutionServiceTests: XCTestCase {
         XCTAssertFalse(snapshot.fetchFailed)
     }
 
-    func test_brightness_clampsAtPolarAndDateLineEdges() {
+    /// 観測地変更の前に始まった取得が、グリッド読み込み待ちの後で新しい観測地の値を上書きしない。
+    func test_fetch_staleAfterLocationChange_doesNotApplyResult() async throws {
+        let service = LightPollutionService(gridData: nil, gridProvider: BortleGridProvider())
+
+        let task = Task { await service.fetch(latitude: 35.0, longitude: 139.0) }
+        for _ in 0..<100 where !service.isLoading {
+            await Task.yield()
+        }
+        guard service.isLoading else {
+            await task.value
+            throw XCTSkip("取得がグリッド読み込み待ちに入る前に完了したため検証できない")
+        }
+
+        service.prepareForLocationChange()
+        await task.value
+
+        XCTAssertNil(service.bortleClass, "旧観測地の Bortle 値を反映しない")
+        XCTAssertFalse(service.fetchFailed, "旧観測地の取得失敗も反映しない")
+        XCTAssertFalse(service.isLoading)
+    }
+
+    /// 経度方向は日付変更線をまたいで補間し、±180° で同じ値になる。
+    func test_brightness_clampsAtPolesAndWrapsAcrossAntimeridian() {
         var data = Data()
         data.append(contentsOf: [0x42, 0x4F, 0x52, 0x54])
 
@@ -91,8 +113,22 @@ final class LightPollutionServiceTests: XCTestCase {
             return
         }
 
-        XCTAssertEqual(grid.brightness(latitude: -90, longitude: -180), 1, accuracy: 0.0001)
-        XCTAssertEqual(grid.brightness(latitude: 90, longitude: 180), 4, accuracy: 0.0001)
+        // 2x2 グリッド: 南の行 [1, 2]、北の行 [3, 4]。セル中心は経度 -90° / +90°。
+        // セル中心では補間なしの値
+        XCTAssertEqual(grid.brightness(latitude: -90, longitude: -90), 1, accuracy: 0.0001)
+        XCTAssertEqual(grid.brightness(latitude: 90, longitude: 90), 4, accuracy: 0.0001)
+        // ±180° は東端と西端のセルの中間（端で値を固定しない）
+        XCTAssertEqual(grid.brightness(latitude: -90, longitude: -180), 1.5, accuracy: 0.0001)
+        XCTAssertEqual(grid.brightness(latitude: 90, longitude: 180), 3.5, accuracy: 0.0001)
+        XCTAssertEqual(
+            grid.brightness(latitude: -90, longitude: -180),
+            grid.brightness(latitude: -90, longitude: 180),
+            accuracy: 0.0001
+        )
+        // 日付変更線の少し東（-170°）は西端側のセルの値が少し混ざる
+        let nearAntimeridian = grid.brightness(latitude: -90, longitude: -170)
+        XCTAssertGreaterThan(nearAntimeridian, 1)
+        XCTAssertLessThan(nearAntimeridian, 1.5)
     }
 
     func test_renderedTile_returnsImageAndData() {

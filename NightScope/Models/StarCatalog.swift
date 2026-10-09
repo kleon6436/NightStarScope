@@ -21,8 +21,8 @@ struct Star: Sendable {
 
 // MARK: - Star Catalog
 // namedStars: 日本語名付き 121 星 (等級 ≤ 3.8)
-// fillStars:  25,650 星 (名前なし、mag ≤ 7.5、stars_fill.json から読み込み)
-// 合計 25,771 星
+// fillStars:  25,650 星 (名前なし、mag ≤ 7.5、HYG v4.1 由来の stars_fill.json から読み込み、
+//             名前付き星との重複は読み込み時に除外)
 // 座標は J2000.0 赤道座標 (赤経 deg, 赤緯 deg)
 
 /// 表示用の恒星カタログを組み立てる。
@@ -110,7 +110,7 @@ enum StarCatalog {
         Star(name: "アルカイド",          ra: 206.885, dec:  49.313, magnitude:  1.86, colorIndex: -0.19),
         Star(name: "カウス・オーストラリス", ra: 276.043, dec: -34.385, magnitude:  1.85, colorIndex: -0.03),
         Star(name: "メンカリナン",        ra:  89.882, dec:  44.948, magnitude:  1.90, colorIndex:  0.03),
-        Star(name: "アトリア",            ra: 247.562, dec: -68.679, magnitude:  1.92, colorIndex:  1.44),
+        Star(name: "アトリア",            ra: 252.166, dec: -69.028, magnitude:  1.92, colorIndex:  1.44),
         Star(name: "アルヘナ",            ra:  99.428, dec:  16.400, magnitude:  1.93, colorIndex:  0.00),
         Star(name: "ピーコック",          ra: 306.412, dec: -56.735, magnitude:  1.94, colorIndex: -0.20),
         Star(name: "ポラリス",            ra:  37.954, dec:  89.264, magnitude:  1.97, colorIndex:  0.60),
@@ -129,12 +129,12 @@ enum StarCatalog {
         Star(name: "ラスアルハゲ",        ra: 263.734, dec:  12.560, magnitude:  2.08, colorIndex:  0.15),
         Star(name: "コキャブ",            ra: 222.676, dec:  74.156, magnitude:  2.08, colorIndex:  1.47),
         Star(name: "アルゴル",            ra:  47.042, dec:  40.956, magnitude:  2.09, colorIndex: -0.05),
-        Star(name: "ティアキ",            ra: 340.654, dec: -46.885, magnitude:  2.11, colorIndex:  0.95),
+        Star(name: "ティアキ",            ra: 340.654, dec: -46.885, magnitude:  2.11, colorIndex:  1.61),
         Star(name: "デネボラ",            ra: 177.265, dec:  14.572, magnitude:  2.14, colorIndex:  0.09),
-        Star(name: "ムフルファイン",      ra: 190.379, dec: -48.959, magnitude:  2.17, colorIndex: -0.27),
-        Star(name: "タウ・スコルピ",      ra: 247.555, dec: -28.216, magnitude:  2.17, colorIndex: -0.28),
+        Star(name: "ムフルファイン",      ra: 190.379, dec: -48.959, magnitude:  2.17, colorIndex: -0.02),
+        Star(name: "タウ・スコルピ",      ra: 248.971, dec: -28.216, magnitude:  2.82, colorIndex: -0.21),
         Star(name: "サドル",              ra: 305.557, dec:  40.257, magnitude:  2.20, colorIndex:  0.67),
-        Star(name: "イプシロン・スコルピ",ra: 252.541, dec: -34.293, magnitude:  2.29, colorIndex:  0.86),
+        Star(name: "イプシロン・スコルピ",ra: 252.541, dec: -34.293, magnitude:  2.29, colorIndex:  1.14),
         Star(name: "デシュッバ",          ra: 240.083, dec: -22.622, magnitude:  2.32, colorIndex: -0.12),
         Star(name: "メラク",              ra: 165.460, dec:  56.383, magnitude:  2.37, colorIndex:  0.00),
         Star(name: "フェクダ",            ra: 178.458, dec:  53.695, magnitude:  2.44, colorIndex:  0.04),
@@ -143,18 +143,18 @@ enum StarCatalog {
         Star(name: "マルカブ",            ra: 346.190, dec:  15.205, magnitude:  2.49, colorIndex: -0.03),
         Star(name: "メンカル",            ra:  45.570, dec:   4.090, magnitude:  2.53, colorIndex:  1.64),
         Star(name: "ゾズマ",              ra: 168.527, dec:  20.524, magnitude:  2.56, colorIndex:  0.13),
-        Star(name: "アスケラ",            ra: 285.653, dec: -29.880, magnitude:  2.59, colorIndex: -0.12),
+        Star(name: "アスケラ",            ra: 285.653, dec: -29.880, magnitude:  2.59, colorIndex:  0.06),
         Star(name: "グラフィアス",        ra: 241.359, dec: -19.805, magnitude:  2.62, colorIndex: -0.08),
         Star(name: "アルファ・ルピ",      ra: 220.482, dec: -47.388, magnitude:  2.30, colorIndex: -0.18),
         Star(name: "ルクバー",            ra:  21.454, dec:  60.236, magnitude:  2.68, colorIndex:  0.14),
-        Star(name: "ムフリド",            ra: 219.461, dec:  18.398, magnitude:  2.68, colorIndex:  0.56),
-        Star(name: "カウスメディア",      ra: 274.407, dec: -29.828, magnitude:  2.70, colorIndex: -0.17),
+        Star(name: "ムフリド",            ra: 208.671, dec:  18.398, magnitude:  2.68, colorIndex:  0.58),
+        Star(name: "カウスメディア",      ra: 275.249, dec: -29.828, magnitude:  2.70, colorIndex:  1.38),
         Star(name: "タラゼド",            ra: 296.565, dec:  10.613, magnitude:  2.72, colorIndex:  1.50),
         Star(name: "ポリマ",              ra: 190.415, dec:  -1.449, magnitude:  2.74, colorIndex:  0.36),
-        Star(name: "カウスボレアリス",    ra: 276.992, dec: -25.422, magnitude:  2.81, colorIndex:  0.43),
-        Star(name: "ヴィンデミアトリックス", ra: 195.544, dec:  10.959, magnitude:  2.83, colorIndex:  0.13),
+        Star(name: "カウスボレアリス",    ra: 276.992, dec: -25.422, magnitude:  2.81, colorIndex:  1.03),
+        Star(name: "ヴィンデミアトリックス", ra: 195.544, dec:  10.959, magnitude:  2.83, colorIndex:  0.93),
         Star(name: "アルゲニブ",          ra:   3.309, dec:  15.184, magnitude:  2.84, colorIndex: -0.23),
-        Star(name: "ギエナ",              ra: 311.553, dec:  33.970, magnitude:  2.48, colorIndex:  0.85),
+        Star(name: "ギエナ",              ra: 311.553, dec:  33.970, magnitude:  2.48, colorIndex:  1.02),
         Star(name: "デルタ・キグヌス",    ra: 296.244, dec:  45.131, magnitude:  2.87, colorIndex: -0.02),
         Star(name: "テジャト",            ra:  95.740, dec:  22.514, magnitude:  2.87, colorIndex:  1.73),
         Star(name: "ミンタカ",            ra:  83.000, dec:  -0.300, magnitude:  2.23, colorIndex: -0.22),
@@ -162,41 +162,41 @@ enum StarCatalog {
         // MARK: 2.5 ~ 3.1
         Star(name: "ラスアルゲティ",      ra: 258.661, dec:  14.390, magnitude:  2.78, colorIndex:  1.14),
         Star(name: "サビク",              ra: 257.595, dec: -15.724, magnitude:  2.43, colorIndex:  0.08),
-        Star(name: "アルドラ",            ra: 111.024, dec: -29.303, magnitude:  2.45, colorIndex:  0.13),
+        Star(name: "アルドラ",            ra: 111.024, dec: -29.303, magnitude:  2.45, colorIndex: -0.08),
         Star(name: "エルタニン",          ra: 269.151, dec:  51.489, magnitude:  2.24, colorIndex:  1.52),
         Star(name: "シェダル",            ra:  10.127, dec:  56.537, magnitude:  2.23, colorIndex:  1.17),
         Star(name: "カフ",                ra:   2.294, dec:  59.150, magnitude:  2.27, colorIndex:  0.34),
         Star(name: "ゼータ・タウリ",      ra:  84.411, dec:  21.143, magnitude:  3.00, colorIndex: -0.20),
         Star(name: "アルビレオ",          ra: 292.680, dec:  27.960, magnitude:  3.09, colorIndex:  1.09),
-        Star(name: "ムー・スコルピ",      ra: 253.084, dec: -38.047, magnitude:  3.04, colorIndex: -0.27),
-        Star(name: "アルナスル",          ra: 286.736, dec: -27.671, magnitude:  2.98, colorIndex:  0.07),
-        Star(name: "ナッシュ",            ra: 271.452, dec: -30.424, magnitude:  2.99, colorIndex:  1.10),
+        Star(name: "ムー・スコルピ",      ra: 252.968, dec: -38.047, magnitude:  3.04, colorIndex: -0.20),
+        Star(name: "タウ・サジタリ",      ra: 286.735, dec: -27.670, magnitude:  3.32, colorIndex:  1.17),
+        Star(name: "アルナスル",          ra: 271.452, dec: -30.424, magnitude:  2.98, colorIndex:  0.98),
         Star(name: "フルカド",            ra: 230.182, dec:  71.834, magnitude:  3.05, colorIndex:  0.08),
-        Star(name: "メブスダ",            ra: 100.983, dec:  25.131, magnitude:  3.06, colorIndex:  0.92),
-        Star(name: "ゼータ・スコルピ",    ra: 253.504, dec: -42.363, magnitude:  3.62, colorIndex:  0.12),
-        Star(name: "エータ・スコルピ",    ra: 254.655, dec: -43.239, magnitude:  3.33, colorIndex: -0.17),
-        Star(name: "ウプシロン・スコルピ",ra: 264.330, dec: -37.303, magnitude:  2.69, colorIndex: -0.22),
+        Star(name: "メブスダ",            ra: 100.983, dec:  25.131, magnitude:  3.06, colorIndex:  1.38),
+        Star(name: "ゼータ・スコルピ",    ra: 253.646, dec: -42.361, magnitude:  3.62, colorIndex:  1.39),
+        Star(name: "エータ・スコルピ",    ra: 258.038, dec: -43.239, magnitude:  3.33, colorIndex:  0.41),
+        Star(name: "ウプシロン・スコルピ",ra: 262.691, dec: -37.296, magnitude:  2.69, colorIndex: -0.18),
         Star(name: "ベータ・ルピ",        ra: 224.633, dec: -43.133, magnitude:  2.68, colorIndex: -0.14),
-        Star(name: "ゼータ・アクィラ",    ra: 288.138, dec:   5.569, magnitude:  2.99, colorIndex:  0.11),
-        Star(name: "スラファト",          ra: 284.736, dec:  32.690, magnitude:  3.25, colorIndex:  0.16),
+        Star(name: "ゼータ・アクィラ",    ra: 286.353, dec:  13.863, magnitude:  2.99, colorIndex:  0.01),
+        Star(name: "スラファト",          ra: 284.736, dec:  32.690, magnitude:  3.25, colorIndex: -0.05),
         Star(name: "シェリアク",          ra: 282.520, dec:  33.363, magnitude:  3.52, colorIndex:  0.00),
 
         // MARK: 3.1 ~ 3.8
         Star(name: "セギン",              ra:  28.599, dec:  63.670, magnitude:  3.37, colorIndex: -0.16),
         Star(name: "メグレズ",            ra: 183.857, dec:  57.033, magnitude:  3.31, colorIndex:  0.07),
         Star(name: "ラス・エラセド",      ra: 146.463, dec:  23.774, magnitude:  2.98, colorIndex:  0.89),
-        Star(name: "エータ・レオニス",    ra: 148.028, dec:  16.762, magnitude:  3.52, colorIndex: -0.04),
+        Star(name: "エータ・レオニス",    ra: 151.833, dec:  16.763, magnitude:  3.52, colorIndex: -0.04),
         Star(name: "アドハフェラ",        ra: 154.171, dec:  23.417, magnitude:  3.44, colorIndex:  0.40),
         Star(name: "ワサット",            ra: 110.031, dec:  21.982, magnitude:  3.53, colorIndex:  0.33),
-        Star(name: "アルツィル",          ra: 101.321, dec:  12.896, magnitude:  3.35, colorIndex: -0.13),
+        Star(name: "アルツィル",          ra: 101.321, dec:  12.896, magnitude:  3.35, colorIndex:  0.44),
         Star(name: "イータ・タウリ",      ra:  56.871, dec:  24.105, magnitude:  2.87, colorIndex: -0.09),
-        Star(name: "シェラト",            ra:  26.350, dec:  20.808, magnitude:  2.66, colorIndex:  0.11),
-        Star(name: "ガンマ・タウリ",      ra:  65.649, dec:  15.629, magnitude:  3.65, colorIndex:  0.99),
-        Star(name: "デルタ・タウリ",      ra:  67.154, dec:  17.542, magnitude:  3.77, colorIndex:  0.98),
-        Star(name: "エプシロン・タウリ",  ra:  68.499, dec:  19.180, magnitude:  3.54, colorIndex:  0.97),
+        Star(name: "シェラト",            ra:  28.660, dec:  20.808, magnitude:  2.66, colorIndex:  0.17),
+        Star(name: "ガンマ・タウリ",      ra:  64.948, dec:  15.628, magnitude:  3.65, colorIndex:  0.99),
+        Star(name: "デルタ・タウリ",      ra:  65.734, dec:  17.543, magnitude:  3.77, colorIndex:  0.98),
+        Star(name: "エプシロン・タウリ",  ra:  67.154, dec:  19.180, magnitude:  3.54, colorIndex:  1.01),
         Star(name: "アルマアズ",          ra:  75.492, dec:  43.823, magnitude:  2.99, colorIndex:  0.54),
-        Star(name: "テータ・アクィラ",    ra: 290.418, dec:  -0.821, magnitude:  3.24, colorIndex:  0.57),
-        Star(name: "ファイ・スゲータリ",  ra: 277.893, dec: -26.987, magnitude:  3.17, colorIndex: -0.17),
+        Star(name: "テータ・アクィラ",    ra: 302.826, dec:  -0.821, magnitude:  3.24, colorIndex: -0.07),
+        Star(name: "ファイ・スゲータリ",  ra: 281.414, dec: -26.991, magnitude:  3.17, colorIndex: -0.11),
     ]
 
     // MARK: - Fill Stars (名前なし、mag ≤ 7.5)
@@ -213,7 +213,24 @@ enum StarCatalog {
             logger.error("Failed to decode stars_fill.json")
             return []
         }
-        return makeFillStars(from: entries)
+        return removingDuplicates(of: namedStars, from: makeFillStars(from: entries))
     }()
 
+    /// 名前付き星と同一の星 (位置がほぼ一致し等級も近いもの) を fill 星から除く。
+    ///
+    /// 同梱の stars_fill.json は名前付き星の座標誤りを修正する前に生成されたため、
+    /// 修正後の名前付き星と同じ星がいくつか含まれている。二重描画を避けるためここで除外する。
+    static func removingDuplicates(of named: [Star], from fill: [Star]) -> [Star] {
+        let positionTolerance = 0.02  // 度
+        let magnitudeTolerance = 0.3
+        return fill.filter { star in
+            !named.contains { namedStar in
+                guard abs(namedStar.dec - star.dec) < positionTolerance,
+                      abs(namedStar.magnitude - star.magnitude) < magnitudeTolerance
+                else { return false }
+                let deltaRA = abs(remainder(namedStar.ra - star.ra, 360.0))
+                return deltaRA * cos(star.dec * .pi / 180.0) < positionTolerance
+            }
+        }
+    }
 }

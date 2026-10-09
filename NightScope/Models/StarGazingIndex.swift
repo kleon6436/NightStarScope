@@ -330,15 +330,23 @@ struct StarGazingIndex {
         bortleClass: Double?,
         referenceDate: Date = Date()
     ) -> StarGazingIndex {
-        // #1: 暗時間ゼロ（白夜等）は観測不能 → 常に 0 点
+        // #1: 暗時間ゼロ（白夜等）は天の川・深宇宙の観測不能 → 総合点は常に 0 点
         guard nightSummary.totalDarkHours > 0 else {
+            // 月・惑星モードの再重み付けで使えるよう、夜間（市民薄明後）の天気スコアは保持する。
+            // 根拠: 白夜でも月や明るい惑星は観測でき、その可否は夜間の天気で決まる。
+            let nightWeather = weather.flatMap {
+                nightSummary.usableWeatherContext(
+                    nighttimeHours: $0.nighttimeHours,
+                    referenceDate: referenceDate
+                )?.weather
+            }
             return makeIndex(
                 score: 0,
                 milkyWayScore: 0,
                 constellationScore: 0,
-                weatherScore: 0,
+                weatherScore: nightWeather.map { computeWeatherScore(weather: $0) } ?? 0,
                 lightPollutionScore: 0,
-                hasWeatherData: weather != nil,
+                hasWeatherData: nightWeather != nil,
                 hasLightPollutionData: bortleClass != nil
             )
         }

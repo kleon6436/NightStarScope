@@ -597,8 +597,10 @@ final class AppController: ObservableObject {
         locationController.selectedTimeZonePublisher
             .dropFirst()
             .removeDuplicates { $0.identifier == $1.identifier }
-            .sink { [weak self] _ in
-                self?.handleSelectedTimeZoneChanged()
+            .sink { [weak self] timeZone in
+                // @Published は willSet で流すため、ここで locationController.selectedTimeZone を読むと
+                // まだ旧タイムゾーンが返る。流れてきた新しい値を使う。
+                self?.handleSelectedTimeZoneChanged(to: timeZone)
             }
             .store(in: &cancellables)
 
@@ -646,7 +648,9 @@ final class AppController: ObservableObject {
         // 古い観測地のデータは何も反映しない。読み込み中フラグは取り直す側が下ろす。
         guard disposition != .discard else { return }
         isApplyingLocationRefresh = true
-        lastExternalRefresh = (now(), selectedLocationContext)
+        // キャッシュから返した天気は取り直していないため、自動更新の間引きは元の取得時刻を基準にする。
+        // 現在時刻で上書きすると、地点を行き来するだけで再取得が永久に見送られる。
+        lastExternalRefresh = (payload.weatherResult.cachedAt ?? now(), selectedLocationContext)
         weatherService.applyFetchResult(payload.weatherResult)
         lightPollutionService.applyFetchResult(payload.lightPollutionResult)
         performObservationStateBatchUpdate {
@@ -678,8 +682,7 @@ final class AppController: ObservableObject {
         }
     }
 
-    private func handleSelectedTimeZoneChanged() {
-        let newTimeZone = selectedTimeZone
+    private func handleSelectedTimeZoneChanged(to newTimeZone: TimeZone) {
         let previousTimeZone = lastObservedTimeZone
         lastObservedTimeZone = newTimeZone
 
@@ -756,11 +759,15 @@ final class AppController: ObservableObject {
     }
 
     private func handleDashboardSelection(_ selection: DashboardSelection) {
+        // お気に入りの名前とタイムゾーンは分かっているので、逆ジオコーディングを待たずに即時反映する。
+        // タイムゾーンが先に確定することで、続く日付選択が観測地の暦日として解釈される。
         locationController.selectCoordinate(
             CLLocationCoordinate2D(
                 latitude: selection.location.latitude,
                 longitude: selection.location.longitude
-            )
+            ),
+            name: selection.location.name,
+            timeZoneIdentifier: selection.location.timeZoneIdentifier
         )
         dashboardSelectionDateHandler?(selection.date)
         bringMainWindowToFront()

@@ -17,13 +17,17 @@ private extension MeteorShowerIntensity {
 /// 流星群の年間スケジュールをガントチャート形式で表示する共有ビュー（macOS / iOS 共通）。
 struct MeteorShowerCalendarView: View {
     let selectedDate: Date
+    /// selectedDate を月日に分解する観測地のタイムゾーン。
+    /// nil の場合は環境値 `\.timeZone`（未設定なら端末のタイムゾーン）を使う。
+    let timeZone: TimeZone?
 
-    init(selectedDate: Date = Date()) {
+    init(selectedDate: Date = Date(), timeZone: TimeZone? = nil) {
         self.selectedDate = selectedDate
+        self.timeZone = timeZone
     }
 
     var body: some View {
-        MeteorShowerCalendarContent(selectedDate: selectedDate)
+        MeteorShowerCalendarContent(selectedDate: selectedDate, timeZone: timeZone)
             // 12 か月の目盛りと帯を 1 行に並べる表のため、これ以上大きくすると月の数字が重なる。
             // 内側の @ScaledMetric にも上限を効かせるため、中身全体の外側で指定する。
             .dynamicTypeSize(...CalendarStyle.maximumTypeSize)
@@ -37,7 +41,9 @@ private struct MeteorShowerCalendarContent: View {
     private static let totalDays = 365
 
     let selectedDate: Date
+    let timeZone: TimeZone?
 
+    @Environment(\.timeZone) private var environmentTimeZone
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .callout) private var scaledLabelWidth: CGFloat = CalendarStyle.labelWidth
     @ScaledMetric(relativeTo: .caption2) private var headerHeight: CGFloat = CalendarStyle.headerHeight
@@ -50,9 +56,16 @@ private struct MeteorShowerCalendarContent: View {
 
     private let showers = MeteorShowerCatalog.all
 
+    /// selectedDate は観測地タイムゾーンの 0 時なので、同じタイムゾーンの暦で月日を取り出す。
+    private var observationCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone ?? environmentTimeZone
+        return calendar
+    }
+
     /// 選択日の day-of-year（1〜365）
     private var selectedDOY: Int {
-        let cal = Calendar.current
+        let cal = observationCalendar
         return MeteorShowerCatalog.dayOfYear(
             month: cal.component(.month, from: selectedDate),
             day: cal.component(.day, from: selectedDate)
@@ -60,7 +73,7 @@ private struct MeteorShowerCalendarContent: View {
     }
 
     private var isToday: Bool {
-        Calendar.current.isDateInToday(selectedDate)
+        observationCalendar.isDateInToday(selectedDate)
     }
 
     var body: some View {

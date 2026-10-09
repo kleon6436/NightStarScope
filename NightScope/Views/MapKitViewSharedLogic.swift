@@ -231,8 +231,9 @@ enum MapKitViewSharedLogic {
                 Config.minimumLongitudeMetersPerDegree
             )
             let lonOffset  = radius * sin(angleRad) / metersPerLongitudeDegree
+            // 極を越える点は緯度を丸め、±180 をまたぐ経度は sanitizedCoordinate で折り返す（点を欠落させない）。
             let coordinate = CLLocationCoordinate2D(
-                latitude:  lat + latOffset,
+                latitude:  min(max(lat + latOffset, -90), 90),
                 longitude: sanitizedCenter.longitude + lonOffset
             )
             if let sanitizedCoordinate = GeoStateValidator.sanitizedCoordinate(coordinate) {

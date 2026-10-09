@@ -121,8 +121,8 @@ enum MilkyWayCalculator {
             let sun = sunRaDec(jd: jd)
             let sunAlt = observer.altAz(ra: sun.ra, dec: sun.dec).alt
 
-            let moon = moonRaDec(jd: jd)
-            let moonAlt = observer.altAz(ra: moon.ra, dec: moon.dec).alt
+            let moon = moonHorizontal(jd: jd, observer: observer)
+            let moonAlt = moon.alt
 
             events.append(AstroEvent(
                 date: sampleDate,

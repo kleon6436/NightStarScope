@@ -19,6 +19,43 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         let preferredTimeZoneIdentifierForResolution: String?
         let provisionalTimeZoneIdentifier: String?
         let incrementsCenterTrigger: Bool
+        /// 逆ジオコーディングの結果で上書きしない地点名（お気に入り等で名前が確定している場合）。
+        var preservedName: String? = nil
+        /// 名前・タイムゾーンがすべて確定済みで、逆ジオコーディングが不要かどうか。
+        var skipsDetailResolution = false
+    }
+
+    /// 現在地として採用できる位置の条件。
+    private enum LocationFixPolicy {
+        /// これより古いキャッシュ位置は採用しない（秒）。
+        static let maximumAge: TimeInterval = 60
+        /// これより水平精度が悪い位置は採用しない（メートル）。
+        static let maximumHorizontalAccuracy: CLLocationAccuracy = 1_000
+    }
+
+    /// CLLocation から取り出した Sendable な位置情報。
+    private struct LocationFix: Sendable {
+        let coordinate: CLLocationCoordinate2D
+        let timestamp: Date
+        let horizontalAccuracy: CLLocationAccuracy
+
+        init(_ location: CLLocation) {
+            coordinate = location.coordinate
+            timestamp = location.timestamp
+            horizontalAccuracy = location.horizontalAccuracy
+        }
+
+        /// 精度が有効（負値でない）かどうか。
+        var hasValidAccuracy: Bool {
+            horizontalAccuracy >= 0
+        }
+
+        /// 鮮度と精度の両方が基準を満たすかどうか。
+        func isAcceptable(now: Date) -> Bool {
+            hasValidAccuracy
+                && horizontalAccuracy <= LocationFixPolicy.maximumHorizontalAccuracy
+                && now.timeIntervalSince(timestamp) <= LocationFixPolicy.maximumAge
+        }
     }
 
     // MARK: - Published State
@@ -34,7 +71,8 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
             storage.longitude = selectedLocation.longitude
         }
     }
-    @Published private(set) var selectedTimeZoneIdentifier = TimeZone.current.identifier {
+    /// 既定地点（東京）と整合するよう、未保存時は端末のタイムゾーンではなく Asia/Tokyo を使う。
+    @Published private(set) var selectedTimeZoneIdentifier = "Asia/Tokyo" {
         didSet { persistSelectedTimeZone() }
     }
     /// 再計算が必要な場所変更が起きるたびに更新される ID（View 側での onChange 検知用）
@@ -132,6 +170,8 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
     private var locationNameTask: Task<Void, Never>?
     private var latestSearchQuery = ""
     private var shouldResumeLocationAfterAuthorization = false
+    /// 基準を満たさなかったが、タイムアウト時に代わりに使える最新の位置。
+    private var bestLocationFixCandidate: LocationFix?
     private var selectedTimeZoneSelectionSource: TimeZoneSelectionSource = .confirmed
     private static let searchFailureMessage = L10n.tr("場所を検索できませんでした。通信状況を確認して、もう一度お試しください。")
 
@@ -180,6 +220,18 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
                     source: .provisional
                 )
             }
+            // 暫定タイムゾーンや名前未保存のまま残らないよう、選択時と同様に逆ジオコーディングで解決する。
+            // 保存済みの名前はユーザーが選んだものなので上書きしない。
+            if selectedTimeZoneSelectionSource == .provisional || storage.name == nil {
+                resolveLocationDetails(
+                    for: coordinate,
+                    fallbackName: storage.name ?? L10n.tr("選択した地点"),
+                    preferredTimeZoneIdentifier: selectedTimeZoneSelectionSource == .confirmed
+                        ? selectedTimeZoneIdentifier
+                        : nil,
+                    preservedName: storage.name
+                )
+            }
         case .none:
             if storage.latitude != nil || storage.longitude != nil {
                 clearPersistedLocation()
@@ -215,6 +267,7 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         }
         isLocating = true
         locationError = nil
+        bestLocationFixCandidate = nil
         // 既に許可済みなら即開始、未決定なら locationManagerDidChangeAuthorization で開始する
         if Self.isAuthorized(status) {
             shouldResumeLocationAfterAuthorization = false
@@ -222,14 +275,10 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         } else {
             shouldResumeLocationAfterAuthorization = true
             // .notDetermined: 権限ダイアログへの応答を待機中。
-            // ユーザーがダイアログを長時間無視した場合でも isLocating が残らないよう
-            // タイムアウトだけを開始する（位置情報更新は権限確定後に始める）。
-            startLocatingTimeout()
-            #if os(iOS)
+            // ダイアログ表示中にタイムアウトで .failed を出さないよう、タイムアウトは許可後に
+            // startLocationUpdatesWithTimeout() で開始する（拒否時は handleAuthorizationStatusChange で停止）。
+            // macOS も Info.plist は NSLocationWhenInUseUsageDescription のみのため WhenInUse を要求する。
             locationManager.requestWhenInUseAuthorization()
-            #else
-            locationManager.requestAlwaysAuthorization()
-            #endif
         }
     }
 
@@ -318,6 +367,36 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         selectCoordinate(coordinate, provisionalName: L10n.tr("選択した地点"))
     }
 
+    /// 保存済みの名前・タイムゾーンを持つ地点（お気に入り等）を選択する（センタリングしない）。
+    /// 名前が渡された場合は逆ジオコーディングで上書きせず、有効なタイムゾーンは確定値として扱う。
+    /// 逆ジオコーディングは名前またはタイムゾーンが欠けている場合のみ行う。
+    func selectCoordinate(_ coordinate: CLLocationCoordinate2D, name: String?, timeZoneIdentifier: String?) {
+        let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let suppliedName: String? = trimmedName.isEmpty ? nil : trimmedName
+        let confirmedTimeZoneIdentifier = ApproximateTimeZoneResolver.exactIdentifier(
+            for: coordinate,
+            preferredIdentifier: timeZoneIdentifier
+        )
+        let displayName = suppliedName ?? L10n.tr("選択した地点")
+        applySelection(
+            SelectionRequest(
+                coordinate: coordinate,
+                fallbackName: displayName,
+                preferredDetails: ResolvedLocationDetails(
+                    name: displayName,
+                    timeZoneIdentifier: confirmedTimeZoneIdentifier
+                ),
+                preferredTimeZoneIdentifierForResolution: confirmedTimeZoneIdentifier,
+                provisionalTimeZoneIdentifier: confirmedTimeZoneIdentifier == nil
+                    ? ApproximateTimeZoneResolver.approximateIdentifier(for: coordinate)
+                    : nil,
+                incrementsCenterTrigger: false,
+                preservedName: suppliedName,
+                skipsDetailResolution: suppliedName != nil && confirmedTimeZoneIdentifier != nil
+            )
+        )
+    }
+
     private func selectCoordinate(_ coordinate: CLLocationCoordinate2D, provisionalName: String) {
         let exactTimeZoneIdentifier = exactTimeZoneIdentifier(for: coordinate)
         applySelection(
@@ -356,16 +435,24 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         if request.incrementsCenterTrigger {
             currentLocationCenterTrigger += 1
         }
+        guard !request.skipsDetailResolution else {
+            // 前の選択の解決結果が後から届いて上書きしないよう取り消す。
+            locationNameTask?.cancel()
+            locationNameTask = nil
+            return
+        }
         resolveLocationDetails(
             for: request.coordinate,
             fallbackName: request.fallbackName,
-            preferredTimeZoneIdentifier: request.preferredTimeZoneIdentifierForResolution
+            preferredTimeZoneIdentifier: request.preferredTimeZoneIdentifierForResolution,
+            preservedName: request.preservedName
         )
     }
 
     private func stopLocating(clearPendingAuthorizationRequest: Bool = true) {
         cancelLocationTimeout()
         isLocating = false
+        bestLocationFixCandidate = nil
         locationManager.stopUpdatingLocation()
         if clearPendingAuthorizationRequest {
             shouldResumeLocationAfterAuthorization = false
@@ -383,8 +470,13 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         }
 
         guard status == .denied || status == .restricted else { return }
+        // 起動時の初回コールバックやシーン復帰時の再確認では位置を要求していないため、
+        // 取得中・許可待ちのときだけ拒否エラーを出す（取得は常に止める）。
+        let hadPendingRequest = isLocating || shouldResumeLocationAfterAuthorization
         stopLocating()
-        locationError = .denied
+        if hadPendingRequest {
+            locationError = .denied
+        }
     }
 
     /// タイムアウトタスクのみを開始する（位置情報更新は開始しない）。
@@ -396,6 +488,11 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
             try? await Task.sleep(for: timeout)
             guard !Task.isCancelled, let self else { return }
             if self.isLocating {
+                // 基準を満たす位置が届かなくても、受け取った位置があればそれを使う。
+                if let candidate = self.bestLocationFixCandidate {
+                    self.acceptLocationFix(candidate)
+                    return
+                }
                 let isAwaitingAuthorizationDecision =
                     self.shouldResumeLocationAfterAuthorization
                     && self.locationManager.authorizationStatus == .notDetermined
@@ -451,7 +548,8 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
     private func resolveLocationDetails(
         for coordinate: CLLocationCoordinate2D,
         fallbackName: String?,
-        preferredTimeZoneIdentifier: String?
+        preferredTimeZoneIdentifier: String?,
+        preservedName: String? = nil
     ) {
         locationNameTask?.cancel()
         locationNameTask = Task { @MainActor [weak self] in
@@ -462,7 +560,7 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
             let didChangeTimeZone = self.applyResolvedLocationDetails(
                 for: coordinate,
                 details: ResolvedLocationDetails(
-                    name: details.name,
+                    name: preservedName ?? details.name,
                     timeZoneIdentifier: details.timeZoneIdentifier ?? preferredTimeZoneIdentifier
                 ),
                 fallbackName: fallbackName
@@ -534,12 +632,33 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         return searchState.query
     }
 
+    /// macOS は WhenInUse を要求しても .authorizedAlways を返すことがあるため両方を許可とみなす。
     private static func isAuthorized(_ status: CLAuthorizationStatus) -> Bool {
-        #if os(iOS)
         status == .authorizedWhenInUse || status == .authorizedAlways
-        #else
-        status == .authorized || status == .authorizedAlways
-        #endif
+    }
+
+    /// 受け取った位置を評価し、基準を満たせば現在地として確定、満たさなければ候補として保持する。
+    private func handleReceivedLocationFixes(_ fixes: [LocationFix]) {
+        guard isLocating else {
+            locationManager.stopUpdatingLocation()
+            return
+        }
+        let now = Date()
+        if let acceptable = fixes.last(where: { $0.isAcceptable(now: now) }) {
+            acceptLocationFix(acceptable)
+            return
+        }
+        // 古い・精度不足の位置は待機を続けつつ、タイムアウト時の代替として最新の有効な位置を残す。
+        if let candidate = fixes.last(where: \.hasValidAccuracy),
+           bestLocationFixCandidate.map({ candidate.timestamp >= $0.timestamp }) ?? true {
+            bestLocationFixCandidate = candidate
+        }
+    }
+
+    private func acceptLocationFix(_ fix: LocationFix) {
+        bestLocationFixCandidate = nil
+        selectCoordinate(fix.coordinate, provisionalName: L10n.tr("現在地"))
+        currentLocationCenterTrigger += 1
     }
 
 }
@@ -548,12 +667,11 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
 
 extension LocationController: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        manager.stopUpdatingLocation()
+        let fixes = locations.map(LocationFix.init)
+        guard !fixes.isEmpty else { return }
+        // 停止は採用時（stopLocating）に行う。古い・精度不足の位置では更新を続ける。
         Task { @MainActor in
-            guard self.isLocating else { return }
-            self.selectCoordinate(location.coordinate, provisionalName: L10n.tr("現在地"))
-            self.currentLocationCenterTrigger += 1
+            self.handleReceivedLocationFixes(fixes)
         }
     }
 

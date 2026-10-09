@@ -264,6 +264,20 @@ final class MockLocationController: LocationProviding {
         locationUpdateID = UUID()
     }
 
+    /// 名前・タイムゾーン付き選択の呼び出し記録（座標は selectedCoordinateCalls にも記録する）。
+    private(set) var selectedCoordinateDetailCalls: [(name: String?, timeZoneIdentifier: String?)] = []
+
+    func selectCoordinate(_ coordinate: CLLocationCoordinate2D, name: String?, timeZoneIdentifier: String?) {
+        selectedCoordinateDetailCalls.append((name: name, timeZoneIdentifier: timeZoneIdentifier))
+        selectCoordinate(coordinate)
+        if let name {
+            locationName = name
+        }
+        if let timeZoneIdentifier, let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            selectedTimeZone = timeZone
+        }
+    }
+
     private var normalizedSearchQuery: String {
         searchQuery?.trimmingCharacters(in: .whitespacesAndNewlines) ?? searchState.query
     }

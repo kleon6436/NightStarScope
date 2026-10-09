@@ -50,8 +50,9 @@ struct AppRootDependencies {
             calculationService: appController.calculationService
         )
         self.dashboardCommandBridge = dashboardCommandBridge ?? DashboardCommandBridge()
-        appController.bindDashboardCommandBridge(self.dashboardCommandBridge) { [detailViewModel] date in
-            detailViewModel.selectedDate = date
+        // AppController がハンドラを保持し、DetailViewModel は AppController を保持するため弱参照で循環を断つ。
+        appController.bindDashboardCommandBridge(self.dashboardCommandBridge) { [weak detailViewModel] date in
+            detailViewModel?.selectedDate = date
         }
     }
 
@@ -129,4 +130,6 @@ protocol LocationProviding: AnyObject, ObservableObject {
     func clearSearch()
     func select(_ mapItem: MKMapItem)
     func selectCoordinate(_ coordinate: CLLocationCoordinate2D)
+    /// 保存済みの名前・タイムゾーンを持つ地点（お気に入り等）を選択する。nil の項目は通常どおり解決する。
+    func selectCoordinate(_ coordinate: CLLocationCoordinate2D, name: String?, timeZoneIdentifier: String?)
 }

@@ -33,7 +33,8 @@ final class ComparisonController: ObservableObject {
         defer { isRefreshing = false }
 
         let locations = locations ?? favoriteStore.loadAll()
-        let dates = Self.makeDates(referenceDate: referenceDate, dayCount: dayCount)
+        let columnTimeZone = TimeZone.current
+        let dates = Self.makeDates(referenceDate: referenceDate, dayCount: dayCount, timeZone: columnTimeZone)
         matrix = ComparisonMatrix(
             locations: locations,
             dates: dates,
@@ -42,7 +43,8 @@ final class ComparisonController: ObservableObject {
                     let cell = ComparisonCell(locationID: location.id, date: date, loadState: .loading)
                     return (cell.id, cell)
                 }
-            })
+            }),
+            columnTimeZone: columnTimeZone
         )
 
         let computed = await computeMatrix(referenceDate: referenceDate, locations: locations)
@@ -74,10 +76,13 @@ final class ComparisonController: ObservableObject {
             .max { ($0.index?.score ?? Int.min) < ($1.index?.score ?? Int.min) }
     }
 
-    private static func makeDates(referenceDate: Date, dayCount: Int) -> [Date] {
-        let calendar = Calendar(identifier: .gregorian)
+    /// 列の日付（`timeZone` の各日の 0 時）を作る。列は暦日を表し、地点ごとの夜は年月日で対応付ける。
+    private static func makeDates(referenceDate: Date, dayCount: Int, timeZone: TimeZone) -> [Date] {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let start = calendar.startOfDay(for: referenceDate)
-        return (0..<dayCount).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        return (0..<dayCount).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: start).map { calendar.startOfDay(for: $0) }
+        }
     }
 
     /// 保存済み地点ごとの夜間条件をまとめて評価する。
@@ -89,7 +94,8 @@ final class ComparisonController: ObservableObject {
         lightPollutionService: any LightPollutionProviding,
         calculationService: any NightCalculating
     ) async -> ComparisonMatrix {
-        let dates = makeDates(referenceDate: referenceDate, dayCount: dayCount)
+        let columnTimeZone = TimeZone.current
+        let dates = makeDates(referenceDate: referenceDate, dayCount: dayCount, timeZone: columnTimeZone)
         var cellsByID = Dictionary(uniqueKeysWithValues: locations.flatMap { location in
             dates.map { date in
                 let cell = ComparisonCell(locationID: location.id, date: date, loadState: .loading)
@@ -98,9 +104,10 @@ final class ComparisonController: ObservableObject {
         })
 
         guard !locations.isEmpty else {
-            return ComparisonMatrix(locations: [], dates: dates, cellsByID: [:])
+            return ComparisonMatrix(locations: [], dates: dates, cellsByID: [:], columnTimeZone: columnTimeZone)
         }
         let indexBuilder = StarGazingIndexBuilder(weatherService: weatherService)
+        var weatherFailedLocationIDs: Set<UUID> = []
 
         for location in locations {
             guard !Task.isCancelled else { break }
@@ -112,20 +119,32 @@ final class ComparisonController: ObservableObject {
                 longitude: location.longitude,
                 timeZone: timeZone
             )
+            if weatherResult.errorMessage != nil {
+                weatherFailedLocationIDs.insert(location.id)
+            }
             let bortleClass = try? await lightPollutionService.fetchBortle(
                 latitude: location.latitude,
                 longitude: location.longitude
             )
+            // 列と同じ年月日の夜をこの地点のタイムゾーンで計算する。
+            // 列の 0 時（端末のタイムゾーン）から数えると、時差のある地点では夜が 1 日ずれる。
+            let firstLocalDay = dates.first.map {
+                ObservationTimeZone.preservingCalendarDay($0, from: columnTimeZone, to: timeZone)
+            } ?? referenceDate
             let nights = await calculationService.calculateUpcomingNights(
-                from: referenceDate,
+                from: firstLocalDay,
                 location: coordinate,
                 timeZone: timeZone,
                 days: dayCount
             )
 
-            for (offset, date) in dates.enumerated() {
+            for date in dates {
                 let cellID = ComparisonCell.makeID(locationID: location.id, date: date)
-                guard offset < nights.count else {
+                let localDay = ObservationTimeZone.preservingCalendarDay(date, from: columnTimeZone, to: timeZone)
+                // 位置ではなく、地点のタイムゾーンでの年月日が列と一致する夜を対応付ける。
+                guard let night = nights.first(where: {
+                    ObservationTimeZone.isDate($0.date, inSameDayAs: localDay, timeZone: timeZone)
+                }) else {
                     cellsByID[cellID] = ComparisonCell(
                         locationID: location.id,
                         date: date,
@@ -135,7 +154,6 @@ final class ComparisonController: ObservableObject {
                     continue
                 }
 
-                let night = nights[offset]
                 let weather = indexBuilder.weather(for: night, from: weatherResult.weatherByDate)
                 let index = indexBuilder.index(
                     for: night,
@@ -155,6 +173,12 @@ final class ComparisonController: ObservableObject {
             }
         }
 
-        return ComparisonMatrix(locations: locations, dates: dates, cellsByID: cellsByID)
+        return ComparisonMatrix(
+            locations: locations,
+            dates: dates,
+            cellsByID: cellsByID,
+            weatherFailedLocationIDs: weatherFailedLocationIDs,
+            columnTimeZone: columnTimeZone
+        )
     }
 }

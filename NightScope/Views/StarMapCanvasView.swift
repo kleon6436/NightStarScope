@@ -239,7 +239,8 @@ struct StarMapCanvasView: View {
     /// ピンチ中のライブ視野角（心射図法用）
     private func effectiveGnomonicFOV() -> Double {
         if let fovOverride {
-            return StarMapLayout.clampedFOV(fovOverride)
+            // カメラ背景モードでは実際のカメラ画角に合わせる必要があるため、手動ズーム用の 30° 下限を適用しない。
+            return StarMapLayout.clampedCameraFOV(fovOverride)
         }
         return StarMapLayout.clampedFOV(viewModel.fov / max(0.1, gestureScale))
     }
@@ -510,7 +511,15 @@ struct StarMapCanvasView: View {
             (315, StarMapPresentation.azimuthName(for: 315))
         ]
 
-        return cardinals.compactMap { azimuthDegrees, label in
+        let minX = Double(StarMapLayout.cardinalLabelSidePadding)
+        let maxX = size.width - Double(StarMapLayout.cardinalLabelSidePadding)
+        var placements: [(index: Int, placement: CardinalOverlayPlacement)] = []
+        // 画面外のラベルは左右それぞれ画面に最も近いものだけを端へ寄せる（複数を同じ位置へ重ねない）。
+        var leftEdgeCandidate: (index: Int, azimuthDegrees: Double, label: String, x: Double)?
+        var rightEdgeCandidate: (index: Int, azimuthDegrees: Double, label: String, x: Double)?
+
+        for (index, cardinal) in cardinals.enumerated() {
+            let (azimuthDegrees, label) = cardinal
             guard let x = projectedCardinalLabelX(
                 azimuthDegrees: azimuthDegrees,
                 size: size,
@@ -519,15 +528,46 @@ struct StarMapCanvasView: View {
                 roll: roll,
                 fov: fov
             ) else {
-                return nil
+                continue
             }
 
-            return CardinalOverlayPlacement(
-                azimuthDegrees: azimuthDegrees,
-                label: label,
-                x: x
-            )
+            if x < minX {
+                if leftEdgeCandidate == nil || x > (leftEdgeCandidate?.x ?? -.infinity) {
+                    leftEdgeCandidate = (index, azimuthDegrees, label, x)
+                }
+            } else if x > maxX {
+                if rightEdgeCandidate == nil || x < (rightEdgeCandidate?.x ?? .infinity) {
+                    rightEdgeCandidate = (index, azimuthDegrees, label, x)
+                }
+            } else {
+                placements.append((
+                    index,
+                    CardinalOverlayPlacement(azimuthDegrees: azimuthDegrees, label: label, x: x)
+                ))
+            }
         }
+
+        for candidate in [leftEdgeCandidate, rightEdgeCandidate].compactMap({ $0 }) {
+            let clampedX = clampedCardinalLabelX(candidate.x, sizeWidth: size.width)
+            // 端へ寄せた結果、画面内のラベルと重なる場合は表示しない。
+            guard placements.allSatisfy({
+                abs($0.placement.x - clampedX) >= StarMapLayout.cardinalLabelMinimumSpacing
+            }) else {
+                continue
+            }
+            placements.append((
+                candidate.index,
+                CardinalOverlayPlacement(
+                    azimuthDegrees: candidate.azimuthDegrees,
+                    label: candidate.label,
+                    x: clampedX
+                )
+            ))
+        }
+
+        return placements
+            .sorted { $0.index < $1.index }
+            .map(\.placement)
     }
 
     /// 方位ラベルが画面端で切れないように X 座標を制限します。
@@ -564,7 +604,7 @@ struct StarMapCanvasView: View {
         ) else {
             return nil
         }
-        return clampedCardinalLabelX(point.x, sizeWidth: size.width)
+        return point.x
     }
 
     // MARK: - Nearest Star (クリック判定用 — 心射図法)
@@ -585,12 +625,29 @@ struct StarMapCanvasView: View {
             fov: fov
         )
 
+        // 地平線より下、または地形シルエットに隠れている星は描画上見えないため選択対象から外す。
+        let terrain = viewModel.terrainProfile
+        let selectableStars = viewModel.starPositions.filter {
+            Self.isSelectableForHitTest(altitude: $0.altitude, azimuth: $0.azimuth, terrain: terrain)
+        }
         let index = StarMapSpatialIndex(
-            stars: viewModel.starPositions,
+            stars: selectableStars,
             projection: { projection.project(altitudeRadians: $0, azimuthRadians: $1) },
-            canvasSize: size
+            canvasSize: size,
+            minAltitude: 0
         )
         return index.nearest(to: tapPoint, threshold: threshold)
+    }
+
+    /// クリック選択の対象になるかを返す。地平線（0°）または地形の遮蔽仰角以下の天体は対象外。
+    nonisolated static func isSelectableForHitTest(
+        altitude: Double,
+        azimuth: Double,
+        terrain: TerrainProfile?
+    ) -> Bool {
+        // 地形シルエットの描画と同じく、負の遮蔽仰角は地平線 (0°) として扱う。
+        let obstructionAltitude = max(0, terrain?.horizonAngle(forAzimuth: azimuth) ?? 0)
+        return altitude > obstructionAltitude
     }
 
     // MARK: - Drag Gesture (心射図法 カメラ空間ドラッグ)

@@ -457,13 +457,55 @@ final class StarMapViewModel: ObservableObject {
         )
     }
 
+    /// 観測日の暦日を判定する観測地のタイムゾーンです。日付ピッカー等の表示に使います。
+    var observationTimeZone: TimeZone {
+        selectedTimeZone
+    }
+
     /// 太陽が地平線下 (夜間) か
     var isNight: Bool { sunAltitude < 0 }
 
     /// 現在の観測日と時刻にリセット
+    /// 日付が変わった後でも前夜の日の出前であれば前日を観測日とし、表示日時を現在時刻そのものに合わせる。
     func resetToNow(referenceDate: Date = Date()) {
-        appController.selectObservationDate(referenceDate, timeZone: selectedTimeZone)
-        syncWithSelectedDate(referenceDate: referenceDate)
+        let context = observationContext
+        let currentObservationDate = Self.currentObservationDate(
+            for: referenceDate,
+            location: context.location,
+            timeZone: context.timeZone
+        )
+        appController.selectObservationDate(currentObservationDate, timeZone: context.timeZone)
+        syncDisplayDate(referenceDate: referenceDate)
+    }
+
+    /// 現在時刻が属する観測日（夜の始まる日）を返す。
+    /// 前日の日没〜当日の日の出の間（深夜〜明け方）なら前日、それ以外は当日の暦日を返す。
+    nonisolated static func currentObservationDate(
+        for now: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> Date {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let today = calendar.startOfDay(for: now)
+        guard let previousDay = calendar.date(byAdding: .day, value: -1, to: today),
+              let previousNight = MilkyWayCalculator.sunsetSunriseInterval(
+                  date: previousDay,
+                  location: location,
+                  timeZone: timeZone
+              ),
+              previousNight.start <= now,
+              now < previousNight.end else {
+            return today
+        }
+        // 当日の夜がすでに始まっている場合（極夜など）は当日を優先する。
+        if let tonight = MilkyWayCalculator.sunsetSunriseInterval(
+            date: today,
+            location: location,
+            timeZone: timeZone
+        ), tonight.start <= now {
+            return today
+        }
+        return previousDay
     }
 
     /// 表示中の夜時刻をできるだけ保ったまま観測日を切り替えます。
@@ -478,7 +520,7 @@ final class StarMapViewModel: ObservableObject {
             return
         }
         appController.selectObservationDate(normalizedDate, timeZone: timeZone)
-        syncWithSelectedDate(referenceDate: displayDate)
+        syncDisplayDate(referenceDate: displayDate)
     }
 
     /// 星空マップ表示に入る直前に、初期表示位置の再適用を要求する。
@@ -495,6 +537,16 @@ final class StarMapViewModel: ObservableObject {
         if !syncWithSelectedDate(referenceDate: referenceDate) {
             update()
         }
+    }
+
+    /// 星空マップが表示されるたびに呼ぶ。初回は初期化し、2 回目以降は
+    /// 非表示中の地点変更などを反映するため、表示時刻を保ったまま再同期・再計算する。
+    func refreshPresentationOnAppear(referenceDate: Date = Date()) {
+        guard hasPreparedInitialPresentation else {
+            activatePresentationIfNeeded(referenceDate: referenceDate)
+            return
+        }
+        resyncAfterSelectionChange()
     }
 
     /// 星空マップ描画領域の最新サイズを記録する。
@@ -519,8 +571,43 @@ final class StarMapViewModel: ObservableObject {
     }
 
     /// 選択日へ現在の時刻を反映し、表示日時を変更した場合は true を返す。
+    /// `referenceDate` は現在時刻として扱う。選択日が「今日」で、現在時刻が前夜の日の出前（深夜）の場合は
+    /// 前日を観測日に切り替え、表示日時が実際の現在時刻になるようにする。
     @discardableResult
     func syncWithSelectedDate(referenceDate: Date = Date()) -> Bool {
+        alignSelectedDateWithCurrentNightIfNeeded(now: referenceDate)
+        return syncDisplayDate(referenceDate: referenceDate)
+    }
+
+    /// 選択日が現在時刻の暦日（今日）を指していて、現在時刻が前夜に属する場合は前日の観測日へ切り替える。
+    private func alignSelectedDateWithCurrentNightIfNeeded(now: Date) {
+        let context = observationContext
+        let today = ObservationTimeZone.startOfDay(for: now, timeZone: context.timeZone)
+        guard ObservationTimeZone.isDate(
+            context.selectedDate,
+            inSameDayAs: today,
+            timeZone: context.timeZone
+        ) else {
+            return
+        }
+        let currentObservationDate = Self.currentObservationDate(
+            for: now,
+            location: context.location,
+            timeZone: context.timeZone
+        )
+        guard !ObservationTimeZone.isDate(
+            currentObservationDate,
+            inSameDayAs: today,
+            timeZone: context.timeZone
+        ) else {
+            return
+        }
+        appController.selectObservationDate(currentObservationDate, timeZone: context.timeZone)
+    }
+
+    /// 選択日へ参照時刻の時刻を反映し、表示日時を変更した場合は true を返す。
+    @discardableResult
+    private func syncDisplayDate(referenceDate: Date) -> Bool {
         let context = observationContext
         updateNightRange(referenceDate: referenceDate)
         guard let date = resolvedPresentationDate(
@@ -647,7 +734,7 @@ final class StarMapViewModel: ObservableObject {
         ) else {
             return
         }
-        syncWithSelectedDate(referenceDate: displayDate)
+        syncDisplayDate(referenceDate: displayDate)
     }
 
     private func discardPendingTimeSliderDate() {
@@ -656,7 +743,12 @@ final class StarMapViewModel: ObservableObject {
 
     private func resyncAfterSelectionChange() {
         discardPendingTimeSliderDate()
-        syncWithSelectedDate(referenceDate: displayDate)
+        // 同一タイムゾーン内の地点変更では表示日時が変わらず didSet 経由の再計算が走らないため、
+        // 表示日時が変わらなかった場合もスライダー同期・天体位置の再計算（地形取得を含む）を明示的に行う。
+        if !syncDisplayDate(referenceDate: displayDate) {
+            syncTimeSliderWithDisplayDate()
+            update()
+        }
     }
 
     private func setDisplayDate(_ date: Date, mode: DisplayDateUpdateMode) {

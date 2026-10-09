@@ -294,6 +294,18 @@ final class TonightPresentationTests: XCTestCase {
         XCTAssertEqual(timeline.darkHoursText, "\(L10n.number(8.0, fractionDigits: 1))h")
     }
 
+    /// 高緯度の夏など、天文薄明が深夜 0 時以降に始まる夜でも暗夜区間を描画できる。
+    func test_darkSegment_whenDarknessStartsAfterMidnight() throws {
+        // 暗夜: 翌 01:00〜04:00
+        let summary = makeTokyoNight(date: timelineDate, darkStartHour: 25, darkEndHour: 4, window: nil)
+        let timeline = makeTimeline(summary: summary)
+
+        let dark = try XCTUnwrap(timeline.darkSegment)
+        XCTAssertEqual(dark.startFraction, 7.0 / 12.0, accuracy: 0.0001)   // 翌 01:00
+        XCTAssertEqual(dark.endFraction, 10.0 / 12.0, accuracy: 0.0001)    // 翌 04:00
+        XCTAssertEqual(timeline.darkRangeText, "01:00 〜 04:00")
+    }
+
     // MARK: - BestNightPicker
 
     private let referenceDate = jst(2026, 8, 1, 12)

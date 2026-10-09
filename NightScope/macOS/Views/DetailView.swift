@@ -78,7 +78,7 @@ struct DetailView: View {
                         isWeatherLoading: viewModel.isWeatherLoading
                     )
                     UpcomingNightsGrid(viewModel: upcomingGridViewModel)
-                    MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
+                    MeteorShowerCalendarView(selectedDate: viewModel.selectedDate, timeZone: viewModel.selectedTimeZone)
                     PlanetVisibilityView(
                         selectedDate: viewModel.selectedDate,
                         location: summary.location,
@@ -431,6 +431,8 @@ private struct MacStarMapSheet: View {
             DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
                 .labelsHidden()
                 .datePickerStyle(.compact)
+                // 観測日は観測地のタイムゾーン基準の暦日なので、端末ではなく観測地のタイムゾーンで表示・選択する。
+                .environment(\.timeZone, viewModel.observationTimeZone)
                 .fixedSize()
 
             Spacer()

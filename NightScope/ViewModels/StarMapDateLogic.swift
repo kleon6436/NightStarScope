@@ -4,6 +4,9 @@ import CoreLocation
 /// 星空マップで使う夜間時刻の変換ロジックをまとめる。
 enum StarMapDateLogic {
     /// 夜間スライダー用の夜間範囲。
+    /// - Note: `startMinutes` は観測日 0:00 からの時計時刻（分）。夜の開始が深夜 0 時以降
+    ///   （高緯度の夏など）の場合は 1440 以上になる。`durationMinutes` も時計時刻の差で表し、
+    ///   夏時間の切り替え夜でもスライダー位置と時計時刻の対応がずれないようにする。
     struct NightRange {
         let startMinutes: Double
         let durationMinutes: Double
@@ -16,10 +19,26 @@ enum StarMapDateLogic {
         return Double((components.hour ?? 0) * 60 + (components.minute ?? 0))
     }
 
+    /// 観測日 0:00 からの時計時刻（分）を返す。翌日以降の時刻は 1440 以上になる。
+    /// 経過秒ではなく暦日差と時計表示から求めるため、夏時間の切り替え日でも時計時刻と一致する。
+    static func minutesSinceObservationDay(
+        for date: Date,
+        observationDate: Date,
+        timeZone: TimeZone
+    ) -> Double {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let dayOffset = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: observationDate),
+            to: calendar.startOfDay(for: date)
+        ).day ?? 0
+        return Double(dayOffset * 1_440) + clockMinutes(for: date, timeZone: timeZone)
+    }
+
     /// 夜間開始時刻からのオフセットを、実際の時刻へ戻す。
     static func nightOffsetToRealMinutes(_ offset: Double, nightStartMinutes: Double) -> Double {
-        let real = nightStartMinutes + offset
-        return real.truncatingRemainder(dividingBy: 1_440)
+        let real = (nightStartMinutes + offset).truncatingRemainder(dividingBy: 1_440)
+        return real < 0 ? real + 1_440 : real
     }
 
     /// 夜間スライダーで選べる最大オフセットを返す。
@@ -33,7 +52,7 @@ enum StarMapDateLogic {
         nightStartMinutes: Double,
         nightDurationMinutes: Double
     ) -> Double {
-        var offset = realMinutes - nightStartMinutes
+        var offset = (realMinutes - nightStartMinutes).truncatingRemainder(dividingBy: 1_440)
         if offset < 0 { offset += 1_440 }
         return max(0, min(maxSelectableNightOffset(nightDurationMinutes: nightDurationMinutes), offset))
     }
@@ -55,9 +74,17 @@ enum StarMapDateLogic {
             return NightRange(startMinutes: startMinutes, durationMinutes: 0)
         }
 
-        let startOfDay = ObservationTimeZone.startOfDay(for: date, timeZone: timeZone)
-        let startMinutes = interval.start.timeIntervalSince(startOfDay).truncatingRemainder(dividingBy: 1_440 * 60) / 60
-        let duration = min(1_440, max(0, interval.duration / 60))
+        let startMinutes = minutesSinceObservationDay(
+            for: interval.start,
+            observationDate: date,
+            timeZone: timeZone
+        )
+        let endMinutes = minutesSinceObservationDay(
+            for: interval.end,
+            observationDate: date,
+            timeZone: timeZone
+        )
+        let duration = min(1_440, max(0, endMinutes - startMinutes))
 
         return NightRange(
             startMinutes: startMinutes,
@@ -81,13 +108,14 @@ enum StarMapDateLogic {
     }
 
     /// 選択日と参照時刻から、表示に使う日時を解決する。
+    /// 参照時刻が夜間（日没〜日の出）に含まれればその時刻を、含まれなければ日没時刻を返す。
     static func resolvedPresentationDate(
         for selectedDate: Date,
         referenceDate: Date,
         location: CLLocationCoordinate2D,
         timeZone: TimeZone
     ) -> Date? {
-        guard let twilight = MilkyWayCalculator.findSunsetSunriseMinutes(
+        guard let interval = MilkyWayCalculator.sunsetSunriseInterval(
             date: selectedDate,
             location: location,
             timeZone: timeZone
@@ -95,29 +123,33 @@ enum StarMapDateLogic {
             return date(byApplyingTimeOf: referenceDate, to: selectedDate, timeZone: timeZone)
         }
 
+        let nightStartMinutes = minutesSinceObservationDay(
+            for: interval.start,
+            observationDate: selectedDate,
+            timeZone: timeZone
+        )
         let referenceMinutes = clockMinutes(for: referenceDate, timeZone: timeZone)
-        if isWithinNightRange(
-            referenceMinutes,
-            eveningMinutes: twilight.sunsetMinutes,
-            morningMinutes: twilight.sunriseMinutes
-        ) {
-            return date(
-                bySettingClockMinutes: referenceMinutes,
-                onObservationDate: selectedDate,
-                timeZone: timeZone,
-                nightStartMinutes: twilight.sunsetMinutes
-            )
+        // 夜の開始 Date を基準に参照時刻を当てはめ、実際の夜間区間に含まれるかで判定する。
+        // 極夜（24 時間区間）ではどの時刻も夜間に含まれる。
+        if let candidate = date(
+            bySettingClockMinutes: referenceMinutes,
+            onObservationDate: selectedDate,
+            timeZone: timeZone,
+            nightStartMinutes: nightStartMinutes
+        ), candidate >= interval.start, candidate < interval.end {
+            return candidate
         }
 
         return date(
-            bySettingClockMinutes: twilight.sunsetMinutes,
+            bySettingClockMinutes: nightStartMinutes,
             onObservationDate: selectedDate,
             timeZone: timeZone,
-            nightStartMinutes: twilight.sunsetMinutes
+            nightStartMinutes: nightStartMinutes
         )
     }
 
     /// 夜間スライダーの観測日をまたぐ時刻補正を加味して Date を返す。
+    /// `nightStartMinutes`（観測日 0:00 からの分, 1440 以上可）以降で最初にその時計時刻となる日時を返す。
     static func date(
         bySettingClockMinutes minutes: Double,
         onObservationDate observationDate: Date,
@@ -126,7 +158,13 @@ enum StarMapDateLogic {
     ) -> Date? {
         let normalizedMinutes = ((Int(minutes.rounded()) % 1_440) + 1_440) % 1_440
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let dayOffset = Double(normalizedMinutes) < nightStartMinutes ? 1 : 0
+        // 夜の開始が深夜 0 時以降（startMinutes >= 1440）の場合も正しい日付になるよう、
+        // 夜の開始以降となる最小の日オフセットを選ぶ（0.5 分は丸め誤差の許容）。
+        var dayOffset = 0
+        while dayOffset < 2,
+              Double(dayOffset * 1_440 + normalizedMinutes) + 0.5 < nightStartMinutes {
+            dayOffset += 1
+        }
         let baseDate = calendar.date(byAdding: .day, value: dayOffset, to: observationDate) ?? observationDate
         return calendar.date(
             bySettingHour: normalizedMinutes / 60,
@@ -134,18 +172,6 @@ enum StarMapDateLogic {
             second: 0,
             of: baseDate
         )
-    }
-
-    private static func isWithinNightRange(
-        _ clockMinutes: Double,
-        eveningMinutes: Double,
-        morningMinutes: Double
-    ) -> Bool {
-        if eveningMinutes <= morningMinutes {
-            return clockMinutes >= eveningMinutes && clockMinutes < morningMinutes
-        }
-
-        return clockMinutes >= eveningMinutes || clockMinutes < morningMinutes
     }
 
     private static func date(byApplyingTimeOf referenceDate: Date, to date: Date, timeZone: TimeZone) -> Date? {

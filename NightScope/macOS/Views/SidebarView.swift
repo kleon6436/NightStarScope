@@ -233,13 +233,23 @@ struct SidebarView: View {
 
     /// ハイライト中の候補（なければ先頭）を確定する
     private func confirmHighlightedOrFirst() {
+        // 検索中は候補リストを隠しており、searchResults は前回クエリの結果のまま。
+        // 表示中の候補（結果フェーズ）からだけ確定する。
         let target = SidebarSearchInteraction.highlightedTarget(
-            in: viewModel.searchResults,
+            in: visibleSearchResults,
             highlightedIndex: highlightedIndex
         )
         if let item = target {
             confirmSelection(item)
         }
+    }
+
+    /// 画面に表示している検索候補。検索中・結果なし・エラー時は空。
+    private var visibleSearchResults: [MKMapItem] {
+        if case .results(let results) = viewModel.searchPresentation {
+            return results
+        }
+        return []
     }
 
     /// 候補を選択して検索状態をリセットする
@@ -252,7 +262,7 @@ struct SidebarView: View {
     private func handleSearchDownArrow() -> KeyPress.Result {
         highlightedIndex = SidebarSearchInteraction.nextHighlightedIndex(
             current: highlightedIndex,
-            totalResults: viewModel.searchResults.count
+            totalResults: visibleSearchResults.count
         )
         return .handled
     }

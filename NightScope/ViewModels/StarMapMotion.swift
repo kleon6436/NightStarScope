@@ -46,8 +46,17 @@ struct StarMapMotionPose: Equatable {
         rotationMatrix: StarMapMotionMatrix,
         screenOrientation: StarMapScreenOrientation = .portrait
     ) -> Self {
-        let lookingVector = rotationMatrix.referenceVector(forDeviceVectorX: 0, y: 0, z: -1)
-        let screenUpVector = rotationMatrix.referenceVector(forDeviceVector: screenOrientation.screenUpDeviceVector)
+        StarMapMotionVectors.make(
+            rotationMatrix: rotationMatrix,
+            screenOrientation: screenOrientation
+        ).pose
+    }
+
+    /// 視線方向と画面上方向（east-north-up）から方位・仰角・ロールを求める。
+    static func make(
+        forward lookingVector: (east: Double, north: Double, up: Double),
+        screenUp screenUpVector: (east: Double, north: Double, up: Double)
+    ) -> Self {
         let azimuth = normalizedAzimuth(atan2(lookingVector.east, lookingVector.north) * 180 / .pi)
         let altitude = atan2(
             lookingVector.up,
@@ -70,6 +79,8 @@ struct StarMapMotionPose: Equatable {
         return Self(azimuth: azimuth, altitude: altitude, roll: roll)
     }
 
+    /// 方位・仰角・ロールを個別に平滑化する（天頂付近では方位とロールが同時に 180° 反転するため、
+    /// ジャイロ姿勢の平滑化には `StarMapMotionVectors.smoothed` を使うこと）。
     static func smoothed(previous: Self?, next: Self) -> Self {
         guard let previous else { return next }
 
@@ -131,7 +142,7 @@ struct StarMapMotionPose: Equatable {
         normalizedRoll(target - source)
     }
 
-    private static func normalizedVector(
+    fileprivate static func normalizedVector(
         _ vector: (east: Double, north: Double, up: Double)
     ) -> (east: Double, north: Double, up: Double) {
         let length = sqrt(vector.east * vector.east + vector.north * vector.north + vector.up * vector.up)
@@ -145,7 +156,7 @@ struct StarMapMotionPose: Equatable {
         )
     }
 
-    private static func projectedOntoPlane(
+    fileprivate static func projectedOntoPlane(
         _ vector: (east: Double, north: Double, up: Double),
         normal: (east: Double, north: Double, up: Double)
     ) -> (east: Double, north: Double, up: Double) {
@@ -157,7 +168,7 @@ struct StarMapMotionPose: Equatable {
         )
     }
 
-    private static func cross(
+    fileprivate static func cross(
         _ lhs: (east: Double, north: Double, up: Double),
         _ rhs: (east: Double, north: Double, up: Double)
     ) -> (east: Double, north: Double, up: Double) {
@@ -168,10 +179,86 @@ struct StarMapMotionPose: Equatable {
         )
     }
 
-    private static func dot(
+    fileprivate static func dot(
         _ lhs: (east: Double, north: Double, up: Double),
         _ rhs: (east: Double, north: Double, up: Double)
     ) -> Double {
         lhs.east * rhs.east + lhs.north * rhs.north + lhs.up * rhs.up
+    }
+}
+
+/// ジャイロ姿勢を視線方向・画面上方向の単位ベクトル（east-north-up）で表す。
+/// 天頂付近では方位角とロールが 180° 反転して不連続になるため、平滑化はこのベクトル表現で行い、
+/// 平滑化後のベクトルから方位・仰角・ロールを一貫して求める（ジンバルロック対策）。
+struct StarMapMotionVectors {
+    typealias Vector = (east: Double, north: Double, up: Double)
+
+    let forward: Vector
+    let screenUp: Vector
+
+    init(forward: Vector, screenUp: Vector) {
+        let normalizedForward = StarMapMotionPose.normalizedVector(forward)
+        self.forward = normalizedForward
+        self.screenUp = Self.orthonormalizedUp(screenUp, forward: normalizedForward)
+    }
+
+    static func make(
+        rotationMatrix: StarMapMotionMatrix,
+        screenOrientation: StarMapScreenOrientation = .portrait
+    ) -> Self {
+        Self(
+            forward: rotationMatrix.referenceVector(forDeviceVectorX: 0, y: 0, z: -1),
+            screenUp: rotationMatrix.referenceVector(forDeviceVector: screenOrientation.screenUpDeviceVector)
+        )
+    }
+
+    /// 平滑化済みベクトルから求めた方位・仰角・ロール。
+    var pose: StarMapMotionPose {
+        StarMapMotionPose.make(forward: forward, screenUp: screenUp)
+    }
+
+    /// 前回値へ向けてベクトルを補間する。動きが大きいときは追従を速める。
+    static func smoothed(previous: Self?, next: Self) -> Self {
+        guard let previous else { return next }
+
+        let forwardAngle = angleDegrees(previous.forward, next.forward)
+        let upAngle = angleDegrees(previous.screenUp, next.screenUp)
+        let forwardFactor = forwardAngle >= 12 ? 0.34 : 0.18
+        let upFactor = upAngle >= 15 ? 0.36 : 0.20
+
+        guard let forward = interpolated(previous.forward, next.forward, factor: forwardFactor),
+              let screenUp = interpolated(previous.screenUp, next.screenUp, factor: upFactor) else {
+            // ほぼ反対向きで補間が退化する場合は最新値へ切り替える。
+            return next
+        }
+        let smoothed = Self(forward: forward, screenUp: screenUp)
+        guard vectorLength(smoothed.screenUp) > 0.5 else { return next }
+        return smoothed
+    }
+
+    private static func interpolated(_ from: Vector, _ to: Vector, factor: Double) -> Vector? {
+        let mixed = (
+            east: from.east + (to.east - from.east) * factor,
+            north: from.north + (to.north - from.north) * factor,
+            up: from.up + (to.up - from.up) * factor
+        )
+        guard vectorLength(mixed) > 1e-6 else { return nil }
+        return StarMapMotionPose.normalizedVector(mixed)
+    }
+
+    /// 画面上方向を視線方向に直交する単位ベクトルへ補正する。
+    private static func orthonormalizedUp(_ up: Vector, forward: Vector) -> Vector {
+        let projected = StarMapMotionPose.projectedOntoPlane(up, normal: forward)
+        guard vectorLength(projected) > 1e-6 else { return (east: 0, north: 0, up: 0) }
+        return StarMapMotionPose.normalizedVector(projected)
+    }
+
+    private static func angleDegrees(_ lhs: Vector, _ rhs: Vector) -> Double {
+        let cosine = max(-1, min(1, StarMapMotionPose.dot(lhs, rhs)))
+        return acos(cosine) * 180 / .pi
+    }
+
+    private static func vectorLength(_ vector: Vector) -> Double {
+        sqrt(vector.east * vector.east + vector.north * vector.north + vector.up * vector.up)
     }
 }

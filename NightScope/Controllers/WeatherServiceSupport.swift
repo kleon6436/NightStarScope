@@ -15,6 +15,9 @@ struct WeatherFetchResult {
     var currentTemperatureCelsius: Double? = nil
     /// 現在気温の観測時刻（`CurrentWeather.date`）。
     var currentObservedAt: Date? = nil
+    /// キャッシュから返した結果のとき、その予報を実際に取得した時刻。新規取得なら nil。
+    /// キャッシュ由来の結果で鮮度（TTL）を延長しないために使う。
+    var cachedAt: Date? = nil
 }
 
 /// 天気データ取得の失敗理由を利用者向け文言へ変換する。

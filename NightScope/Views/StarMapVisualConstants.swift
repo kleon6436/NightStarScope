@@ -19,6 +19,11 @@ enum StarMapLayout {
     static let cardinalLabelSidePadding: CGFloat = 12
     static let cardinalLabelHorizontalPadding: CGFloat = 8
     static let cardinalLabelVerticalPadding: CGFloat = 4
+    /// 画面外の方位ラベルを端へ寄せる際に、他ラベルと重ならないよう確保する最小間隔。
+    static let cardinalLabelMinimumSpacing: Double = 40
+    /// カメラ背景に合わせる視野角の下限・上限（手動ズーム用の 30° 下限とは別）。
+    static let minCameraFOV: Double = 1
+    static let maxCameraFOV: Double = 170
     /// macOS 星空マップ下部バーの操作行の高さ。
     static let macControlRowHeight: CGFloat = 28
     /// macOS 星空マップ下部バーのステータスチップ間隔。
@@ -28,6 +33,11 @@ enum StarMapLayout {
 
     static func clampedFOV(_ value: Double) -> Double {
         max(minFOV, min(maxFOV, value))
+    }
+
+    /// カメラ実画角を投影に使うための視野角。望遠カメラ等の狭い画角もそのまま扱う。
+    static func clampedCameraFOV(_ value: Double) -> Double {
+        max(minCameraFOV, min(maxCameraFOV, value))
     }
 }
 

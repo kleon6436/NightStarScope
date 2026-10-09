@@ -13,10 +13,6 @@ struct DashboardLocationCard: View {
     @ScaledMetric(relativeTo: .body) private var adaptiveMinimumCellWidth: CGFloat = 42
     @State private var showDeleteAlert = false
 
-    private var timeZone: TimeZone {
-        TimeZone(identifier: location.timeZoneIdentifier) ?? .current
-    }
-
     private var firstNightSummary: NightSummary? {
         guard let firstDate = dates.first else { return nil }
         return viewModel.cell(for: location.id, date: firstDate)?.nightSummary
@@ -103,7 +99,7 @@ struct DashboardLocationCard: View {
                     location: location,
                     date: date,
                     viewModel: viewModel,
-                    timeZone: timeZone,
+                    columnTimeZone: viewModel.matrix.columnTimeZone,
                     onSelect: onSelect
                 )
             }
@@ -136,6 +132,7 @@ private struct DashboardMapThumbnail: View {
     let longitude: Double
     let mapSnapshotCache: MapSnapshotCache
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var snapshot: NSImage?
     @State private var didFail = false
     @State private var isLoading = false
@@ -173,20 +170,29 @@ private struct DashboardMapThumbnail: View {
         .accessibilityLabel(L10n.tr("地図サムネイル"))
     }
 
+    private var appearanceName: NSAppearance.Name {
+        colorScheme == .dark ? .darkAqua : .aqua
+    }
+
     private var taskID: String {
-        "\(latitude.bitPattern)-\(longitude.bitPattern)-\(Int(thumbSize))x\(Int(thumbSize))-\(spanDegrees.bitPattern)"
+        "\(latitude.bitPattern)-\(longitude.bitPattern)-\(Int(thumbSize))x\(Int(thumbSize))-\(spanDegrees.bitPattern)-\(appearanceName.rawValue)"
     }
 
     @MainActor
     private func loadSnapshot() async {
+        let requestedTaskID = taskID
         isLoading = true
         didFail = false
         let image = await mapSnapshotCache.snapshot(
             latitude: latitude,
             longitude: longitude,
             sizePoints: CGSize(width: thumbSize, height: thumbSize),
-            spanDegrees: spanDegrees
+            spanDegrees: spanDegrees,
+            appearanceName: appearanceName
         )
+        // 生成は共有の非構造化タスクで走るため、SwiftUI がこの task を取り消しても待機は戻ってくる。
+        // 取り消された、または条件（座標・外観など）が変わった後の古い画像で上書きしない。
+        guard !Task.isCancelled, requestedTaskID == taskID else { return }
         snapshot = image
         didFail = image == nil
         isLoading = false
@@ -198,11 +204,14 @@ private struct DashboardDayColumn: View {
     let location: FavoriteLocation
     let date: Date
     @ObservedObject var viewModel: DashboardViewModel
-    let timeZone: TimeZone
+    /// 列の日付（暦日）を作ったタイムゾーン。曜日はこのタイムゾーンの年月日で表す。
+    let columnTimeZone: TimeZone
     let onSelect: (UUID, Date) -> Void
 
     private var weekdayText: String {
-        DashboardDateFormatter.weekdayString(for: date, timeZone: timeZone)
+        // 列は暦日を表すため、地点のタイムゾーンではなく列のタイムゾーンで曜日を出す。
+        // 各セルの夜は、地点のタイムゾーンで同じ年月日の夜が入っている。
+        DashboardDateFormatter.weekdayString(for: date, timeZone: columnTimeZone)
     }
 
     private var cell: ComparisonCell? {
@@ -381,12 +390,17 @@ private enum DashboardDateFormatter {
 
 private enum DashboardWeatherSymbol {
     static func symbol(for weatherCode: Int) -> String {
+        // DayWeatherSummary.weatherIconName / weatherLabel と同じ WMO コードの区分に揃える
         switch weatherCode {
         case ..<4: return "sun.max"
         case ..<49: return "cloud"
         case ..<68: return "cloud.rain"
+        case 68: return "cloud.sleet"
         case ..<78: return "cloud.snow"
-        default: return "cloud.bolt"
+        case 80...82: return "cloud.rain"
+        case 85, 86: return "cloud.snow"
+        case 95...99: return "cloud.bolt"
+        default: return "cloud"
         }
     }
 }

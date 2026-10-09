@@ -51,6 +51,10 @@ private struct PlanetVisibilityContent: View {
                     timeZone: capturedTimeZone
                 )
             }.value
+            // .task(id:) の取り消しは detached タスクへ伝わらないため、
+            // 入力が変わった後に古い結果で上書きしないよう確認する。
+            // 取り消された場合は次の実行が isLoading を管理する。
+            guard !Task.isCancelled else { return }
             summaries = result
             isLoading = false
         }
@@ -112,9 +116,9 @@ private struct PlanetVisibilityContent: View {
 
     // MARK: - Helpers
 
-    /// 再計算を起動するキー。日付・緯度・経度が変わったら変化する。
+    /// 再計算を起動するキー。日付・緯度・経度・タイムゾーンが変わったら変化する。
     private var taskID: String {
-        "\(selectedDate.timeIntervalSinceReferenceDate)-\(location.latitude)-\(location.longitude)"
+        "\(selectedDate.timeIntervalSinceReferenceDate)-\(location.latitude)-\(location.longitude)-\(timeZone.identifier)"
     }
 
     private var nightDateLabel: String {

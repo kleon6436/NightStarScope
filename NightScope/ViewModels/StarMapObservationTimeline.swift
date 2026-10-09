@@ -41,10 +41,10 @@ struct StarMapObservationTimeline {
             let jd  = MilkyWayCalculator.julianDate(from: date)
             let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: location.longitude)
             let sun  = MilkyWayCalculator.sunRaDec(jd: jd)
-            let moon = MilkyWayCalculator.moonRaDec(jd: jd)
             let observer = MilkyWayCalculator.HorizontalObserver(cosLat: cosLat, sinLat: sinLat, lst: lst)
             let (sunAlt, _)  = observer.altAz(ra: sun.ra, dec: sun.dec)
-            let (moonAlt, _) = observer.altAz(ra: moon.ra, dec: moon.dec)
+            let moon = MilkyWayCalculator.moonHorizontal(jd: jd, observer: observer)
+            let moonAlt = moon.alt
             return StarMapObservationConditionSample(
                 moonAltitude: moonAlt,
                 moonPhase: moon.phase,

@@ -357,4 +357,95 @@ final class AstroModelsTests: XCTestCase {
             .telescope
         )
     }
+
+    // MARK: - 深夜 0 時以降に始まる暗夜
+
+    /// 天文薄明が深夜 0 時以降に始まる夜（例: 6 月の A Coruña）でも暗夜の開始・終了を返す。
+    func test_darkRange_whenDarknessStartsAfterMidnight() {
+        let timeZoneIdentifier = "Europe/Madrid"
+        let start = makeDate(2026, 6, 21, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        let darkStart = makeDate(2026, 6, 22, 0, 45, timeZoneIdentifier: timeZoneIdentifier)
+        let darkEnd = makeDate(2026, 6, 22, 4, 45, timeZoneIdentifier: timeZoneIdentifier)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let isDark = date >= darkStart && date < darkEnd
+            return makeEvent(date: date, sunAltitude: isDark ? -19 : -10)
+        }
+        let summary = makeSummary(events: events, timeZoneIdentifier: timeZoneIdentifier)
+
+        XCTAssertEqual(summary.eveningDarkStart, darkStart)
+        XCTAssertEqual(summary.morningDarkEnd, darkEnd)
+        XCTAssertEqual(summary.darkRangeText, "00:45 〜 04:45")
+    }
+
+    // MARK: - 白夜の天気カバレッジ
+
+    /// 暗時間がない夜（白夜）でも、市民薄明後の時間帯の予報が揃っていれば天気データを利用可能とみなす。
+    func test_hasUsableWeatherData_whiteNightUsesCivilNightHours() {
+        let timeZoneIdentifier = "Europe/London"
+        let start = makeDate(2026, 6, 21, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        let civilStart = makeDate(2026, 6, 21, 22, 15, timeZoneIdentifier: timeZoneIdentifier)
+        let civilEnd = makeDate(2026, 6, 22, 3, 45, timeZoneIdentifier: timeZoneIdentifier)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let isCivilNight = date >= civilStart && date < civilEnd
+            return makeEvent(date: date, sunAltitude: isCivilNight ? -10 : 5)
+        }
+        let summary = makeSummary(events: events, timeZoneIdentifier: timeZoneIdentifier)
+        XCTAssertEqual(summary.totalDarkHours, 0)
+
+        // 23:00〜03:00 の正時（太陽高度 < -6° の正時サンプル）
+        let fullHours = [23, 0, 1, 2, 3].map { hour in
+            makeWeatherHour(date: makeDate(2026, 6, hour == 23 ? 21 : 22, hour, 0, timeZoneIdentifier: timeZoneIdentifier))
+        }
+        let referenceDate = makeDate(2026, 6, 10, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: fullHours, referenceDate: referenceDate))
+        // 暗時間がないため観測可能時間帯の文字列は天文学的表示に任せる
+        XCTAssertNil(summary.weatherAwareRangeText(nighttimeHours: fullHours, referenceDate: referenceDate))
+
+        let partialHours = Array(fullHours.prefix(2))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: referenceDate))
+    }
+
+    // MARK: - 惑星の可視判定
+
+    /// 空が暗い時間帯のサンプルがない場合（白夜など）は高度に関わらず観測不可。
+    func test_planetNightSummary_isNotVisibleWithoutDarkSky() {
+        let summary = PlanetNightSummary(
+            name: "金星",
+            riseTime: nil,
+            transitTime: nil,
+            setTime: nil,
+            peakAltitude: 40,
+            magnitude: -4.0,
+            hasDarkSkySamples: false
+        )
+        XCTAssertFalse(summary.isVisibleTonight)
+        XCTAssertEqual(summary.observationDifficulty, .telescope)
+    }
+
+    // MARK: - 流星群の極大までの日数
+
+    /// うるう年の 2/29 をまたぐ場合も実際の暦日差で数える。
+    func test_meteorShowerNext_countsLeapDay() throws {
+        let timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let leapYearDate = makeDate(2028, 2, 20, 21, 0)
+        let leap = try XCTUnwrap(MeteorShowerCatalog.next(after: leapYearDate, timeZone: timeZone))
+        XCTAssertEqual(leap.shower.id, "lyrids")
+        XCTAssertEqual(leap.daysUntilPeak, 62)
+
+        let commonYearDate = makeDate(2027, 2, 20, 21, 0)
+        let common = try XCTUnwrap(MeteorShowerCatalog.next(after: commonYearDate, timeZone: timeZone))
+        XCTAssertEqual(common.shower.id, "lyrids")
+        XCTAssertEqual(common.daysUntilPeak, 61)
+    }
+
+    /// 年末からは翌年の極大日までの日数を返す。
+    func test_meteorShowerNext_wrapsToNextYear() throws {
+        let timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let date = makeDate(2027, 12, 25, 21, 0)
+        let next = try XCTUnwrap(MeteorShowerCatalog.next(after: date, timeZone: timeZone))
+        XCTAssertEqual(next.shower.id, "quadrantids")
+        XCTAssertEqual(next.daysUntilPeak, 10)
+    }
 }

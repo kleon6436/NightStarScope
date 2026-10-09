@@ -41,7 +41,7 @@ extension MilkyWayCalculator {
             ω0: 14.72847983, ωRate: 0.21252668,
             L0: 34.39644051, LRate: 3034.74612775, H: -9.40),
         PlanetOrbit(name: "土星",
-            a: 9.53667594, e0: 0.05386179, eRate: -0.00013117,
+            a: 9.53667594, e0: 0.05386179, eRate: -0.00050991,
             i0: 2.48599187, iRate:  0.00193609,
             Ω0: 113.66242448, ΩRate: -0.28867794,
             ω0: 92.59887831, ωRate: -0.41897216,
@@ -84,6 +84,7 @@ extension MilkyWayCalculator {
     static func planetPositions(jd: Double, latitude: Double, lst: Double) -> [PlanetPosition] {
         let T     = (jd - AngleMath.j2000JulianDate) / 36525.0
         let earth = earthHelioXY(T: T)
+        let earthSunDist = sqrt(earth.x * earth.x + earth.y * earth.y)
         let ε     = AngleMath.toRadians(23.439291 - 0.013004 * T)
 
         return planetOrbits.compactMap { orbit in
@@ -117,17 +118,73 @@ extension MilkyWayCalculator {
 
             let (alt, az) = altAz(ra: ra, dec: dec, latitude: latitude, lst: lst)
 
-            // 簡易等級 (位相角補正なし。内惑星は過大評価になるが実視に支障はない)
-            let mag = min(orbit.H + 5.0 * log10(max(1e-6, r * Δ)), 5.0)
+            // 位相角 α (度): 太陽–惑星–地球のなす角
+            let cosPhase = (r * r + Δ * Δ - earthSunDist * earthSunDist) / (2.0 * r * Δ)
+            let phaseAngle = AngleMath.toDegrees(acos(max(-1.0, min(1.0, cosPhase))))
+            let mag = min(
+                apparentMagnitude(
+                    orbit: orbit,
+                    distanceTerm: 5.0 * log10(max(1e-6, r * Δ)),
+                    phaseAngle: phaseAngle,
+                    geocentricLongitude: λGeo,
+                    geocentricLatitude: βGeo,
+                    T: T
+                ),
+                5.0
+            )
             return PlanetPosition(name: orbit.name, altitude: alt, azimuth: az,
                                   magnitude: mag, geocentricDistAU: Δ)
         }
     }
 
+    /// 位相角を考慮した見かけの等級。
+    /// 根拠: Mallama & Hilton (2018) / Astronomical Almanac の等級式。
+    ///       土星は環の傾き B を含む Meeus (41.x) の式を用いる。
+    private static func apparentMagnitude(
+        orbit: PlanetOrbit,
+        distanceTerm: Double,
+        phaseAngle α: Double,
+        geocentricLongitude λ: Double,
+        geocentricLatitude β: Double,
+        T: Double
+    ) -> Double {
+        switch orbit.name {
+        case "水星":
+            let a = min(α, 170.0)
+            let phaseTerm = a * (6.3280e-02 + a * (-1.6336e-03 + a * (3.3644e-05
+                + a * (-3.4265e-07 + a * (1.6893e-09 + a * -3.0334e-12)))))
+            return distanceTerm - 0.613 + phaseTerm
+        case "金星":
+            if α < 163.7 {
+                let phaseTerm = α * (-1.044e-03 + α * (3.687e-04 + α * (-2.814e-06 + α * 8.938e-09)))
+                return distanceTerm - 4.384 + phaseTerm
+            }
+            return distanceTerm + 236.05828 + α * (-2.81914 + α * 8.39034e-03)
+        case "火星":
+            return distanceTerm - 1.601 + α * (2.267e-02 + α * -1.302e-04)
+        case "木星":
+            return distanceTerm - 9.395 + α * (-3.7e-04 + α * 6.16e-04)
+        case "土星":
+            // 環の地心傾斜角 B (Meeus 45 章: 環面の傾斜 i と昇交点 Ω)
+            let ringInclination = AngleMath.toRadians(28.075216 - 0.012998 * T)
+            let ringNode = AngleMath.toRadians(169.508470 + 1.394681 * T)
+            let sinB = abs(
+                sin(ringInclination) * cos(β) * sin(λ - ringNode) - cos(ringInclination) * sin(β)
+            )
+            return distanceTerm - 8.68 + 0.044 * α - 2.60 * sinB + 1.25 * sinB * sinB
+        default:
+            return orbit.H + distanceTerm
+        }
+    }
+
     // MARK: - Planet Night Summaries
+
+    /// 惑星観測に必要な空の暗さ（太陽高度の上限, 度）。市民薄明の終了に相当する。
+    static let planetObservationSunAltitudeLimit: Double = -6.0
 
     /// 指定地点・日付における 5 惑星の 1 夜分可視情報を返す。
     /// サンプリング範囲: 当日 18:00 〜 翌日 06:00（現地時刻）、15 分間隔 (49 サンプル)
+    /// 最大高度・等級は太陽高度が `planetObservationSunAltitudeLimit` 未満のサンプルのみで評価する。
     static func planetNightSummaries(
         date: Date,
         location: CLLocationCoordinate2D,
@@ -146,18 +203,27 @@ extension MilkyWayCalculator {
 
         typealias Sample = (time: Date, alt: Double, az: Double, mag: Double)
         var timeSeries: [String: [Sample]] = [:]
+        var darkSkyTimes: Set<Date> = []
 
         for i in 0..<sampleCount {
             let t   = nightStart.addingTimeInterval(Double(i) * intervalSec)
             let jd  = julianDate(from: t)
             let lst = localSiderealTime(jd: jd, longitude: location.longitude)
+            let sun = sunRaDec(jd: jd)
+            let sunAltitude = altitude(ra: sun.ra, dec: sun.dec, latitude: location.latitude, lst: lst)
+            if sunAltitude < planetObservationSunAltitudeLimit {
+                darkSkyTimes.insert(t)
+            }
             for pos in planetPositions(jd: jd, latitude: location.latitude, lst: lst) {
                 timeSeries[pos.name, default: []].append((t, pos.altitude, pos.azimuth, pos.magnitude))
             }
         }
 
         return timeSeries.map { name, samples in
-            let peakSample  = samples.max(by: { $0.alt < $1.alt })
+            // 昼間・明るい薄明中の高度は観測できないため、暗い時間帯のサンプルを優先して評価する
+            let darkSamples = samples.filter { darkSkyTimes.contains($0.time) }
+            let hasDarkSky  = !darkSamples.isEmpty
+            let peakSample  = (hasDarkSky ? darkSamples : samples).max(by: { $0.alt < $1.alt })
             let rising      = firstHorizonRising(in: samples)
             let setting     = lastHorizonSetting(in: samples, after: peakSample?.time ?? nightStart)
             let altSamples  = samples.map { AltitudeSample(time: $0.time, altitude: $0.alt) }
@@ -171,7 +237,8 @@ extension MilkyWayCalculator {
                 riseAzimuth:     rising?.azimuth,
                 transitAzimuth:  peakSample?.az,
                 setAzimuth:      setting?.azimuth,
-                altitudeSamples: altSamples
+                altitudeSamples: altSamples,
+                hasDarkSkySamples: hasDarkSky
             )
         }
         .sorted {
