@@ -352,6 +352,43 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         return Self.nightlySummaries(from: hours, coordinate: coordinate, timeZone: timeZone)
     }
 
+    /// 天気予報を束ねる 1 夜分の区間。
+    /// 市民薄明終了後（太陽高度 < -6°）の区間を基本とし、その区間に正時が 1 つも含まれない夜
+    /// （高緯度の夏など、太陽が -6° まで沈まない／沈む時間が 1 時間に満たない白夜）は、
+    /// 太陽が地平線下（< 0°）の区間で代用する。月・惑星モードでは薄明の空でも観測対象になるため、
+    /// 天気が全く得られない夜を作らない。
+    /// 根拠: NightSummary の天気網羅判定（weatherCoverageHourStarts）と同じ基準・同じ順序で判定する。
+    static func weatherNightInterval(
+        date: Date,
+        coordinate: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> DateInterval? {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let civil = MilkyWayCalculator.civilDarknessInterval(
+            date: date,
+            location: coordinate,
+            timeZone: timeZone
+        )
+        if let civil, containsHourStart(civil, calendar: calendar) {
+            return civil
+        }
+        if let horizon = MilkyWayCalculator.sunBelowHorizonInterval(
+            date: date,
+            location: coordinate,
+            timeZone: timeZone
+        ), containsHourStart(horizon, calendar: calendar) {
+            return horizon
+        }
+        return civil
+    }
+
+    /// 区間 [start, end) に正時（時計の hh:00）が含まれるか。予報は正時ごとのため、含まれなければ天気は得られない。
+    private static func containsHourStart(_ interval: DateInterval, calendar: Calendar) -> Bool {
+        guard let hour = calendar.dateInterval(of: .hour, for: interval.start) else { return false }
+        let firstHourStart = hour.start == interval.start ? hour.start : hour.end
+        return firstHourStart < interval.end
+    }
+
     /// 共通形式の時間別予報を夜間区間ごとに束ねる（テストから直接呼べるよう分離）。
     static func nightlySummaries(
         from hours: [HourlyWeather],
@@ -376,13 +413,13 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
             to: calendar.startOfDay(for: latest.date)
         ) ?? calendar.startOfDay(for: latest.date)
 
-        // 各日の夜間インターバルを列挙（MilkyWayCalculator.civilDarknessInterval と統一）
+        // 各日の夜間インターバルを列挙（市民薄明終了後。白夜は太陽が地平線下の区間で代用。NightSummary と統一）
         var intervals: [(key: String, day: Date, interval: DateInterval)] = []
         var currentDay = startDay
         while currentDay <= endDay {
-            if let interval = MilkyWayCalculator.civilDarknessInterval(
+            if let interval = weatherNightInterval(
                 date: currentDay,
-                location: coordinate,
+                coordinate: coordinate,
                 timeZone: timeZone
             ) {
                 intervals.append((formatter.string(from: currentDay), currentDay, interval))

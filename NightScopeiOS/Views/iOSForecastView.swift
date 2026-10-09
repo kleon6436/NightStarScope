@@ -94,7 +94,11 @@ struct iOSForecastView: View {
                 VStack(alignment: .leading, spacing: Spacing.md) {
                     headerSection
                     contentByState
-                    MeteorShowerCalendarView(selectedDate: detailViewModel.selectedDate, timeZone: detailViewModel.selectedTimeZone)
+                    MeteorShowerCalendarView(
+                        selectedDate: detailViewModel.selectedDate,
+                        timeZone: detailViewModel.selectedTimeZone,
+                        today: detailViewModel.currentObservationDate()
+                    )
                     if let location = detailViewModel.nightSummary?.location {
                         PlanetVisibilityView(
                             selectedDate: detailViewModel.selectedDate,

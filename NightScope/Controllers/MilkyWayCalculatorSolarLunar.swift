@@ -101,7 +101,23 @@ extension MilkyWayCalculator {
         location: CLLocationCoordinate2D,
         timeZone: TimeZone
     ) -> DateInterval? {
-        darknessInterval(date: date, location: location, timeZone: timeZone, threshold: -6.0)
+        darknessInterval(date: date, location: location, timeZone: timeZone, threshold: civilTwilightSunAltitude)
+    }
+
+    /// 天気の夜間区間で使う太陽高度のしきい値 (度)。
+    /// 通常は市民薄明終了後 (`civilTwilightSunAltitude`) の正時を夜とし、
+    /// 白夜などで該当する正時が 1 つもない夜は太陽中心が地平線下 (`horizonSunAltitude`) の正時で代用する。
+    static let civilTwilightSunAltitude: Double = -6.0
+    static let horizonSunAltitude: Double = 0.0
+
+    /// 指定日・場所で太陽中心が地平線下 (幾何高度 < 0°) にある区間を返す。
+    /// 極夜では 24 時間区間、太陽が沈まない日は nil を返す。
+    static func sunBelowHorizonInterval(
+        date: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> DateInterval? {
+        darknessInterval(date: date, location: location, timeZone: timeZone, threshold: horizonSunAltitude)
     }
 
     /// 指定日・場所の日没〜日の出 (太陽中心高度 -0.833°) の区間を返す。

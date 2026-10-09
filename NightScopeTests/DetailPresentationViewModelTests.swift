@@ -1,11 +1,66 @@
 import XCTest
 @testable import NightScope
 
+/// 既定の UserDefaults 保存先を使うと、保存済みの名前なし地点の復元で実際の逆ジオコーディングが走るため、
+/// メモリ上の保存先（東京）を使う AppController を作る。
+@MainActor
+private func makeInMemoryAppController(
+    weatherService: (any WeatherProviding)? = nil,
+    calculationService: NightCalculating,
+    now: @escaping () -> Date = Date.init
+) -> AppController {
+    let storage = AppControllerTests.InMemoryLocationStorage()
+    storage.latitude = 35.6762
+    storage.longitude = 139.6503
+    storage.name = "東京"
+    storage.timeZoneIdentifier = TestTimeZones.tokyo.identifier
+    let locationController = LocationController(
+        storage: storage,
+        searchService: AppControllerTests.NoopLocationSearchService(),
+        locationNameResolver: AppControllerTests.FixedLocationNameResolver(
+            details: ResolvedLocationDetails(name: "東京", timeZoneIdentifier: TestTimeZones.tokyo.identifier)
+        )
+    )
+    return AppController(
+        locationController: locationController,
+        weatherService: weatherService,
+        calculationService: calculationService,
+        now: now
+    )
+}
+
+/// 東京の 21 時だけ天気予報がある（部分予報の）曇天の夜を作る。今夜扱いのときだけ天気が評価に入る。
+private func makeCloudyPartiallyCoveredTokyoNight() -> (night: NightSummary, weather: DayWeatherSummary, now: Date) {
+    let tokyo = TestTimeZones.tokyo
+    let dayStart = ObservationTimeZone.gregorianCalendar(timeZone: tokyo).date(
+        from: DateComponents(year: 2024, month: 3, day: 9)
+    )!
+    let (night, _) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: tokyo)
+    let cloudyHour = HourlyWeather(
+        date: night.events[0].date,
+        temperatureCelsius: 10,
+        cloudCoverPercent: 90,
+        precipitationMM: 0,
+        windSpeedKmh: 5,
+        humidityPercent: 60,
+        dewpointCelsius: 2,
+        weatherCode: 3,
+        visibilityMeters: 20_000,
+        windGustsKmh: nil,
+        windSpeedKmh500hpa: nil
+    )
+    return (
+        night,
+        DayWeatherSummary(date: dayStart, nighttimeHours: [cloudyHour]),
+        dayStart.addingTimeInterval(22 * 3600)
+    )
+}
+
 @MainActor
 final class DetailViewModelTests: XCTestCase {
     func test_selectedDate_syncsBidirectionally() async {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
         let timeZone = appController.locationController.selectedTimeZone
 
@@ -30,7 +85,7 @@ final class DetailViewModelTests: XCTestCase {
 
     func test_selectedDate_sameValue_doesNotTriggerRecalculation() async {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
 
         let sameDate = vm.selectedDate
@@ -45,7 +100,7 @@ final class DetailViewModelTests: XCTestCase {
 
     func test_selectedDate_newValue_triggersSummaryRecalculationOnly() async {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
 
         let nextDate = Calendar.current.date(byAdding: .day, value: 1, to: vm.selectedDate)!
@@ -67,7 +122,7 @@ final class DetailViewModelTests: XCTestCase {
 
     func test_hasLightPollutionError_reflectsService() {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
 
         XCTAssertFalse(vm.hasLightPollutionError)
@@ -78,7 +133,7 @@ final class DetailViewModelTests: XCTestCase {
     func test_hasWeatherError_reflectsService() {
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
-        let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(weatherService: weatherService, calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
 
         XCTAssertFalse(vm.hasWeatherError)
@@ -91,7 +146,7 @@ final class DetailViewModelTests: XCTestCase {
     func test_currentWeather_tracksWeatherUpdatesForSelectedDate() async {
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
-        let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(weatherService: weatherService, calculationService: mockCalculationService)
         let targetDate = Calendar.current.startOfDay(for: Date())
         let weather = DayWeatherSummary(date: targetDate, nighttimeHours: [makeHourlyWeather(cloudCover: 22)])
 
@@ -111,7 +166,7 @@ final class DetailViewModelTests: XCTestCase {
     func test_displayedDateAndWeather_stayOnVisibleSummaryWhileRefreshingNextDate() async {
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
-        let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(weatherService: weatherService, calculationService: mockCalculationService)
         let currentDate = Calendar.current.startOfDay(for: Date())
         let nextDate = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
         let currentSummary = makeNightSummary(date: currentDate)
@@ -140,7 +195,7 @@ final class DetailViewModelTests: XCTestCase {
     func test_displayedDateAndWeather_switchToNewSelectionAfterRefreshCompletes() async {
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
-        let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(weatherService: weatherService, calculationService: mockCalculationService)
         let currentDate = Calendar.current.startOfDay(for: Date())
         let nextDate = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
         let currentSummary = makeNightSummary(date: currentDate)
@@ -171,7 +226,7 @@ final class DetailViewModelTests: XCTestCase {
 
     func test_nightSummaryAndIndex_stayVisible_whileRecalculatingDifferentDate() async {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(calculationService: mockCalculationService)
         let currentDate = Calendar.current.startOfDay(for: Date())
         let nextDate = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
         let location = appController.locationController.selectedLocation
@@ -219,10 +274,40 @@ final class DetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.starGazingIndex?.score, currentIndex.score)
     }
 
+    /// モード補正もベース指数と同じ（AppController に注入した）現在時刻で部分予報を判定する。
+    func test_displayedStarGazingIndex_usesInjectedNowForModeAdjustment() {
+        let preference = ObservationModePreference(
+            userDefaults: UserDefaults(suiteName: #function)!,
+            key: #function
+        )
+        preference.mode = .moon
+        let (night, weather, fixedNow) = makeCloudyPartiallyCoveredTokyoNight()
+        let weatherService = WeatherKitService()
+        let appController = makeInMemoryAppController(
+            weatherService: weatherService,
+            calculationService: MockNightCalculationService(),
+            now: { fixedNow }
+        )
+        let timeZone = appController.locationController.selectedTimeZone
+        weatherService.weatherByDate = [weatherService.dateKey(night.date, timeZone: timeZone): weather]
+        let baseIndex = StarGazingIndex.compute(nightSummary: night, weather: nil, bortleClass: 1)
+        appController.selectedDate = night.date
+        appController.nightSummary = night
+        appController.starGazingIndex = baseIndex
+
+        let vm = DetailViewModel(appController: appController, observationModePreference: preference)
+        let expected = baseIndex.adjusted(for: .moon, nightSummary: night, weather: weather, referenceDate: fixedNow)
+
+        XCTAssertNotNil(vm.currentWeather)
+        XCTAssertEqual(vm.displayedStarGazingIndex?.score, expected.score)
+        // 今夜扱いなので曇天（雲量 90%）の安全上限がかかる。
+        XCTAssertLessThanOrEqual(vm.displayedStarGazingIndex?.score ?? 100, 34)
+    }
+
     func test_isWeatherLoading_reflectsService() {
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
-        let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(weatherService: weatherService, calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
 
         XCTAssertFalse(vm.isWeatherLoading)
@@ -232,7 +317,7 @@ final class DetailViewModelTests: XCTestCase {
 
     func test_isUpcomingLoading_reflectsController() {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
 
         XCTAssertFalse(vm.isUpcomingLoading)
@@ -242,7 +327,7 @@ final class DetailViewModelTests: XCTestCase {
 
     func test_refreshForecast_triggersUpcomingRecalculation() async {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = makeInMemoryAppController(calculationService: mockCalculationService)
         let vm = DetailViewModel(appController: appController)
 
         await vm.refreshForecast()

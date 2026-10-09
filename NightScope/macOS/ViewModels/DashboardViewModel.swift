@@ -343,14 +343,13 @@ final class DashboardViewModel: ObservableObject {
 
     private func makeLoadingMatrix(locations: [FavoriteLocation], referenceDate: Date) -> ComparisonMatrix {
         let columnTimeZone = TimeZone.current
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: columnTimeZone)
-        let dates = (0..<Self.dayCount).compactMap { offset in
-            calendar.date(
-                byAdding: .day,
-                value: offset,
-                to: calendar.startOfDay(for: referenceDate)
-            )
-        }
+        // 計算結果の行列と同じ列（各地点の観測日にそろえた暦日）を使い、読み込み中に列がずれないようにする
+        let dates = ComparisonController.makeDates(
+            referenceDate: referenceDate,
+            dayCount: Self.dayCount,
+            timeZone: columnTimeZone,
+            locations: locations
+        )
         let cellsByID = Dictionary(uniqueKeysWithValues: locations.flatMap { location in
             dates.map { date in
                 let cell = ComparisonCell(locationID: location.id, date: date, loadState: .loading)

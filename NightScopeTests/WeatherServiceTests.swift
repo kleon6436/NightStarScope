@@ -226,6 +226,73 @@ final class WeatherServiceTests: XCTestCase {
         }
     }
 
+    /// 太陽が -6° まで沈まない夜（トロンハイム 63.4°N の夏至）は、太陽が地平線下の時間帯で天気を束ねる。
+    func test_nightlySummaries_whiteNightFallsBackToHoursWithSunBelowHorizon() throws {
+        let oslo = try XCTUnwrap(TimeZone(identifier: "Europe/Oslo"))
+        let coordinate = CLLocationCoordinate2D(latitude: 63.4305, longitude: 10.3951)
+        let summaries = nightlySummaries(around: (2026, 6, 21), coordinate: coordinate, timeZone: oslo)
+
+        let night = try XCTUnwrap(summaries["2026-06-21"], "\(summaries.keys.sorted())")
+        XCTAssertNil(MilkyWayCalculator.civilDarknessInterval(date: night.date, location: coordinate, timeZone: oslo))
+        let hours = night.nighttimeHours.map { ObservationTimeZone.gregorianCalendar(timeZone: oslo).component(.hour, from: $0.date) }
+        XCTAssertEqual(hours, [0, 1, 2, 3])
+        for hour in night.nighttimeHours {
+            XCTAssertLessThan(sunAltitude(at: hour.date, coordinate: coordinate), 0, "\(hour.date)")
+        }
+
+        // NightSummary 側も同じ基準で「天気あり」と判定する
+        let nightSummary = MilkyWayCalculator.calculateNightSummary(date: night.date, location: coordinate, timeZone: oslo)
+        XCTAssertEqual(nightSummary.totalDarkHours, 0)
+        XCTAssertTrue(nightSummary.hasReliableWeatherData(nighttimeHours: night.nighttimeHours))
+    }
+
+    /// -6° 未満の時間が 1 時間に満たず正時を含まない夜（60.5°N の夏至）も、地平線下の時間帯で天気を束ねる。
+    func test_nightlySummaries_shortCivilNightWithoutHourFallsBackToHorizonHours() throws {
+        let helsinki = try XCTUnwrap(TimeZone(identifier: "Europe/Helsinki"))
+        let coordinate = CLLocationCoordinate2D(latitude: 60.5, longitude: 25.0)
+        let summaries = nightlySummaries(around: (2026, 6, 21), coordinate: coordinate, timeZone: helsinki)
+
+        let night = try XCTUnwrap(summaries["2026-06-21"], "\(summaries.keys.sorted())")
+        // 市民薄明後の区間（約 01:07〜01:38）自体はあるが正時を含まない
+        XCTAssertNotNil(MilkyWayCalculator.civilDarknessInterval(date: night.date, location: coordinate, timeZone: helsinki))
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: helsinki)
+        XCTAssertEqual(night.nighttimeHours.map { calendar.component(.hour, from: $0.date) }, [23, 0, 1, 2, 3, 4])
+
+        let nightSummary = MilkyWayCalculator.calculateNightSummary(date: night.date, location: coordinate, timeZone: helsinki)
+        XCTAssertTrue(nightSummary.hasReliableWeatherData(nighttimeHours: night.nighttimeHours))
+    }
+
+    /// 通常の夜（東京）は従来どおり市民薄明後（太陽高度 < -6°）の正時だけを束ねる。
+    func test_nightlySummaries_regularNightUsesCivilDarknessOnly() throws {
+        let summaries = nightlySummaries(around: (2026, 6, 21), coordinate: tokyoLocation, timeZone: tokyoTimeZone)
+        let night = try XCTUnwrap(summaries["2026-06-21"])
+        XCTAssertFalse(night.nighttimeHours.isEmpty)
+        for hour in night.nighttimeHours {
+            XCTAssertLessThan(sunAltitude(at: hour.date, coordinate: tokyoLocation), -6, "\(hour.date)")
+        }
+    }
+
+    /// 指定日の前日 12:00 から 72 時間分の正時予報を束ねる。
+    private func nightlySummaries(
+        around day: (year: Int, month: Int, day: Int),
+        coordinate: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> [String: DayWeatherSummary] {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let start = calendar.date(from: DateComponents(year: day.year, month: day.month, day: day.day - 1, hour: 12))!
+        let hours = (0..<72).map { offset in
+            makeHourlyWeather(code: 0, date: start.addingTimeInterval(Double(offset) * 3600))
+        }
+        return WeatherKitService.nightlySummaries(from: hours, coordinate: coordinate, timeZone: timeZone)
+    }
+
+    private func sunAltitude(at date: Date, coordinate: CLLocationCoordinate2D) -> Double {
+        let jd = MilkyWayCalculator.julianDate(from: date)
+        let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: coordinate.longitude)
+        let sun = MilkyWayCalculator.sunRaDec(jd: jd)
+        return MilkyWayCalculator.altitude(ra: sun.ra, dec: sun.dec, latitude: coordinate.latitude, lst: lst)
+    }
+
     private func makeHourlyWeather(code: Int, date: Date = Date()) -> HourlyWeather {
         HourlyWeather(
             date: date,

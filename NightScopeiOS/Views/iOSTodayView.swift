@@ -365,7 +365,8 @@ struct iOSTodayView: View {
             NavigationStack {
                 CalendarView(
                     selectedDate: $calendarDraftDate,
-                    timeZone: detailViewModel.selectedTimeZone
+                    timeZone: detailViewModel.selectedTimeZone,
+                    today: detailViewModel.currentObservationDate()
                 )
                 .navigationTitle("日付を選択")
                 .navigationBarTitleDisplayMode(.inline)

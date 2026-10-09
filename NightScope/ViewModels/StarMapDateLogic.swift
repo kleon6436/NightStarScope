@@ -92,6 +92,71 @@ enum StarMapDateLogic {
         )
     }
 
+    /// 現在時刻が属する観測日（夜の始まる日）の 0:00 を返す。アプリ全体の「今日（今夜）」の定義。
+    /// 前日の日没〜当日の日の出の間（深夜〜明け方）なら前日、それ以外は当日の暦日を返す。
+    /// - Note: 天体計算（日没・日の出の探索）を伴うため、描画ごとに呼ぶような箇所では結果を使い回す。
+    static func currentObservationDate(
+        for now: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> Date {
+        observationDayBoundaries(containing: now, location: location, timeZone: timeZone)
+            .observationDate(for: now)
+    }
+
+    /// 暦日 1 日分の観測日判定に必要な夜の境界。同じ暦日・地点なら使い回せる。
+    struct ObservationDayBoundaries: Sendable {
+        /// 判定対象の暦日の 0:00。
+        let today: Date
+        /// 前日の 0:00。
+        let previousDay: Date
+        /// 前日の日没〜当日の日の出。白夜では nil。
+        let previousNight: DateInterval?
+        /// 当日の日没。白夜では nil。
+        let tonightStart: Date?
+
+        /// `now`（`today` の暦日内の時刻）が属する観測日を返す。
+        func observationDate(for now: Date) -> Date {
+            guard let previousNight,
+                  previousNight.start <= now,
+                  now < previousNight.end else {
+                return today
+            }
+            // 当日の夜がすでに始まっている場合（極夜など）は当日を優先する。
+            if let tonightStart, tonightStart <= now {
+                return today
+            }
+            return previousDay
+        }
+    }
+
+    /// `now` を含む暦日の観測日判定用の境界を求める。日没・日の出の探索を 2 夜分行う。
+    static func observationDayBoundaries(
+        containing now: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> ObservationDayBoundaries {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let today = calendar.startOfDay(for: now)
+        guard let previousDay = calendar.date(byAdding: .day, value: -1, to: today) else {
+            return ObservationDayBoundaries(today: today, previousDay: today, previousNight: nil, tonightStart: nil)
+        }
+        return ObservationDayBoundaries(
+            today: today,
+            previousDay: previousDay,
+            previousNight: MilkyWayCalculator.sunsetSunriseInterval(
+                date: previousDay,
+                location: location,
+                timeZone: timeZone
+            ),
+            tonightStart: MilkyWayCalculator.sunsetSunriseInterval(
+                date: today,
+                location: location,
+                timeZone: timeZone
+            )?.start
+        )
+    }
+
     /// 表示用の日付を、観測日に属する実日付へ変換する。
     static func observationDate(
         for presentationDate: Date,

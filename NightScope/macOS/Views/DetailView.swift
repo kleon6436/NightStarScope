@@ -78,7 +78,11 @@ struct DetailView: View {
                         isWeatherLoading: viewModel.isWeatherLoading
                     )
                     UpcomingNightsGrid(viewModel: upcomingGridViewModel)
-                    MeteorShowerCalendarView(selectedDate: viewModel.selectedDate, timeZone: viewModel.selectedTimeZone)
+                    MeteorShowerCalendarView(
+                        selectedDate: viewModel.selectedDate,
+                        timeZone: viewModel.selectedTimeZone,
+                        today: viewModel.currentObservationDate()
+                    )
                     PlanetVisibilityView(
                         selectedDate: viewModel.selectedDate,
                         location: summary.location,

@@ -7,6 +7,7 @@ import CoreLocation
 /// 外部変更の通知は、実機と同じく非メインスレッドから注入した center に post する。
 final class FakeUbiquitousKeyValueStore: UbiquitousKeyValueStoring, @unchecked Sendable {
     static let key = iCloudFavoriteLocationStore.iCloudKey
+    static let ledgerKey = iCloudFavoriteLocationStore.deletionLedgerKey
 
     private let center: NotificationCenter
     private var cache: [String: Data] = [:]
@@ -22,6 +23,11 @@ final class FakeUbiquitousKeyValueStore: UbiquitousKeyValueStoring, @unchecked S
     /// 現在キャッシュにあるお気に入り（キーがなければ nil）。
     var favorites: [FavoriteLocation]? {
         cache[Self.key].flatMap { try? JSONDecoder().decode([FavoriteLocation].self, from: $0) }
+    }
+
+    /// 現在キャッシュにある削除の記録（キーがなければ nil）。
+    var deletionLedger: FavoriteDeletionLedger? {
+        cache[Self.ledgerKey].flatMap { try? JSONDecoder().decode(FavoriteDeletionLedger.self, from: $0) }
     }
 
     func data(forKey aKey: String) -> Data? {
@@ -50,9 +56,24 @@ final class FakeUbiquitousKeyValueStore: UbiquitousKeyValueStoring, @unchecked S
         post(reason: NSUbiquitousKeyValueStoreAccountChange, changedKeys: changedKeys)
     }
 
-    func simulateServerChange(_ newValue: [FavoriteLocation]?) {
-        replace(with: newValue)
-        post(reason: NSUbiquitousKeyValueStoreServerChange, changedKeys: [Self.key])
+    /// 他の端末が一覧のキーを書いたことを模擬する。削除の記録のキーは、`deletionLedger` を渡したときだけ置き換える
+    /// （旧バージョンの端末は一覧のキーだけを書く）。
+    func simulateServerChange(_ newValue: [FavoriteLocation]?, deletionLedger: FavoriteDeletionLedger? = nil) {
+        cache[Self.key] = newValue.flatMap { try? JSONEncoder().encode($0) }
+        var changedKeys = [Self.key]
+        if let deletionLedger {
+            cache[Self.ledgerKey] = try? JSONEncoder().encode(deletionLedger)
+            changedKeys.append(Self.ledgerKey)
+        }
+        post(reason: NSUbiquitousKeyValueStoreServerChange, changedKeys: changedKeys)
+    }
+
+    /// 別の端末（別のフェイク KV）が書いた値がサーバー経由で届いたことを模擬する。指定したキーの値をそのまま写す。
+    func receiveServerChange(from peer: FakeUbiquitousKeyValueStore, keys: [String] = [key, ledgerKey]) {
+        for key in keys {
+            cache[key] = peer.cache[key]
+        }
+        post(reason: NSUbiquitousKeyValueStoreServerChange, changedKeys: keys)
     }
 
     private func replace(with favorites: [FavoriteLocation]?) {
@@ -869,8 +890,8 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         XCTAssertEqual(env.kvStore.favorites, [pointA])
     }
 
-    /// 15d: 保留期間を過ぎた追加は統合し直さず、届いた一覧をそのまま反映する（KV に書かない）。
-    func test_serverChange_afterPendingWindow_acceptsRemoteList() async throws {
+    /// 15d: 保留期間はない。長くオフラインだった端末の追加も、届いた一覧で確認されるまでは統合し直す。
+    func test_serverChange_longOfflineAdd_isStillMerged() async throws {
         var current = Date(timeIntervalSince1970: 1_000_000)
         let env = try makeEnvironment(kv: [pointA], local: [])
         let store = iCloudFavoriteLocationStore(
@@ -881,14 +902,290 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         )
 
         store.save([pointA, pointC])
-        current += iCloudFavoriteLocationStore.pendingChangeWindow + 1
-        let setCountBeforeChange = env.kvStore.setCount
+        current += 24 * 60 * 60
         await applyExternalChange(to: [store]) {
-            env.kvStore.simulateServerChange([pointA])
+            env.kvStore.simulateServerChange([pointA, pointB])
+        }
+
+        XCTAssertEqual(store.loadAll(), [pointA, pointB, pointC])
+        XCTAssertEqual(env.kvStore.favorites, [pointA, pointB, pointC])
+    }
+
+    // MARK: - 17: 削除の記録（tombstone）による同期
+
+    /// 17a: 2台の端末で同時に加えた地点は、どちらも残る。統合した一覧は両方の端末の KV で一致する。
+    func test_tombstone_concurrentAddsOnTwoDevices_bothSurvive() async throws {
+        let deviceA = try makeEnvironment(kv: [pointA], local: [])
+        let deviceB = try makeEnvironment(kv: [pointA], local: [])
+        let storeA = deviceA.makeICloudStore()
+        let storeB = deviceB.makeICloudStore()
+
+        storeA.save([pointA, pointB])
+        storeB.save([pointA, pointC])
+        // サーバーは B の書き込みを採り、A に届ける。
+        await applyExternalChange(to: [storeA]) {
+            deviceA.kvStore.receiveServerChange(from: deviceB.kvStore)
+        }
+        XCTAssertEqual(storeA.loadAll(), [pointA, pointC, pointB])
+        // A が書き戻した統合結果が B に届く。
+        await applyExternalChange(to: [storeB]) {
+            deviceB.kvStore.receiveServerChange(from: deviceA.kvStore)
+        }
+
+        XCTAssertEqual(storeB.loadAll(), [pointA, pointC, pointB])
+        XCTAssertEqual(deviceA.kvStore.favorites, [pointA, pointC, pointB])
+        XCTAssertEqual(deviceB.kvStore.favorites, [pointA, pointC, pointB])
+    }
+
+    /// 17b: A が加えたばかり（まだ届いた一覧で確認していない）の地点を B で削除すると、A でも削除される。
+    /// 記録のキーだけが先に届いた場合も、一覧のキーが届いた場合も削除をやり直さない。
+    func test_tombstone_deleteOnOtherDeviceOfRecentLocalAdd_propagates() async throws {
+        for keys in [[FakeUbiquitousKeyValueStore.ledgerKey], [FakeUbiquitousKeyValueStore.key, FakeUbiquitousKeyValueStore.ledgerKey]] {
+            let deviceA = try makeEnvironment(kv: [pointA], local: [])
+            let deviceB = try makeEnvironment(kv: [pointA], local: [])
+            let storeA = deviceA.makeICloudStore()
+            let storeB = deviceB.makeICloudStore()
+
+            storeA.save([pointA, pointB])
+            await applyExternalChange(to: [storeB]) {
+                deviceB.kvStore.receiveServerChange(from: deviceA.kvStore)
+            }
+            XCTAssertEqual(storeB.loadAll(), [pointA, pointB])
+            await settle() // B の画面が届いた一覧に追いつく
+            storeB.save([pointA])
+            XCTAssertEqual(deviceB.kvStore.deletionLedger?.isDeleted(pointB.id), true, "keys=\(keys)")
+
+            await applyExternalChange(to: [storeA]) {
+                deviceA.kvStore.receiveServerChange(from: deviceB.kvStore, keys: keys)
+            }
+
+            XCTAssertEqual(storeA.loadAll(), [pointA], "keys=\(keys)")
+            XCTAssertEqual(deviceA.kvStore.favorites, [pointA], "keys=\(keys)")
+            XCTAssertTrue(storeA.isMarkedDeleted(pointB.id), "keys=\(keys)")
+        }
+    }
+
+    /// 17c: 他の端末から届いて画面に出る前（同じターン）の古い配列での save は、届いた地点の削除とみなさない。
+    func test_tombstone_staleSaveBeforeViewCatchesUp_doesNotTombstoneDeliveredSpot() async throws {
+        let env = try makeEnvironment(kv: [pointA], local: [])
+        let store = env.makeICloudStore()
+        // 画面と同じく receive(on: main) で受け取る購読者が、届いた一覧を処理する前の古い配列で save する。
+        var cancellables = Set<AnyCancellable>()
+        var didSave = false
+        store.locationsPublisher
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { _ in
+                guard !didSave else { return }
+                didSave = true
+                store.save([self.pointA])
+            }
+            .store(in: &cancellables)
+
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointA, pointB])
+        }
+        await waitUntil { didSave }
+        await settle()
+
+        XCTAssertEqual(store.loadAll(), [pointA])
+        XCTAssertFalse(store.isMarkedDeleted(pointB.id))
+        XCTAssertNil(env.kvStore.deletionLedger)
+        withExtendedLifetime(cancellables) {}
+    }
+
+    /// 17d: オフラインの追加と削除は再起動をまたいで保持され、他の端末の古い一覧（記録も古い）が届いても失わない。
+    func test_tombstone_offlineEditsSurviveRelaunchAndMerge() async throws {
+        let env = try makeEnvironment(kv: [pointA, pointB], local: [])
+        do {
+            let store = env.makeICloudStore()
+            store.save([pointA, pointB, pointC])
+            await settle()
+            store.save([pointA, pointC]) // B を削除
+        }
+
+        let relaunched = env.makeICloudStore()
+        XCTAssertEqual(relaunched.loadAll(), [pointA, pointC])
+        // 他の端末はこの端末の変更を見ないまま、空の記録と D を加えた一覧を書いた。
+        await applyExternalChange(to: [relaunched]) {
+            env.kvStore.simulateServerChange([pointA, pointB, pointD], deletionLedger: FavoriteDeletionLedger())
+        }
+
+        XCTAssertEqual(relaunched.loadAll(), [pointA, pointD, pointC])
+        XCTAssertEqual(env.kvStore.favorites, [pointA, pointD, pointC])
+        XCTAssertEqual(env.kvStore.deletionLedger?.isDeleted(pointB.id), true, "この端末の記録を KV に書き戻す")
+    }
+
+    /// 17e: 削除した地点を加え直すと削除の記録より新しい復活が記録され、古い記録を持つ端末から一覧が届いても消えない。
+    /// 復活は他の端末にも伝わる。
+    func test_tombstone_reAddAfterDelete_clearsTombstone() async throws {
+        var current = Date(timeIntervalSince1970: 1_000_000)
+        let deviceA = try makeEnvironment(kv: [pointA, pointB], local: [])
+        let deviceB = try makeEnvironment(kv: [pointA, pointB], local: [])
+        let storeA = iCloudFavoriteLocationStore(
+            kvStore: deviceA.kvStore,
+            fallbackDefaults: deviceA.defaults,
+            notificationCenter: deviceA.center,
+            now: { current }
+        )
+        let storeB = iCloudFavoriteLocationStore(
+            kvStore: deviceB.kvStore,
+            fallbackDefaults: deviceB.defaults,
+            notificationCenter: deviceB.center,
+            now: { current }
+        )
+
+        storeA.save([pointA])
+        // B は削除を受け取る。
+        await applyExternalChange(to: [storeB]) {
+            deviceB.kvStore.receiveServerChange(from: deviceA.kvStore)
+        }
+        XCTAssertEqual(storeB.loadAll(), [pointA])
+
+        current += 60
+        storeA.save([pointA, pointB])
+        XCTAssertFalse(storeA.isMarkedDeleted(pointB.id))
+
+        // B が A の復活を見る前に書いた一覧（B は削除済み、記録は古い）が A に届いても消えない。
+        await applyExternalChange(to: [storeA]) {
+            deviceA.kvStore.receiveServerChange(from: deviceB.kvStore)
+        }
+        XCTAssertEqual(storeA.loadAll(), [pointA, pointB])
+        XCTAssertEqual(deviceA.kvStore.favorites, [pointA, pointB])
+
+        // A の一覧と記録が B に届くと、B でも復活する。
+        await applyExternalChange(to: [storeB]) {
+            deviceB.kvStore.receiveServerChange(from: deviceA.kvStore)
+        }
+        XCTAssertEqual(storeB.loadAll(), [pointA, pointB])
+        XCTAssertFalse(storeB.isMarkedDeleted(pointB.id))
+    }
+
+    /// 17f: 記録を書かない旧バージョンの端末とも同期できる。一覧のキーの形式は変えず、旧端末の削除は受け入れ、
+    /// 旧端末が書き戻した古い一覧に含まれる削除済みの地点は消し直す。
+    func test_tombstone_interoperatesWithOldFormatPeer() async throws {
+        let env = try makeEnvironment(kv: [pointA, pointB, pointC], local: [])
+        let store = env.makeICloudStore()
+
+        store.save([pointA, pointB]) // C を削除
+        XCTAssertEqual(
+            try JSONDecoder().decode([FavoriteLocation].self, from: XCTUnwrap(env.kvStore.data(forKey: FakeUbiquitousKeyValueStore.key))),
+            [pointA, pointB],
+            "一覧のキーは従来どおり [FavoriteLocation] の JSON"
+        )
+
+        // 旧端末が C を含む古い一覧で B を削除した（記録のキーには触れない）。
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointA, pointC])
         }
 
         XCTAssertEqual(store.loadAll(), [pointA])
-        XCTAssertEqual(env.kvStore.setCount, setCountBeforeChange)
+        XCTAssertEqual(env.kvStore.favorites, [pointA])
+    }
+
+    /// 17g: reconciler は削除の記録がある地点を自動では送り返さない（観測前に他の端末で削除された地点）。
+    func test_tombstone_autoUploadSkipsTombstonedSpot() throws {
+        var ledger = FavoriteDeletionLedger()
+        ledger.recordDeletion(of: pointB.id, at: Date())
+        let env = try makeEnvironment(kv: [pointA], local: [pointB])
+        env.kvStore.set(try JSONEncoder().encode(ledger), forKey: FakeUbiquitousKeyValueStore.ledgerKey)
+
+        let reconciler = env.makeReconciler(activeStore: env.makeICloudStore())
+
+        XCTAssertEqual(env.kvStore.favorites, [pointA])
+        XCTAssertTrue(reconciler.autoUploadedIDs.isEmpty)
+        XCTAssertEqual(reconciler.localOnly, [pointB])
+    }
+
+    /// 17h: accountChange では前のアカウントの未確認の追加と削除の記録を持ち越さない。
+    func test_tombstone_accountChangeDropsPreviousAccountState() async throws {
+        let env = try makeEnvironment(kv: [pointA, pointB], local: [])
+        let store = env.makeICloudStore()
+        store.save([pointA]) // B を削除
+
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateAccountChange(newValue: [pointB])
+        }
+        XCTAssertFalse(store.isMarkedDeleted(pointB.id))
+        await applyExternalChange(to: [store]) {
+            env.kvStore.simulateServerChange([pointB, pointC])
+        }
+
+        XCTAssertEqual(store.loadAll(), [pointB, pointC])
+        XCTAssertNil(env.kvStore.deletionLedger)
+    }
+
+    // MARK: - FavoriteDeletionLedger
+
+    /// 統合は ID ごとに新しい時刻を採り、削除と復活の新しい方で削除済みかどうかが決まる。
+    func test_ledger_mergeTakesNewestPerID() {
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        var first = FavoriteDeletionLedger()
+        first.recordDeletion(of: pointA.id, at: base)
+        var second = first
+        second.recordRevival(of: pointA.id, at: base.addingTimeInterval(10))
+        first.recordDeletion(of: pointB.id, at: base)
+
+        let merged = first.merging(second)
+
+        XCTAssertFalse(merged.isDeleted(pointA.id))
+        XCTAssertTrue(merged.isDeleted(pointB.id))
+        XCTAssertFalse(merged.isDeleted(pointC.id))
+        XCTAssertEqual(merged, second.merging(first))
+    }
+
+    /// 時計が遅れていても、同じ端末での削除と復活は記録した順に効く。復活は削除済みでない地点には記録しない。
+    func test_ledger_localOrderingSurvivesClockSkew() {
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        var ledger = FavoriteDeletionLedger()
+        ledger.recordRevival(of: pointA.id, at: base)
+        XCTAssertTrue(ledger.isEmpty)
+
+        ledger.recordDeletion(of: pointA.id, at: base)
+        ledger.recordRevival(of: pointA.id, at: base.addingTimeInterval(-100))
+        XCTAssertFalse(ledger.isDeleted(pointA.id))
+        ledger.recordDeletion(of: pointA.id, at: base.addingTimeInterval(-200))
+        XCTAssertTrue(ledger.isDeleted(pointA.id))
+    }
+
+    /// 保持期間を過ぎた記録を捨て、件数とエンコード後のサイズを上限に収める（新しい記録を残す）。
+    func test_ledger_pruning() throws {
+        let now = Date(timeIntervalSince1970: 100_000_000)
+        var ledger = FavoriteDeletionLedger()
+        let expired = UUID()
+        ledger.recordDeletion(of: expired, at: now.addingTimeInterval(-FavoriteDeletionLedger.retention - 1))
+        let kept = UUID()
+        ledger.recordDeletion(of: kept, at: now.addingTimeInterval(-FavoriteDeletionLedger.retention + 60))
+        var newest = UUID()
+        for index in 0..<(FavoriteDeletionLedger.maxEntries + 200) {
+            newest = UUID()
+            ledger.recordDeletion(of: newest, at: now.addingTimeInterval(Double(index)))
+        }
+
+        let pruned = ledger.pruned(now: now)
+
+        XCTAssertFalse(pruned.isDeleted(expired))
+        XCTAssertFalse(pruned.isDeleted(kept), "上限を超えた分は古い順に捨てる")
+        XCTAssertTrue(pruned.isDeleted(newest))
+        XCTAssertLessThanOrEqual(pruned.deletedAt.count + pruned.revivedAt.count, FavoriteDeletionLedger.maxEntries)
+        XCTAssertLessThanOrEqual(try JSONEncoder().encode(pruned).count, FavoriteDeletionLedger.maxEncodedSize)
+
+        let small = FavoriteDeletionLedger().merging(ledger).pruned(now: now.addingTimeInterval(FavoriteDeletionLedger.retention * 2))
+        XCTAssertTrue(small.isEmpty)
+    }
+
+    /// 記録のキーが壊れている（将来の形式など）ときは上書きしない。一覧の同期は続ける。
+    func test_ledger_undecodableKVLedgerIsNotOverwritten() throws {
+        let env = try makeEnvironment(kv: [pointA, pointB], local: [])
+        let broken = Data("[1,2,3]".utf8)
+        env.kvStore.set(broken, forKey: FakeUbiquitousKeyValueStore.ledgerKey)
+        let store = env.makeICloudStore()
+
+        store.save([pointA])
+
+        XCTAssertEqual(env.kvStore.data(forKey: FakeUbiquitousKeyValueStore.ledgerKey), broken)
+        XCTAssertEqual(env.kvStore.favorites, [pointA])
+        XCTAssertTrue(store.isMarkedDeleted(pointB.id))
     }
 
     // MARK: - 16: 60KB 超過とデコード失敗

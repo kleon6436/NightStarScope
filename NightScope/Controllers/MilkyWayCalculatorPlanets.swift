@@ -2,11 +2,14 @@ import Foundation
 import CoreLocation
 
 extension MilkyWayCalculator {
-    // MARK: - Planet Positions (Meeus "Astronomical Algorithms", Table 31.a)
+    // MARK: - Planet Positions
+    // 軌道要素: JPL "Keplerian Elements for Approximate Positions of the Major Planets" Table 1
+    // (E. M. Standish, 1800 AD – 2050 AD, J2000 黄道・春分点基準)。各要素は値 + 世紀あたりの変化率 × T。
 
     private struct PlanetOrbit {
         let name: String
-        let a: Double         // semi-major axis (AU)
+        let a: Double         // semi-major axis (AU) = a + aRate·T
+        let aRate: Double
         let e0, eRate: Double // eccentricity = e0 + eRate·T
         let i0, iRate: Double // inclination (deg)
         let Ω0, ΩRate: Double // longitude of ascending node (deg)
@@ -17,31 +20,36 @@ extension MilkyWayCalculator {
 
     private static let planetOrbits: [PlanetOrbit] = [
         PlanetOrbit(name: "水星",
-            a: 0.38709927, e0: 0.20563593, eRate:  0.00001906,
+            a: 0.38709927, aRate: 0.00000037,
+            e0: 0.20563593, eRate:  0.00001906,
             i0: 7.00497902, iRate: -0.00594749,
             Ω0: 48.33076593, ΩRate: -0.12534081,
             ω0: 77.45779628, ωRate:  0.16047689,
             L0: 252.25032350, LRate: 149472.67411175, H: -0.42),
         PlanetOrbit(name: "金星",
-            a: 0.72333566, e0: 0.00677672, eRate: -0.00004107,
+            a: 0.72333566, aRate: 0.00000390,
+            e0: 0.00677672, eRate: -0.00004107,
             i0: 3.39467605, iRate: -0.00078890,
             Ω0: 76.67984255, ΩRate: -0.27769418,
             ω0: 131.60246718, ωRate: 0.00268329,
             L0: 181.97909950, LRate: 58517.81538729, H: -4.40),
         PlanetOrbit(name: "火星",
-            a: 1.52371034, e0: 0.09339410, eRate:  0.00007882,
+            a: 1.52371034, aRate: 0.00001847,
+            e0: 0.09339410, eRate:  0.00007882,
             i0: 1.84969142, iRate: -0.00813131,
             Ω0: 49.55953891, ΩRate: -0.29257343,
             ω0: -23.94362959, ωRate: 0.44441088,
             L0: -4.55343205, LRate: 19140.30268499, H: -1.52),
         PlanetOrbit(name: "木星",
-            a: 5.20288700, e0: 0.04838624, eRate: -0.00013244,
+            a: 5.20288700, aRate: -0.00011607,
+            e0: 0.04838624, eRate: -0.00013253,
             i0: 1.30439695, iRate: -0.00183714,
             Ω0: 100.47390909, ΩRate: 0.20469106,
             ω0: 14.72847983, ωRate: 0.21252668,
             L0: 34.39644051, LRate: 3034.74612775, H: -9.40),
         PlanetOrbit(name: "土星",
-            a: 9.53667594, e0: 0.05386179, eRate: -0.00050991,
+            a: 9.53667594, aRate: -0.00125060,
+            e0: 0.05386179, eRate: -0.00050991,
             i0: 2.48599187, iRate:  0.00193609,
             Ω0: 113.66242448, ΩRate: -0.28867794,
             ω0: 92.59887831, ωRate: -0.41897216,
@@ -70,7 +78,7 @@ extension MilkyWayCalculator {
         let M  = AngleMath.toRadians(AngleMath.normalizedDegrees(LD - ωD))
         let ω  = AngleMath.toRadians(ωD)
         let E  = solveKepler(M: M, e: e)
-        let r  = 1.00000261 * (1.0 - e * cos(E))
+        let r  = (1.00000261 + 0.00000562 * T) * (1.0 - e * cos(E))
         let nu = atan2(sqrt(max(0, 1.0 - e * e)) * sin(E), cos(E) - e)
         let lambda = nu + ω  // 日心黄道経度 (rad)
         return (r * cos(lambda), r * sin(lambda))
@@ -96,7 +104,8 @@ extension MilkyWayCalculator {
                 AngleMath.normalizedDegrees((orbit.L0 + orbit.LRate * T) - (orbit.ω0 + orbit.ωRate * T))
             )
             let E    = solveKepler(M: M, e: e)
-            let r    = orbit.a * (1.0 - e * cos(E))
+            let a    = orbit.a + orbit.aRate * T
+            let r    = a * (1.0 - e * cos(E))
             let nu   = atan2(sqrt(max(0, 1.0 - e * e)) * sin(E), cos(E) - e)
 
             // 日心黄道 3D 座標 (Meeus Eq. 33.7)
@@ -182,31 +191,63 @@ extension MilkyWayCalculator {
     /// 惑星観測に必要な空の暗さ（太陽高度の上限, 度）。市民薄明の終了に相当する。
     static let planetObservationSunAltitudeLimit: Double = -6.0
 
+    /// 惑星の 1 夜分を評価するサンプリング区間を返す。
+    /// - 通常: 日没〜日の出 (`sunsetSunriseInterval`)。高緯度の冬に 18:00 前から暗くなる／06:00 過ぎまで暗い夜も
+    ///   取りこぼさず、夏の短い夜では昼間のサンプルを無駄にしない。
+    /// - 極夜: `sunsetSunriseInterval` が返す観測日 12:00〜翌日 12:00 の 24 時間。
+    /// - 白夜（太陽が沈まない）: 暗いサンプルは存在しないため、参考表示用に 18:00〜翌日 06:00 を評価する。
+    static func planetSamplingInterval(
+        date: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> DateInterval? {
+        if let night = sunsetSunriseInterval(date: date, location: location, timeZone: timeZone) {
+            return night
+        }
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let startOfDay = calendar.startOfDay(for: date)
+        guard
+            let nightStart = calendar.date(byAdding: .hour, value: 18, to: startOfDay),
+            let nextDay    = calendar.date(byAdding: .day,  value: 1,  to: startOfDay),
+            let nightEnd   = calendar.date(byAdding: .hour, value: 6,  to: nextDay),
+            nightEnd > nightStart
+        else { return nil }
+        return DateInterval(start: nightStart, end: nightEnd)
+    }
+
+    /// サンプリング区間を 15 分間隔で刻んだ時刻列（区間の終端を必ず含む）。
+    static func planetSampleTimes(in interval: DateInterval) -> [Date] {
+        let intervalSec = Constants.sampleIntervalSeconds
+        let fullSteps = Int(interval.duration / intervalSec)
+        var times = (0...fullSteps).map { interval.start.addingTimeInterval(Double($0) * intervalSec) }
+        if let last = times.last, last < interval.end {
+            times.append(interval.end)
+        }
+        return times
+    }
+
     /// 指定地点・日付における 5 惑星の 1 夜分可視情報を返す。
-    /// サンプリング範囲: 当日 18:00 〜 翌日 06:00（現地時刻）、15 分間隔 (49 サンプル)
+    /// サンプリング範囲: `planetSamplingInterval`（日没〜日の出。極夜は 24 時間、白夜は 18:00〜翌 06:00）を
+    /// 15 分間隔で評価する。
     /// 最大高度・等級は太陽高度が `planetObservationSunAltitudeLimit` 未満のサンプルのみで評価する。
     static func planetNightSummaries(
         date: Date,
         location: CLLocationCoordinate2D,
         timeZone: TimeZone
     ) -> [PlanetNightSummary] {
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let startOfDay = calendar.startOfDay(for: date)
-        guard
-            let nightStart = calendar.date(byAdding: .hour, value: 18, to: startOfDay),
-            let nextDay    = calendar.date(byAdding: .day,  value: 1,  to: startOfDay),
-            let nightEnd   = calendar.date(byAdding: .hour, value: 6,  to: nextDay)
-        else { return [] }
-
-        let intervalSec = Constants.sampleIntervalSeconds
-        let sampleCount = Int(nightEnd.timeIntervalSince(nightStart) / intervalSec) + 1
+        guard let samplingInterval = planetSamplingInterval(
+            date: date,
+            location: location,
+            timeZone: timeZone
+        ) else { return [] }
+        let nightStart = samplingInterval.start
+        let sampleTimes = planetSampleTimes(in: samplingInterval)
 
         typealias Sample = (time: Date, alt: Double, az: Double, mag: Double)
         var timeSeries: [String: [Sample]] = [:]
         var darkSkyTimes: Set<Date> = []
 
-        for i in 0..<sampleCount {
-            let t   = nightStart.addingTimeInterval(Double(i) * intervalSec)
+        for t in sampleTimes {
             let jd  = julianDate(from: t)
             let lst = localSiderealTime(jd: jd, longitude: location.longitude)
             let sun = sunRaDec(jd: jd)

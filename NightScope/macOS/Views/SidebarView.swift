@@ -9,6 +9,8 @@ struct SidebarView: View {
     @ObservedObject var starMapViewModel: StarMapViewModel
     @Binding var selectedDate: Date
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
+    /// カレンダーで「今日」として強調する観測日を返す。
+    private let currentObservationDate: (@MainActor () -> Date)?
     @State private var highlightedIndex = SidebarSearchInteraction.noSelectionIndex
     @FocusState private var isSearchFocused: Bool
     @State private var locationInputMode: LocationInputMode = .map
@@ -18,12 +20,14 @@ struct SidebarView: View {
         viewModel: SidebarViewModel,
         selectedDate: Binding<Date>,
         starMapViewModel: StarMapViewModel,
-        favoriteSyncReconciler: FavoriteSyncReconciler? = nil
+        favoriteSyncReconciler: FavoriteSyncReconciler? = nil,
+        currentObservationDate: (@MainActor () -> Date)? = nil
     ) {
         self._viewModel = StateObject(wrappedValue: viewModel)
         self.starMapViewModel = starMapViewModel
         self._selectedDate = selectedDate
         self.favoriteSyncReconciler = favoriteSyncReconciler
+        self.currentObservationDate = currentObservationDate
     }
 
     var body: some View {
@@ -289,7 +293,12 @@ struct SidebarView: View {
     // MARK: - Date Section
 
     private var dateSection: some View {
-        SidebarDateSection(selectedDate: $selectedDate, timeZone: viewModel.selectedTimeZone, cellHeight: viewModel.calendarCellHeight)
+        SidebarDateSection(
+            selectedDate: $selectedDate,
+            timeZone: viewModel.selectedTimeZone,
+            cellHeight: viewModel.calendarCellHeight,
+            today: currentObservationDate?()
+        )
     }
 }
 
@@ -414,6 +423,7 @@ private struct SidebarDateSection: View {
     @Binding var selectedDate: Date
     let timeZone: TimeZone
     var cellHeight: CGFloat = 32
+    var today: Date? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -422,7 +432,7 @@ private struct SidebarDateSection: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
 
-            CalendarView(selectedDate: $selectedDate, timeZone: timeZone, cellHeight: cellHeight)
+            CalendarView(selectedDate: $selectedDate, timeZone: timeZone, cellHeight: cellHeight, today: today)
                 .padding(.horizontal, -Layout.sidebarHorizontalPadding)
         }
     }

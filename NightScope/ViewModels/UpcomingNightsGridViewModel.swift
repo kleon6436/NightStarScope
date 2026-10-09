@@ -76,13 +76,19 @@ final class UpcomingNightsGridViewModel: ObservableObject {
     /// 天気データが夜間を通して使えるかを判定する。
     func hasReliableWeatherData(for night: NightSummary, weather: DayWeatherSummary?) -> Bool {
         guard let weather else { return false }
-        return night.hasUsableWeatherData(nighttimeHours: weather.nighttimeHours)
+        return night.hasUsableWeatherData(
+            nighttimeHours: weather.nighttimeHours,
+            referenceDate: detailViewModel.currentDate()
+        )
     }
 
     /// 途中までしか評価できない天気データかを判定する。
     func hasPartialWeatherData(for night: NightSummary, weather: DayWeatherSummary?) -> Bool {
         guard let weather else { return false }
-        return !night.hasUsableWeatherData(nighttimeHours: weather.nighttimeHours)
+        return !night.hasUsableWeatherData(
+            nighttimeHours: weather.nighttimeHours,
+            referenceDate: detailViewModel.currentDate()
+        )
     }
 
     /// 予報対象外かどうかを判定する。
@@ -104,10 +110,12 @@ final class UpcomingNightsGridViewModel: ObservableObject {
         }) else {
             return baseIndex
         }
+        // ベース指数と同じ現在時刻（AppController の時計）で部分予報を判定する。
         return baseIndex.adjusted(
             for: observationMode,
             nightSummary: night,
-            weather: weatherSummary(for: date)
+            weather: weatherSummary(for: date),
+            referenceDate: detailViewModel.currentDate()
         )
     }
 
@@ -121,7 +129,8 @@ final class UpcomingNightsGridViewModel: ObservableObject {
             isReliableWeather: hasReliableWeatherData(for: night, weather: weather),
             hasPartialWeather: hasPartialWeatherData(for: night, weather: weather),
             isForecastOutOfRange: isForecastOutOfRange(for: night, weather: weather),
-            hasWeatherLoadError: weatherErrorMessage != nil
+            hasWeatherLoadError: weatherErrorMessage != nil,
+            currentObservationDate: detailViewModel.currentObservationDate()
         )
     }
 
@@ -147,11 +156,15 @@ final class UpcomingNightsGridViewModel: ObservableObject {
     }
 
     /// 「狙い目」として 1 行で添える文言。強調に値しない、または比較対象が無い場合は nil。
-    func bestNightHighlightText(referenceDate: Date = Date()) -> String? {
+    /// - Parameter referenceDate: 部分予報の判定に使う現在時刻。nil なら AppController の時計を使う。
+    func bestNightHighlightText(referenceDate: Date? = nil) -> String? {
         let candidates = bestNightCandidates()
         // 指数が出ていない夜は比較対象にならないため、採点済みの夜数で判定する。
         guard candidates.filter({ $0.index != nil }).count >= 2 else { return nil }
-        guard let pick = BestNightPicker.pick(nights: candidates, referenceDate: referenceDate),
+        guard let pick = BestNightPicker.pick(
+                nights: candidates,
+                referenceDate: referenceDate ?? detailViewModel.currentDate()
+              ),
               pick.isWorthHighlighting else { return nil }
         let presentation = forecastPresentation(for: pick.summary)
         let window = pick.windowText ?? presentation.darkStartText ?? "—"
@@ -163,9 +176,19 @@ final class UpcomingNightsGridViewModel: ObservableObject {
         ObservationTimeZone.isDate(date, inSameDayAs: selectedDate, timeZone: selectedTimeZone)
     }
 
-    /// 現在の選択日が今日かを返す。
-    func isSelectedDateToday(referenceDate: Date = Date()) -> Bool {
-        ObservationTimeZone.isDateInToday(selectedDate, timeZone: selectedTimeZone, referenceDate: referenceDate)
+    /// 現在の選択日が「今日」（現在の観測日）かを返す。深夜〜明け方は進行中の前夜を「今日」とみなす。
+    /// - Parameter referenceDate: 現在時刻として扱う時刻。nil なら AppController の時計を使う。
+    func isSelectedDateToday(referenceDate: Date? = nil) -> Bool {
+        ObservationTimeZone.isDate(
+            selectedDate,
+            inSameDayAs: detailViewModel.currentObservationDate(referenceDate: referenceDate),
+            timeZone: selectedTimeZone
+        )
+    }
+
+    /// 選択日を「今日」（現在の観測日）へ戻す。深夜〜明け方は進行中の前夜を選ぶ。
+    func selectToday(referenceDate: Date? = nil) {
+        setSelectedDate(detailViewModel.currentObservationDate(referenceDate: referenceDate))
     }
 
     /// 夜間範囲の表示用テキストを組み立てる。
@@ -175,7 +198,10 @@ final class UpcomingNightsGridViewModel: ObservableObject {
             return L10n.tr("暗い時間なし")
         }
         if let weather,
-           let text = night.weatherAwareRangeText(nighttimeHours: weather.nighttimeHours) {
+           let text = night.weatherAwareRangeText(
+               nighttimeHours: weather.nighttimeHours,
+               referenceDate: detailViewModel.currentDate()
+           ) {
             return text.isEmpty ? L10n.tr("天候不良") : text
         }
         return night.darkRangeText.isEmpty ? "—" : night.darkRangeText

@@ -188,11 +188,24 @@ final class DetailViewModel: ObservableObject {
     var displayedStarGazingIndex: StarGazingIndex? {
         guard let starGazingIndex else { return nil }
         guard let nightSummary else { return starGazingIndex }
+        // ベース指数（AppController が注入された現在時刻で計算）と同じ「今」で部分予報を判定する。
         return starGazingIndex.adjusted(
             for: observationMode,
             nightSummary: nightSummary,
-            weather: currentWeather
+            weather: currentWeather,
+            referenceDate: appController.currentDate()
         )
+    }
+
+    /// AppController の時計での現在時刻。星空指数のモード補正をベース指数と同じ基準時刻で行うために使う。
+    func currentDate() -> Date {
+        appController.currentDate()
+    }
+
+    /// 現在の観測日（アプリ全体の「今日」）。深夜〜明け方は進行中の前夜の日付を返す。
+    /// - Parameter referenceDate: 現在時刻として扱う時刻。nil なら AppController の時計を使う。
+    func currentObservationDate(referenceDate: Date? = nil) -> Date {
+        appController.currentObservationDate(referenceDate: referenceDate)
     }
 
     /// 天気情報を再取得する。
@@ -283,7 +296,10 @@ final class DetailViewModel: ObservableObject {
         )
         isCurrentWeatherCoverageIncomplete = {
             guard let nightSummary, let currentWeather else { return false }
-            return !nightSummary.hasUsableWeatherData(nighttimeHours: currentWeather.nighttimeHours)
+            return !nightSummary.hasUsableWeatherData(
+                nighttimeHours: currentWeather.nighttimeHours,
+                referenceDate: appController.currentDate()
+            )
         }()
         isCurrentWeatherForecastOutOfRange = appController.weatherService.isForecastOutOfRange(
             for: displayedDate,

@@ -36,7 +36,7 @@ final class LocationRefreshFetcher {
             timeZone: timeZone
         )
         async let upcomingTask = calculationService.calculateUpcomingNights(
-            from: ObservationTimeZone.startOfDay(for: Date(), timeZone: timeZone),
+            from: request.upcomingStartDate ?? ObservationTimeZone.startOfDay(for: Date(), timeZone: timeZone),
             location: request.coordinate,
             timeZone: timeZone,
             days: ForecastConfiguration.upcomingNightCount

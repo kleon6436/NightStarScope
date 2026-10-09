@@ -10,12 +10,15 @@ struct CalendarView: View {
     @Binding var selectedDate: Date
     let timeZone: TimeZone
     var cellHeight: CGFloat = 32
+    /// 「今日」として強調する観測日。nil なら暦日の今日を使う。
+    var today: Date?
     @State private var displayMonth: Date
 
-    init(selectedDate: Binding<Date>, timeZone: TimeZone = .current, cellHeight: CGFloat = 32) {
+    init(selectedDate: Binding<Date>, timeZone: TimeZone = .current, cellHeight: CGFloat = 32, today: Date? = nil) {
         _selectedDate = selectedDate
         self.timeZone = timeZone
         self.cellHeight = cellHeight
+        self.today = today
         _displayMonth = State(initialValue: selectedDate.wrappedValue)
     }
 
@@ -91,7 +94,8 @@ struct CalendarView: View {
                             date: day,
                             timeZone: timeZone,
                             isSelected: calendar.isDate(day, inSameDayAs: selectedDate),
-                            isToday: ObservationTimeZone.isDateInToday(day, timeZone: timeZone),
+                            isToday: today.map { calendar.isDate(day, inSameDayAs: $0) }
+                                ?? ObservationTimeZone.isDateInToday(day, timeZone: timeZone),
                             cellHeight: cellHeight,
                             onTap: { selectedDate = day }
                         )

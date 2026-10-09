@@ -257,13 +257,22 @@ final class AppControllerTests: XCTestCase {
                 details: ResolvedLocationDetails(name: "東京", timeZoneIdentifier: TimeZone.current.identifier)
             )
         )
+        let selectedTimeZone = locationController.selectedTimeZone
+        // 深夜〜明け方は前夜が「今日」になるため、夜が始まった後の時刻に固定して暦日と観測日を一致させる。
+        let launchDate = ObservationTimeZone.gregorianCalendar(timeZone: selectedTimeZone).date(
+            from: DateComponents(year: 2026, month: 8, day: 12, hour: 21)
+        )!
         let appController = AppController(
             locationController: locationController,
-            calculationService: MockNightCalculationService()
+            calculationService: MockNightCalculationService(),
+            now: { launchDate }
         )
-        let selectedTimeZone = locationController.selectedTimeZone
 
-        XCTAssertTrue(ObservationTimeZone.isDateInToday(appController.selectedDate, timeZone: selectedTimeZone))
+        XCTAssertTrue(ObservationTimeZone.isDateInToday(
+            appController.selectedDate,
+            timeZone: selectedTimeZone,
+            referenceDate: launchDate
+        ))
         XCTAssertFalse(ObservationTimeZone.isDate(
             appController.selectedDate,
             inSameDayAs: sentinelDate,
@@ -386,7 +395,7 @@ final class AppControllerTests: XCTestCase {
         await mockCalculationService.enqueueNightSummary(makeNightSummary(date: firstDate), delayMilliseconds: 250)
         await mockCalculationService.enqueueNightSummary(makeNightSummary(date: secondDate), delayMilliseconds: 0)
 
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: mockCalculationService)
 
         appController.selectedDate = firstDate
         appController.recalculate()
@@ -405,7 +414,7 @@ final class AppControllerTests: XCTestCase {
 
     func test_recalculateUpcoming_buildsIndexesForAllNights() async {
         let mockCalculationService = MockNightCalculationService()
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: mockCalculationService)
         let timeZone = appController.locationController.selectedTimeZone
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let baseDate = calendar.startOfDay(for: Date())
@@ -427,7 +436,7 @@ final class AppControllerTests: XCTestCase {
     func test_weatherPublisherUpdate_recomputesUpcomingIndexes() async {
         let mockCalculationService = MockNightCalculationService()
         let weatherService = WeatherKitService()
-        let appController = AppController(weatherService: weatherService, calculationService: mockCalculationService)
+        let appController = AppController(locationController: makeTokyoLocationController(), weatherService: weatherService, calculationService: mockCalculationService)
         let selectedTimeZone = appController.locationController.selectedTimeZone
         let baseDate = ObservationTimeZone.startOfDay(for: Date(), timeZone: selectedTimeZone)
         let night = makeNightSummary(date: baseDate, timeZoneIdentifier: selectedTimeZone.identifier)
@@ -511,7 +520,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_makeStarGazingIndex_usesProvidedWeatherSnapshotAndTimeZone() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let tokyo = TestTimeZones.tokyo
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         var utcCalendar = Calendar(identifier: .gregorian)
@@ -543,7 +552,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_makeUpcomingIndexes_usesProvidedWeatherSnapshotAndTimeZone() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -583,10 +592,12 @@ final class AppControllerTests: XCTestCase {
         )
         let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: losAngeles)
         let sameNight = AppController(
+            locationController: makeTokyoLocationController(),
             calculationService: MockNightCalculationService(),
             now: { dayStart.addingTimeInterval(22 * 3600) }
         )
         let laterDay = AppController(
+            locationController: makeTokyoLocationController(),
             calculationService: MockNightCalculationService(),
             now: { dayStart.addingTimeInterval(3 * 86_400) }
         )
@@ -607,6 +618,7 @@ final class AppControllerTests: XCTestCase {
         )
         let (night, weather) = makePartiallyCoveredNight(dayStart: dayStart, timeZone: losAngeles)
         let appController = AppController(
+            locationController: makeTokyoLocationController(),
             calculationService: MockNightCalculationService(),
             now: { dayStart.addingTimeInterval(22 * 3600) }
         )
@@ -624,7 +636,7 @@ final class AppControllerTests: XCTestCase {
 
     func test_makeUpcomingIndexes_whenNightTimeZoneMatchesKeyTimeZone_keysByNightDate() {
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let dayStart = ObservationTimeZone.startOfDay(
             for: Date(timeIntervalSince1970: 1_710_000_000),
             timeZone: losAngeles
@@ -646,7 +658,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_recomputeUpcomingIndexes_skipsNightsFromOtherTimeZone() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let selectedTimeZone = appController.locationController.selectedTimeZone
         let otherTimeZone = selectedTimeZone.identifier == TestTimeZones.tokyo.identifier
             ? TimeZone(identifier: "America/Los_Angeles")!
@@ -827,7 +839,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_recomputeStarGazingIndex_usesNightSummaryDateWhileSelectionIsChanging() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let calendar = Calendar(identifier: .gregorian)
         let currentDate = calendar.startOfDay(for: Date())
         let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
@@ -859,7 +871,7 @@ final class AppControllerTests: XCTestCase {
         let mockCalculationService = MockNightCalculationService()
         await mockCalculationService.enqueueNightSummary(makeNightSummary(date: nextDate), delayMilliseconds: 250)
 
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: mockCalculationService)
         appController.nightSummary = oldSummary
         appController.starGazingIndex = oldIndex
         appController.selectedDate = nextDate
@@ -961,8 +973,102 @@ final class AppControllerTests: XCTestCase {
         XCTAssertEqual(appController.selectedDate, customDay)
     }
 
+    // MARK: - 観測日（夜が明けるまでは前夜）を「今日」とする
+
+    private func tokyoDate(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        ObservationTimeZone.gregorianCalendar(timeZone: TestTimeZones.tokyo).date(
+            from: DateComponents(year: 2026, month: 8, day: day, hour: hour, minute: minute)
+        )!
+    }
+
+    func test_init_afterMidnightBeforeSunrise_selectsPreviousObservationDate() {
+        let launchDate = tokyoDate(13, 2)
+        let appController = AppController(
+            locationController: makeTokyoLocationController(),
+            calculationService: MockNightCalculationService(),
+            now: { launchDate }
+        )
+
+        XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
+        XCTAssertEqual(appController.currentObservationDate(), tokyoDate(12, 0))
+        XCTAssertEqual(appController.currentDate(), tokyoDate(13, 2))
+    }
+
+    func test_currentObservationDate_switchesAtSunriseNotAtMidnight() {
+        let appController = AppController(
+            locationController: makeTokyoLocationController(),
+            calculationService: MockNightCalculationService()
+        )
+
+        XCTAssertEqual(appController.currentObservationDate(referenceDate: tokyoDate(12, 21)), tokyoDate(12, 0))
+        XCTAssertEqual(appController.currentObservationDate(referenceDate: tokyoDate(13, 0, 30)), tokyoDate(12, 0))
+        XCTAssertEqual(appController.currentObservationDate(referenceDate: tokyoDate(13, 3)), tokyoDate(12, 0))
+        // 東京の 8/13 の日の出は 5 時前。夜が明けた後は暦日どおり。
+        XCTAssertEqual(appController.currentObservationDate(referenceDate: tokyoDate(13, 7)), tokyoDate(13, 0))
+        XCTAssertEqual(appController.currentObservationDate(referenceDate: tokyoDate(13, 12)), tokyoDate(13, 0))
+    }
+
+    /// 02:00 の起動では進行中の前夜を選び、予報の先頭も同じ夜にする。夜が明けた後の前景復帰で当日へ進む。
+    func test_onStart_afterMidnightBeforeSunrise_selectsPreviousDateAndRollsAfterSunrise() async {
+        let calculationService = RequestedDaysNightCalculationService()
+        let appController = AppController(
+            locationController: makeTokyoLocationController(),
+            calculationService: calculationService
+        )
+
+        appController.onStart(referenceDate: tokyoDate(13, 2), refreshExternalData: false)
+
+        XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
+        await waitUntil {
+            appController.nightSummary?.date == self.tokyoDate(12, 0)
+                && !appController.isUpcomingLoading
+                && appController.upcomingNights.first?.date == self.tokyoDate(12, 0)
+        }
+        XCTAssertEqual(appController.upcomingNights.first?.date, appController.selectedDate)
+
+        appController.handleSceneDidBecomeActive(referenceDate: tokyoDate(13, 7), refreshExternalData: false)
+
+        XCTAssertEqual(appController.selectedDate, tokyoDate(13, 0))
+        await waitUntil {
+            appController.nightSummary?.date == self.tokyoDate(13, 0)
+                && !appController.isUpcomingLoading
+                && appController.upcomingNights.first?.date == self.tokyoDate(13, 0)
+        }
+    }
+
+    /// 今夜を追っている間に深夜 0 時を越えても、夜が明けるまでは選択日を変えない。夜が明けたら当日へ進む。
+    func test_handleSceneDidBecomeActive_acrossMidnightWhileTrackingTonight_keepsObservationDateUntilNightEnds() async {
+        let calculationService = RequestedDaysNightCalculationService()
+        let appController = AppController(
+            locationController: makeTokyoLocationController(),
+            calculationService: calculationService
+        )
+
+        appController.onStart(referenceDate: tokyoDate(12, 21), refreshExternalData: false)
+        XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
+        await waitUntil { !appController.isCalculating && !appController.isUpcomingLoading }
+
+        appController.handleSceneDidBecomeActive(referenceDate: tokyoDate(13, 0, 30), refreshExternalData: false)
+        XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
+        await waitUntil {
+            !appController.isUpcomingLoading && appController.upcomingNights.first?.date == self.tokyoDate(12, 0)
+        }
+        XCTAssertEqual(appController.nightSummary?.date, tokyoDate(12, 0))
+
+        appController.handleSceneDidBecomeActive(referenceDate: tokyoDate(13, 3), refreshExternalData: false)
+        XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
+
+        appController.handleSceneDidBecomeActive(referenceDate: tokyoDate(13, 7), refreshExternalData: false)
+        XCTAssertEqual(appController.selectedDate, tokyoDate(13, 0))
+        await waitUntil {
+            appController.nightSummary?.date == self.tokyoDate(13, 0)
+                && !appController.isUpcomingLoading
+                && appController.upcomingNights.first?.date == self.tokyoDate(13, 0)
+        }
+    }
+
     func test_locationRefreshDisposition_appliesAll_whenSelectionStillMatches() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let request = AppController.LocationRefreshRequest(
             selectedDate: appController.selectedDate,
             coordinate: appController.locationController.selectedLocation,
@@ -973,7 +1079,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_locationRefreshDisposition_appliesLocationDataOnly_whenSelectedDateChanged() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let request = AppController.LocationRefreshRequest(
             selectedDate: appController.selectedDate,
             coordinate: appController.locationController.selectedLocation,
@@ -986,7 +1092,7 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_locationRefreshDisposition_appliesAll_whenOnlyTimeComponentDiffers() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let request = AppController.LocationRefreshRequest(
             selectedDate: appController.selectedDate,
             coordinate: appController.locationController.selectedLocation,
@@ -1026,7 +1132,7 @@ final class AppControllerTests: XCTestCase {
         let nextNight = makeNightSummary(date: nextDate)
         let weatherSummary = makeWeatherSummary(date: baseDate)
 
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         appController.nightSummary = night
         appController.upcomingNights = [night, nextNight]
         appController.starGazingIndex = StarGazingIndex.compute(
@@ -1074,7 +1180,7 @@ final class AppControllerTests: XCTestCase {
             delayMilliseconds: 250
         )
 
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: mockCalculationService)
         appController.recalculate()
         appController.recalculateUpcoming()
 
@@ -1095,7 +1201,7 @@ final class AppControllerTests: XCTestCase {
 
         let mockCalculationService = MockNightCalculationService()
         await mockCalculationService.enqueueNightSummary(makeNightSummary(date: nextDate))
-        let appController = AppController(calculationService: mockCalculationService)
+        let appController = AppController(locationController: makeTokyoLocationController(), calculationService: mockCalculationService)
 
         appController.selectedDate = nextDate
         appController.isCalculating = true

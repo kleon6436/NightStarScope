@@ -20,14 +20,17 @@ struct MeteorShowerCalendarView: View {
     /// selectedDate を月日に分解する観測地のタイムゾーン。
     /// nil の場合は環境値 `\.timeZone`（未設定なら端末のタイムゾーン）を使う。
     let timeZone: TimeZone?
+    /// 「今日」とみなす観測日。nil なら暦日の今日を使う。
+    let today: Date?
 
-    init(selectedDate: Date = Date(), timeZone: TimeZone? = nil) {
+    init(selectedDate: Date = Date(), timeZone: TimeZone? = nil, today: Date? = nil) {
         self.selectedDate = selectedDate
         self.timeZone = timeZone
+        self.today = today
     }
 
     var body: some View {
-        MeteorShowerCalendarContent(selectedDate: selectedDate, timeZone: timeZone)
+        MeteorShowerCalendarContent(selectedDate: selectedDate, timeZone: timeZone, today: today)
             // 12 か月の目盛りと帯を 1 行に並べる表のため、これ以上大きくすると月の数字が重なる。
             // 内側の @ScaledMetric にも上限を効かせるため、中身全体の外側で指定する。
             .dynamicTypeSize(...CalendarStyle.maximumTypeSize)
@@ -42,6 +45,7 @@ private struct MeteorShowerCalendarContent: View {
 
     let selectedDate: Date
     let timeZone: TimeZone?
+    let today: Date?
 
     @Environment(\.timeZone) private var environmentTimeZone
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -73,7 +77,8 @@ private struct MeteorShowerCalendarContent: View {
     }
 
     private var isToday: Bool {
-        observationCalendar.isDateInToday(selectedDate)
+        guard let today else { return observationCalendar.isDateInToday(selectedDate) }
+        return observationCalendar.isDate(selectedDate, inSameDayAs: today)
     }
 
     var body: some View {

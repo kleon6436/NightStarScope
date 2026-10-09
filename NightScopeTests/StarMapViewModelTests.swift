@@ -127,7 +127,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_initialFOV_usesNaturalDefaultFieldOfView() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
 
         XCTAssertEqual(StarMapLayout.defaultFOV, 60, accuracy: 0.001)
@@ -319,7 +319,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_setShowsConstellationLines_updatesDisplaySettings() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
 
         viewModel.setShowsConstellationLines(false)
@@ -705,7 +705,7 @@ final class StarMapViewModelTests: XCTestCase {
             }
         }
 
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
         var cancellables = Set<AnyCancellable>()
 
@@ -745,7 +745,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_initialPose_usesResetAltitude() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
         let size = CGSize(width: 860, height: 620)
 
@@ -762,7 +762,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_prepareForStarMapPresentation_onlyAppliesInitialPoseOnce() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
         let size = CGSize(width: 860, height: 620)
 
@@ -816,7 +816,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_resetToNorth_usesResetAltitude() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
 
         viewModel.viewAzimuth = 180
@@ -1769,7 +1769,7 @@ final class StarMapViewModelTests: XCTestCase {
         )
         let reference = makeTokyoAfterMidnightReference()
 
-        // AppController は起動時に暦日の「今日」を選択する。
+        // 明夜（暦日の今日）を選んでいても、「現在」は進行中の前夜の現在時刻へ戻す。
         appController.selectedDate = reference.today
         viewModel.resetToNow(referenceDate: reference.now)
 
@@ -1778,7 +1778,26 @@ final class StarMapViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayTimeString, "02:07")
     }
 
-    func test_StarMapViewModel_activatePresentationIfNeeded_afterMidnightShowsCurrentInstant() {
+    func test_StarMapViewModel_activatePresentationIfNeeded_afterMidnightLaunchShowsCurrentInstant() {
+        let appController = makeTokyoAppController()
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            computationDependency: makeStaticComputationDependency()
+        )
+        let reference = makeTokyoAfterMidnightReference()
+
+        // AppController は深夜の起動で進行中の前夜を「今日」に選ぶため、星図を開いても選択日は動かない。
+        appController.onStart(referenceDate: reference.now, refreshExternalData: false)
+        XCTAssertEqual(appController.selectedDate, reference.previousDay)
+        viewModel.activatePresentationIfNeeded(referenceDate: reference.now)
+
+        XCTAssertEqual(appController.selectedDate, reference.previousDay)
+        XCTAssertEqual(viewModel.displayDate, reference.now)
+        XCTAssertEqual(viewModel.displayTimeString, "02:07")
+    }
+
+    /// 深夜に明夜（暦日の今日）を選んでいる場合、星図を開いても選択日を黙って前夜へ戻さない。
+    func test_StarMapViewModel_syncWithSelectedDate_afterMidnightKeepsExplicitNextNight() {
         let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(
             appController: appController,
@@ -1788,10 +1807,45 @@ final class StarMapViewModelTests: XCTestCase {
 
         appController.selectedDate = reference.today
         viewModel.activatePresentationIfNeeded(referenceDate: reference.now)
+        viewModel.syncWithSelectedDate(referenceDate: reference.now)
 
-        XCTAssertEqual(appController.selectedDate, reference.previousDay)
-        XCTAssertEqual(viewModel.displayDate, reference.now)
-        XCTAssertEqual(viewModel.displayTimeString, "02:07")
+        let displayComponents = reference.calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: viewModel.displayDate
+        )
+        XCTAssertEqual(appController.selectedDate, reference.today)
+        XCTAssertEqual(displayComponents.day, 3)
+        XCTAssertEqual(displayComponents.hour, 2)
+        XCTAssertEqual(displayComponents.minute, 7)
+    }
+
+    /// 星図を開いたまま深夜 0 時を越えて前景復帰しても、選択日は今夜のままで、表示は 24 時間先へ飛ばない。
+    func test_StarMapViewModel_openAcrossMidnight_keepsShowingRealInstant() async {
+        let appController = makeTokyoAppController()
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            computationDependency: makeStaticComputationDependency()
+        )
+        let calendar = observationCalendar(for: TestTimeZones.tokyo)
+        let tonight = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12))!
+        let evening = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12, hour: 23))!
+        let afterMidnight = calendar.date(from: DateComponents(year: 2026, month: 8, day: 13, hour: 0, minute: 30))!
+
+        appController.onStart(referenceDate: evening, refreshExternalData: false)
+        viewModel.activatePresentationIfNeeded(referenceDate: evening)
+        XCTAssertEqual(viewModel.displayDate, evening)
+
+        appController.handleSceneDidBecomeActive(referenceDate: afterMidnight, refreshExternalData: false)
+        // 選択日の変更通知はメインキュー経由で届くため、反映の機会を与える。
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(appController.selectedDate, tonight)
+        XCTAssertEqual(viewModel.displayDate, evening)
+
+        viewModel.resetToNow(referenceDate: afterMidnight)
+        XCTAssertEqual(appController.selectedDate, tonight)
+        XCTAssertEqual(viewModel.displayDate, afterMidnight)
+        XCTAssertEqual(viewModel.displayTimeString, "00:30")
     }
 
     func test_StarMapViewModel_setObservationDate_afterResetToNowAtMidnightKeepsPickedDate() {

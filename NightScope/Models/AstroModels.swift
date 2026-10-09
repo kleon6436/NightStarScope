@@ -321,15 +321,25 @@ struct NightSummary {
     }
 
     /// 天気データの網羅性を判定する基準の時間帯（正時の集合）。
-    /// 暗時間があればその時間帯、暗時間がない夜（白夜等）は天気の夜間区間と同じ
-    /// 市民薄明終了後（太陽高度 < -6°）の正時を基準にする。
+    /// 暗時間があればその時間帯、暗時間がない夜（白夜等）は天気の夜間区間
+    /// （WeatherKitService.weatherNightInterval）と同じく市民薄明終了後（太陽高度 < -6°）の正時、
+    /// それも 1 つもない夜は太陽が地平線下（< 0°）の正時を基準にする。
     /// 根拠: 白夜では暗時間が空集合になり、天気が揃っていても「一部のみ」と誤判定されるため。
+    ///       また -6° まで沈まない夜の天気は地平線下の区間で束ねられるため、同じ基準で判定しないと
+    ///       天気があっても「データなし」になる。
     private var weatherCoverageHourStarts: Set<Date> {
         let darkHours = darkHourStarts
         guard darkHours.isEmpty else { return darkHours }
+        let civilHours = onTheHourStarts(sunAltitudeBelow: MilkyWayCalculator.civilTwilightSunAltitude)
+        guard civilHours.isEmpty else { return civilHours }
+        return onTheHourStarts(sunAltitudeBelow: MilkyWayCalculator.horizonSunAltitude)
+    }
+
+    /// 太陽高度が `threshold` 未満となる正時のイベント時刻の集合。
+    private func onTheHourStarts(sunAltitudeBelow threshold: Double) -> Set<Date> {
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         return Set(events.compactMap { event in
-            guard event.sunAltitude < Self.civilTwilightSunAltitude,
+            guard event.sunAltitude < threshold,
                   let hourStart = calendar.dateInterval(of: .hour, for: event.date)?.start,
                   hourStart == event.date else {
                 return nil
@@ -337,9 +347,6 @@ struct NightSummary {
             return hourStart
         })
     }
-
-    /// 市民薄明の終了に相当する太陽高度 (度)。天気の夜間区間（civilDarknessInterval）と同じ基準。
-    private static let civilTwilightSunAltitude = -6.0
 
     private func coveredDarkEvents(nighttimeHours: [HourlyWeather], calendar: Calendar) -> [AstroEvent] {
         let coveredHourStarts = Set(nighttimeHours.compactMap { weather in

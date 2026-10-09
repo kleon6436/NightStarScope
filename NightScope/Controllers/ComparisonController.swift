@@ -77,12 +77,38 @@ final class ComparisonController: ObservableObject {
     }
 
     /// 列の日付（`timeZone` の各日の 0 時）を作る。列は暦日を表し、地点ごとの夜は年月日で対応付ける。
-    private static func makeDates(referenceDate: Date, dayCount: Int, timeZone: TimeZone) -> [Date] {
+    /// 先頭列は各地点の「今夜」（観測日）のうち最も早い暦日にそろえ、深夜〜明け方でも進行中の夜を含める。
+    static func makeDates(
+        referenceDate: Date,
+        dayCount: Int,
+        timeZone: TimeZone,
+        locations: [FavoriteLocation] = []
+    ) -> [Date] {
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let start = calendar.startOfDay(for: referenceDate)
+        let start = firstColumnDate(referenceDate: referenceDate, timeZone: timeZone, locations: locations)
         return (0..<dayCount).compactMap {
             calendar.date(byAdding: .day, value: $0, to: start).map { calendar.startOfDay(for: $0) }
         }
+    }
+
+    /// 各地点の観測日（アプリ全体の「今日」）を列のタイムゾーンの暦日に写し、最も早いものを返す。
+    private static func firstColumnDate(
+        referenceDate: Date,
+        timeZone: TimeZone,
+        locations: [FavoriteLocation]
+    ) -> Date {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let calendarToday = calendar.startOfDay(for: referenceDate)
+        let observationDays = locations.map { location -> Date in
+            let locationTimeZone = TimeZone(identifier: location.timeZoneIdentifier) ?? timeZone
+            let observationDate = StarMapDateLogic.currentObservationDate(
+                for: referenceDate,
+                location: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude),
+                timeZone: locationTimeZone
+            )
+            return ObservationTimeZone.preservingCalendarDay(observationDate, from: locationTimeZone, to: timeZone)
+        }
+        return observationDays.min() ?? calendarToday
     }
 
     /// 保存済み地点ごとの夜間条件をまとめて評価する。
@@ -95,7 +121,12 @@ final class ComparisonController: ObservableObject {
         calculationService: any NightCalculating
     ) async -> ComparisonMatrix {
         let columnTimeZone = TimeZone.current
-        let dates = makeDates(referenceDate: referenceDate, dayCount: dayCount, timeZone: columnTimeZone)
+        let dates = makeDates(
+            referenceDate: referenceDate,
+            dayCount: dayCount,
+            timeZone: columnTimeZone,
+            locations: locations
+        )
         var cellsByID = Dictionary(uniqueKeysWithValues: locations.flatMap { location in
             dates.map { date in
                 let cell = ComparisonCell(locationID: location.id, date: date, loadState: .loading)
