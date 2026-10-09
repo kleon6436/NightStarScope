@@ -632,9 +632,13 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         return searchState.query
     }
 
-    /// macOS は WhenInUse を要求しても .authorizedAlways を返すことがあるため両方を許可とみなす。
+    /// macOS では .authorizedWhenInUse が使えず、許可時は常に .authorizedAlways になる。
     private static func isAuthorized(_ status: CLAuthorizationStatus) -> Bool {
+        #if os(macOS)
+        status == .authorizedAlways
+        #else
         status == .authorizedWhenInUse || status == .authorizedAlways
+        #endif
     }
 
     /// 受け取った位置を評価し、基準を満たせば現在地として確定、満たさなければ候補として保持する。

@@ -104,23 +104,6 @@
         }
       }
     },
-    "%@、夜間の最低気温 %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, night low %2$@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@、夜間の最低気温 %@"
-          }
-        }
-      }
-    },
     "%@ ・ %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -220,6 +203,23 @@
         }
       }
     },
+    "%@、夜間の最低気温 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, night low %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、夜間の最低気温 %@"
+          }
+        }
+      }
+    },
     "%@、指数未取得" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -303,6 +303,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ active"
+          }
+        }
+      }
+    },
+    "%d 件" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d"
           }
         }
       }
@@ -449,6 +460,9 @@
 
     },
     "CC BY 4.0" : {
+
+    },
+    "CC BY-SA 4.0" : {
 
     },
     "Copernicus DEM GLO-30 © DLR/ESA" : {
@@ -655,6 +669,34 @@
     },
     "Falchi et al. 2016 – World Atlas of Artificial Night Sky Brightness (GFZ Data Services)" : {
 
+    },
+    "HYG Database (GitHub)" : {
+
+    },
+    "HYG Database v4.1 / David Nash (astronexus)" : {
+
+    },
+    "iCloud に %d 件追加しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locations added to iCloud: %d"
+          }
+        }
+      }
+    },
+    "iCloud にのみある地点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locations Only in iCloud"
+          }
+        }
+      }
     },
     "iCloud 同期" : {
       "extractionState" : "manual",
@@ -1064,9 +1106,6 @@
           }
         }
       }
-    },
-    "Public Domain" : {
-
     },
     "reason.separator" : {
       "extractionState" : "manual",
@@ -2413,6 +2452,28 @@
         }
       }
     },
+    "この端末に %d 件取り込みました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locations imported to this device: %d"
+          }
+        }
+      }
+    },
+    "この端末にのみある地点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locations Only on This Device"
+          }
+        }
+      }
+    },
     "これ以上選択できません" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2705,6 +2766,17 @@
         }
       }
     },
+    "すべて選択" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        }
+      }
+    },
     "スラファト" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2767,6 +2839,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zosma"
+          }
+        }
+      }
+    },
+    "タウ・サジタリ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tau Sagittarii"
           }
         }
       }
@@ -3444,6 +3527,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eta Aquariids"
+          }
+        }
+      }
+    },
+    "みぞれ・着氷性の雨" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleet / Freezing Rain"
           }
         }
       }
@@ -4284,6 +4378,17 @@
         }
       }
     },
+    "再起動後に反映されます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Takes effect after restarting the app"
+          }
+        }
+      }
+    },
     "最大" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4642,6 +4747,17 @@
         }
       }
     },
+    "取り込める地点はありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No locations to import"
+          }
+        }
+      }
+    },
     "取得中..." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4880,6 +4996,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No locations selected"
+          }
+        }
+      }
+    },
+    "地点の取り込み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Locations"
           }
         }
       }
@@ -6723,6 +6850,28 @@
         }
       }
     },
+    "確認して取り込む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review and Import"
+          }
+        }
+      }
+    },
+    "確認して追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review and Add"
+          }
+        }
+      }
+    },
     "視野 %.0f°" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7317,6 +7466,28 @@
         }
       }
     },
+    "選択した地点を iCloud に追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Selected Locations to iCloud"
+          }
+        }
+      }
+    },
+    "選択した地点をこの端末に取り込む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Selected Locations to This Device"
+          }
+        }
+      }
+    },
     "選択した日付の星空マップを開きます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7324,6 +7495,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opens the star map for the selected date."
+          }
+        }
+      }
+    },
+    "選択を解除" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
           }
         }
       }
@@ -7569,191 +7751,6 @@
           }
         }
       }
-    },
-    "地点の取り込み" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Locations"
-          }
-        }
-      }
-    },
-    "この端末にのみある地点" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Locations Only on This Device"
-          }
-        }
-      }
-    },
-    "iCloud にのみある地点" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Locations Only in iCloud"
-          }
-        }
-      }
-    },
-    "すべて選択" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select All"
-          }
-        }
-      }
-    },
-    "選択を解除" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deselect All"
-          }
-        }
-      }
-    },
-    "選択した地点を iCloud に追加" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Selected Locations to iCloud"
-          }
-        }
-      }
-    },
-    "選択した地点をこの端末に取り込む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Selected Locations to This Device"
-          }
-        }
-      }
-    },
-    "iCloud に %d 件追加しました" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Locations added to iCloud: %d"
-          }
-        }
-      }
-    },
-    "この端末に %d 件取り込みました" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Locations imported to this device: %d"
-          }
-        }
-      }
-    },
-    "再起動後に反映されます" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Takes effect after restarting the app"
-          }
-        }
-      }
-    },
-    "取り込める地点はありません" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No locations to import"
-          }
-        }
-      }
-    },
-    "%d 件" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d"
-          }
-        }
-      }
-    },
-    "確認して取り込む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Review and Import"
-          }
-        }
-      }
-    },
-    "確認して追加" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Review and Add"
-          }
-        }
-      }
-    },
-    "みぞれ・着氷性の雨" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sleet / Freezing Rain"
-          }
-        }
-      }
-    },
-    "タウ・サジタリ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tau Sagittarii"
-          }
-        }
-      }
-    },
-    "HYG Database v4.1 / David Nash (astronexus)" : {
-
-    },
-    "CC BY-SA 4.0" : {
-
-    },
-    "HYG Database (GitHub)" : {
-
     }
   },
   "version" : "1.0"
