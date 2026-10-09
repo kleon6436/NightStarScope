@@ -604,7 +604,7 @@ struct StarMapCanvasView: View {
         ) else {
             return nil
         }
-        return point.x
+        return Double(point.x)
     }
 
     // MARK: - Nearest Star (クリック判定用 — 心射図法)
