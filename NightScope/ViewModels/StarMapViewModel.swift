@@ -70,6 +70,8 @@ final class StarMapViewModel: ObservableObject {
     @Published private(set) var moonAltitude: Double = 0
     @Published private(set) var moonAzimuth: Double = 0
     @Published private(set) var moonPhase: Double = 0      // 0=新月, 0.5=満月, 1=新月
+    /// 月の輝面の向き（天頂方向 0°、観測者から見て左回り, 度）。nil なら従来の左右表示
+    @Published private(set) var moonBrightLimbZenithAngle: Double? = nil
     @Published private(set) var galacticCenterAltitude: Double = 0
     @Published private(set) var galacticCenterAzimuth: Double = 0
     @Published private(set) var constellationLines: [ConstellationLineAltAz] = []
@@ -246,6 +248,8 @@ final class StarMapViewModel: ObservableObject {
         if elapsed < minUpdateInterval {
             // 前回から時間が短い → trailing-edge debounce でインターバル後に最終値を計算
             trailingTask?.cancel()
+            // 飛行中の計算はここではキャンセルしない。連続操作中に毎回破棄すると、
+            // 操作が止まるまで一度もスナップショットが適用されず星図が固まる。
             let remaining = minUpdateInterval - elapsed
             trailingTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
@@ -302,18 +306,18 @@ final class StarMapViewModel: ObservableObject {
     }
 
     private func setupBindings() {
-        appController.locationController.selectedLocationPublisher
+        // 地点とタイムゾーンは同時に変わることが多い。@Published の willSet 時点では
+        // コントローラの値が古いため、メインキューへ送って確定後に 1 回だけ再同期する。
+        let locationChanges = appController.locationController.selectedLocationPublisher
             .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.resyncAfterSelectionChange()
-            }
-            .store(in: &cancellables)
-
-        appController.locationController.selectedTimeZonePublisher
+            .map { _ in () }
+        let timeZoneChanges = appController.locationController.selectedTimeZonePublisher
             .dropFirst()
             .removeDuplicates { $0.identifier == $1.identifier }
-            .receive(on: DispatchQueue.main)
+            .map { _ in () }
+        locationChanges
+            .merge(with: timeZoneChanges)
+            .debounce(for: .zero, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.resyncAfterSelectionChange()
             }
@@ -422,6 +426,7 @@ final class StarMapViewModel: ObservableObject {
         moonAltitude = snapshot.moonAltitude
         moonAzimuth = snapshot.moonAzimuth
         moonPhase = snapshot.moonPhase
+        moonBrightLimbZenithAngle = snapshot.moonBrightLimbZenithAngle
         galacticCenterAltitude = snapshot.galacticCenterAltitude
         galacticCenterAzimuth = snapshot.galacticCenterAzimuth
         constellationLines = snapshot.constellationLines
@@ -457,13 +462,34 @@ final class StarMapViewModel: ObservableObject {
         )
     }
 
+    /// 観測日の暦日を判定する観測地のタイムゾーンです。日付ピッカー等の表示に使います。
+    var observationTimeZone: TimeZone {
+        selectedTimeZone
+    }
+
     /// 太陽が地平線下 (夜間) か
     var isNight: Bool { sunAltitude < 0 }
 
     /// 現在の観測日と時刻にリセット
+    /// 日付が変わった後でも前夜の日の出前であれば前日を観測日とし、表示日時を現在時刻そのものに合わせる。
     func resetToNow(referenceDate: Date = Date()) {
-        appController.selectObservationDate(referenceDate, timeZone: selectedTimeZone)
-        syncWithSelectedDate(referenceDate: referenceDate)
+        let context = observationContext
+        let currentObservationDate = Self.currentObservationDate(
+            for: referenceDate,
+            location: context.location,
+            timeZone: context.timeZone
+        )
+        appController.selectObservationDate(currentObservationDate, timeZone: context.timeZone)
+        syncDisplayDate(referenceDate: referenceDate)
+    }
+
+    /// 現在時刻が属する観測日（夜の始まる日）を返す。定義は `StarMapDateLogic.currentObservationDate` に一本化している。
+    nonisolated static func currentObservationDate(
+        for now: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> Date {
+        StarMapDateLogic.currentObservationDate(for: now, location: location, timeZone: timeZone)
     }
 
     /// 表示中の夜時刻をできるだけ保ったまま観測日を切り替えます。
@@ -478,7 +504,7 @@ final class StarMapViewModel: ObservableObject {
             return
         }
         appController.selectObservationDate(normalizedDate, timeZone: timeZone)
-        syncWithSelectedDate(referenceDate: displayDate)
+        syncDisplayDate(referenceDate: displayDate)
     }
 
     /// 星空マップ表示に入る直前に、初期表示位置の再適用を要求する。
@@ -495,6 +521,16 @@ final class StarMapViewModel: ObservableObject {
         if !syncWithSelectedDate(referenceDate: referenceDate) {
             update()
         }
+    }
+
+    /// 星空マップが表示されるたびに呼ぶ。初回は初期化し、2 回目以降は
+    /// 非表示中の地点変更などを反映するため、表示時刻を保ったまま再同期・再計算する。
+    func refreshPresentationOnAppear(referenceDate: Date = Date()) {
+        guard hasPreparedInitialPresentation else {
+            activatePresentationIfNeeded(referenceDate: referenceDate)
+            return
+        }
+        resyncAfterSelectionChange()
     }
 
     /// 星空マップ描画領域の最新サイズを記録する。
@@ -519,8 +555,17 @@ final class StarMapViewModel: ObservableObject {
     }
 
     /// 選択日へ現在の時刻を反映し、表示日時を変更した場合は true を返す。
+    /// `referenceDate` は現在時刻として扱う。
+    /// - Note: アプリ全体の「今日」は AppController が観測日（深夜〜明け方は前日の夜）で選ぶため、
+    ///   ここでは選択日を書き換えない。深夜に暦日の「今日」が選ばれているのは利用者が明夜を選んだ場合に限られる。
     @discardableResult
     func syncWithSelectedDate(referenceDate: Date = Date()) -> Bool {
+        syncDisplayDate(referenceDate: referenceDate)
+    }
+
+    /// 選択日へ参照時刻の時刻を反映し、表示日時を変更した場合は true を返す。
+    @discardableResult
+    private func syncDisplayDate(referenceDate: Date) -> Bool {
         let context = observationContext
         updateNightRange(referenceDate: referenceDate)
         guard let date = resolvedPresentationDate(
@@ -647,7 +692,7 @@ final class StarMapViewModel: ObservableObject {
         ) else {
             return
         }
-        syncWithSelectedDate(referenceDate: displayDate)
+        syncDisplayDate(referenceDate: displayDate)
     }
 
     private func discardPendingTimeSliderDate() {
@@ -656,7 +701,12 @@ final class StarMapViewModel: ObservableObject {
 
     private func resyncAfterSelectionChange() {
         discardPendingTimeSliderDate()
-        syncWithSelectedDate(referenceDate: displayDate)
+        // 同一タイムゾーン内の地点変更では表示日時が変わらず didSet 経由の再計算が走らないため、
+        // 表示日時が変わらなかった場合もスライダー同期・天体位置の再計算（地形取得を含む）を明示的に行う。
+        if !syncDisplayDate(referenceDate: displayDate) {
+            syncTimeSliderWithDisplayDate()
+            update()
+        }
     }
 
     private func setDisplayDate(_ date: Date, mode: DisplayDateUpdateMode) {
@@ -776,6 +826,6 @@ final class StarMapViewModel: ObservableObject {
 }
 
 extension StarPosition: Identifiable {
-    /// 赤経・赤緯の組み合わせで一意に識別する
-    public var id: String { "\(star.ra)-\(star.dec)" }
+    /// カタログ内の位置で一意に識別する（赤経・赤緯は重複しうる）
+    public var id: Int { catalogIndex }
 }

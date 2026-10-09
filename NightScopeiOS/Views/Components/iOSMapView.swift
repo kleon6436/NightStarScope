@@ -25,8 +25,19 @@ struct iOSMapView: UIViewRepresentable {
         context.coordinator.observeBortleGridLoad(on: mapView)
         MapKitViewSharedLogic.setInitialRegionIfNeeded(on: mapView, pinCoordinate: pinCoordinate)
 
+        // MapKit のダブルタップズームで単一タップが発火してピンが動かないよう、
+        // 何もしないダブルタップ認識器を置き、その失敗を待ってから単一タップを認識する。
+        let doubleTap = UITapGestureRecognizer(target: nil, action: nil)
+        doubleTap.numberOfTapsRequired = 2
+        doubleTap.cancelsTouchesInView = false
+        doubleTap.delaysTouchesEnded = false
+        doubleTap.delegate = context.coordinator
+        mapView.addGestureRecognizer(doubleTap)
+        context.coordinator.doubleTapRecognizer = doubleTap
+
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         tap.delegate = context.coordinator
+        tap.require(toFail: doubleTap)
         mapView.addGestureRecognizer(tap)
         return mapView
     }
@@ -56,6 +67,8 @@ struct iOSMapView: UIViewRepresentable {
         // deinit からの読み出しは競合しない。
         nonisolated(unsafe) private var gridLoadObserver: NSObjectProtocol?
         private weak var observedMapView: MKMapView?
+        /// 単一タップが失敗を待つダブルタップ認識器（MapKit のズームと同時に認識させる）。
+        weak var doubleTapRecognizer: UITapGestureRecognizer?
 
         init(_ parent: iOSMapView) {
             self.parent = parent
@@ -97,6 +110,15 @@ struct iOSMapView: UIViewRepresentable {
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             true
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            // ダミーのダブルタップが MapKit 自身のダブルタップズームを妨げないようにする。
+            guard let doubleTapRecognizer else { return false }
+            return gestureRecognizer === doubleTapRecognizer || otherGestureRecognizer === doubleTapRecognizer
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {

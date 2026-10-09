@@ -357,4 +357,233 @@ final class AstroModelsTests: XCTestCase {
             .telescope
         )
     }
+
+    // MARK: - 深夜 0 時以降に始まる暗夜
+
+    /// 天文薄明が深夜 0 時以降に始まる夜（例: 6 月の A Coruña）でも暗夜の開始・終了を返す。
+    func test_darkRange_whenDarknessStartsAfterMidnight() {
+        let timeZoneIdentifier = "Europe/Madrid"
+        let start = makeDate(2026, 6, 21, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        let darkStart = makeDate(2026, 6, 22, 0, 45, timeZoneIdentifier: timeZoneIdentifier)
+        let darkEnd = makeDate(2026, 6, 22, 4, 45, timeZoneIdentifier: timeZoneIdentifier)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let isDark = date >= darkStart && date < darkEnd
+            return makeEvent(date: date, sunAltitude: isDark ? -19 : -10)
+        }
+        let summary = makeSummary(events: events, timeZoneIdentifier: timeZoneIdentifier)
+
+        XCTAssertEqual(summary.eveningDarkStart, darkStart)
+        XCTAssertEqual(summary.morningDarkEnd, darkEnd)
+        XCTAssertEqual(summary.darkRangeText, "00:45 〜 04:45")
+    }
+
+    // MARK: - 白夜の天気カバレッジ
+
+    /// 暗時間がない夜（白夜）でも、市民薄明後の時間帯の予報が揃っていれば天気データを利用可能とみなす。
+    func test_hasUsableWeatherData_whiteNightUsesCivilNightHours() {
+        let timeZoneIdentifier = "Europe/London"
+        let start = makeDate(2026, 6, 21, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        let civilStart = makeDate(2026, 6, 21, 22, 15, timeZoneIdentifier: timeZoneIdentifier)
+        let civilEnd = makeDate(2026, 6, 22, 3, 45, timeZoneIdentifier: timeZoneIdentifier)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let isCivilNight = date >= civilStart && date < civilEnd
+            return makeEvent(date: date, sunAltitude: isCivilNight ? -10 : 5)
+        }
+        let summary = makeSummary(events: events, timeZoneIdentifier: timeZoneIdentifier)
+        XCTAssertEqual(summary.totalDarkHours, 0)
+
+        // 23:00〜03:00 の正時（太陽高度 < -6° の正時サンプル）
+        let fullHours = [23, 0, 1, 2, 3].map { hour in
+            makeWeatherHour(date: makeDate(2026, 6, hour == 23 ? 21 : 22, hour, 0, timeZoneIdentifier: timeZoneIdentifier))
+        }
+        let referenceDate = makeDate(2026, 6, 10, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: fullHours, referenceDate: referenceDate))
+        // 暗時間がないため観測可能時間帯の文字列は天文学的表示に任せる
+        XCTAssertNil(summary.weatherAwareRangeText(nighttimeHours: fullHours, referenceDate: referenceDate))
+
+        let partialHours = Array(fullHours.prefix(2))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: referenceDate))
+    }
+
+    // MARK: - 進行中の前夜の部分予報
+
+    /// 東京 8/12 の夜（暗時間 20:00〜04:00、薄明 19:00〜20:00 と 04:00〜05:00、日の出 05:00）に、
+    /// 予報が 02 時台・03 時台しかない（深夜の取得では過ぎた時間の予報がない）場合の部分予報の扱い。
+    /// 当日の日中〜夜と、翌日 0 時から日の出までは「今夜」として部分予報を使う。
+    func test_usableWeatherContext_partialCoverage_acceptedForInProgressPreviousNightUntilSunrise() throws {
+        let start = makeDate(2026, 8, 12, 12, 0)
+        let darkStart = makeDate(2026, 8, 12, 20, 0)
+        let darkEnd = makeDate(2026, 8, 13, 4, 0)
+        let sunset = makeDate(2026, 8, 12, 19, 0)
+        let sunrise = makeDate(2026, 8, 13, 5, 0)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let sunAltitude: Double
+            if date >= darkStart && date < darkEnd {
+                sunAltitude = -20
+            } else if date >= sunset && date < sunrise {
+                sunAltitude = -5
+            } else {
+                sunAltitude = 5
+            }
+            return makeEvent(date: date, sunAltitude: sunAltitude)
+        }
+        let summary = makeSummary(events: events)
+        XCTAssertEqual(summary.morningDarkEnd, darkEnd)
+
+        let partialHours = [2, 3].map { makeWeatherHour(date: makeDate(2026, 8, 13, $0, 0)) }
+
+        let evening = try XCTUnwrap(summary.usableWeatherContext(
+            nighttimeHours: partialHours,
+            referenceDate: makeDate(2026, 8, 12, 21, 0)
+        ))
+        XCTAssertTrue(evening.isPartial)
+        XCTAssertEqual(evening.weather.nighttimeHours.count, 2)
+
+        let afterMidnight = try XCTUnwrap(summary.usableWeatherContext(
+            nighttimeHours: partialHours,
+            referenceDate: makeDate(2026, 8, 13, 2, 0)
+        ))
+        XCTAssertTrue(afterMidnight.isPartial)
+        // 部分予報のときは、予報のある暗時間（02:00〜04:00）だけの夜として評価する
+        XCTAssertEqual(afterMidnight.summary.totalDarkHours, 2)
+
+        // 暗時間の終了（04:00）後も、日の出（05:00）までは進行中の夜として扱う
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 13, 4, 30)))
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 13, 4, 59)))
+        // 日の出以降・翌々日・前日は今夜ではない
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: sunrise))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 13, 21, 0)))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 14, 2, 0)))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: makeDate(2026, 8, 11, 21, 0)))
+
+        // 暗時間をすべて覆う予報は参照日時によらず使う
+        let fullHours = [20, 21, 22, 23, 0, 1, 2, 3].map { hour in
+            makeWeatherHour(date: makeDate(2026, 8, hour >= 20 ? 12 : 13, hour, 0))
+        }
+        let full = try XCTUnwrap(summary.usableWeatherContext(
+            nighttimeHours: fullHours,
+            referenceDate: makeDate(2026, 8, 14, 2, 0)
+        ))
+        XCTAssertFalse(full.isPartial)
+    }
+
+    /// 太陽が -6° まで沈まない夜は、太陽が地平線下（< 0°）の正時を天気の基準にする。
+    /// （WeatherKitService.weatherNightInterval のフォールバックと同じ基準）
+    func test_hasUsableWeatherData_whiteNightWithoutCivilHoursFallsBackToHorizonHours() {
+        let timeZoneIdentifier = "Europe/Helsinki"
+        let start = makeDate(2026, 6, 21, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        let horizonStart = makeDate(2026, 6, 21, 22, 40, timeZoneIdentifier: timeZoneIdentifier)
+        let horizonEnd = makeDate(2026, 6, 22, 4, 5, timeZoneIdentifier: timeZoneIdentifier)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let belowHorizon = date >= horizonStart && date < horizonEnd
+            return makeEvent(date: date, sunAltitude: belowHorizon ? -3 : 5)
+        }
+        let summary = makeSummary(events: events, timeZoneIdentifier: timeZoneIdentifier)
+        XCTAssertEqual(summary.totalDarkHours, 0)
+
+        // 23:00〜04:00 の正時（太陽高度 < 0° の正時サンプル）
+        let fullHours = [23, 0, 1, 2, 3, 4].map { hour in
+            makeWeatherHour(date: makeDate(2026, 6, hour == 23 ? 21 : 22, hour, 0, timeZoneIdentifier: timeZoneIdentifier))
+        }
+        let referenceDate = makeDate(2026, 6, 10, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: fullHours, referenceDate: referenceDate))
+        XCTAssertTrue(summary.hasReliableWeatherData(nighttimeHours: fullHours))
+        XCTAssertEqual(
+            summary.usableWeatherContext(nighttimeHours: fullHours, referenceDate: referenceDate)?
+                .weather.nighttimeHours.count,
+            6
+        )
+
+        let partialHours = Array(fullHours.prefix(3))
+        XCTAssertFalse(summary.hasUsableWeatherData(nighttimeHours: partialHours, referenceDate: referenceDate))
+    }
+
+    /// 市民薄明後（< -6°）の正時がある夜は、地平線下の薄明の時間帯をカバレッジ基準に含めない。
+    func test_hasUsableWeatherData_civilHoursTakePriorityOverHorizonHours() {
+        let timeZoneIdentifier = "Europe/Helsinki"
+        let start = makeDate(2026, 6, 21, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+        let horizonStart = makeDate(2026, 6, 21, 22, 40, timeZoneIdentifier: timeZoneIdentifier)
+        let horizonEnd = makeDate(2026, 6, 22, 4, 5, timeZoneIdentifier: timeZoneIdentifier)
+        let civilStart = makeDate(2026, 6, 22, 0, 45, timeZoneIdentifier: timeZoneIdentifier)
+        let civilEnd = makeDate(2026, 6, 22, 2, 0, timeZoneIdentifier: timeZoneIdentifier)
+        let events = (0..<96).map { step -> AstroEvent in
+            let date = start.addingTimeInterval(Double(step) * 15 * 60)
+            let sunAltitude: Double
+            if date >= civilStart && date < civilEnd {
+                sunAltitude = -6.5
+            } else if date >= horizonStart && date < horizonEnd {
+                sunAltitude = -3
+            } else {
+                sunAltitude = 5
+            }
+            return makeEvent(date: date, sunAltitude: sunAltitude)
+        }
+        let summary = makeSummary(events: events, timeZoneIdentifier: timeZoneIdentifier)
+        let referenceDate = makeDate(2026, 6, 10, 12, 0, timeZoneIdentifier: timeZoneIdentifier)
+
+        // 01:00 だけが -6° 未満の正時
+        let civilHour = [makeWeatherHour(date: makeDate(2026, 6, 22, 1, 0, timeZoneIdentifier: timeZoneIdentifier))]
+        XCTAssertTrue(summary.hasReliableWeatherData(nighttimeHours: civilHour))
+        XCTAssertTrue(summary.hasUsableWeatherData(nighttimeHours: civilHour, referenceDate: referenceDate))
+    }
+
+    // MARK: - 惑星の可視判定
+
+    /// 空が暗い時間帯のサンプルがない場合（白夜など）は高度に関わらず観測不可。
+    func test_planetNightSummary_isNotVisibleWithoutDarkSky() {
+        let summary = PlanetNightSummary(
+            name: "金星",
+            riseTime: nil,
+            transitTime: nil,
+            setTime: nil,
+            peakAltitude: 40,
+            magnitude: -4.0,
+            hasDarkSkySamples: false
+        )
+        XCTAssertFalse(summary.isVisibleTonight)
+        XCTAssertEqual(summary.observationDifficulty, .telescope)
+    }
+
+    // MARK: - 流星群の極大までの日数
+
+    /// うるう年の 2/29 をまたぐ場合も実際の暦日差で数える。
+    func test_meteorShowerNext_countsLeapDay() throws {
+        let timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let leapYearDate = makeDate(2028, 2, 20, 21, 0)
+        let leap = try XCTUnwrap(MeteorShowerCatalog.next(after: leapYearDate, timeZone: timeZone))
+        XCTAssertEqual(leap.shower.id, "lyrids")
+        XCTAssertEqual(leap.daysUntilPeak, 62)
+
+        let commonYearDate = makeDate(2027, 2, 20, 21, 0)
+        let common = try XCTUnwrap(MeteorShowerCatalog.next(after: commonYearDate, timeZone: timeZone))
+        XCTAssertEqual(common.shower.id, "lyrids")
+        XCTAssertEqual(common.daysUntilPeak, 61)
+    }
+
+    /// 年末からは翌年の極大日までの日数を返す。
+    func test_meteorShowerNext_wrapsToNextYear() throws {
+        let timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let date = makeDate(2027, 12, 25, 21, 0)
+        let next = try XCTUnwrap(MeteorShowerCatalog.next(after: date, timeZone: timeZone))
+        XCTAssertEqual(next.shower.id, "quadrantids")
+        XCTAssertEqual(next.daysUntilPeak, 10)
+    }
+
+    /// 同一時刻の気象データが重複していても trap せず、先頭のエントリが採用される
+    func test_weatherAwareObservableWindow_duplicateHourEntries_doesNotCrashAndKeepsFirst() {
+        let date = makeDate(2026, 4, 2, 22, 0)
+        let summary = makeSummary(events: [makeEvent(date: date)])
+
+        let hours = [
+            makeWeatherHour(date: date, cloud: 0, precipitation: 0, weatherCode: 0),
+            makeWeatherHour(date: date, cloud: 100, precipitation: 5, weatherCode: 65)
+        ]
+
+        let window = summary.weatherAwareObservableWindow(nighttimeHours: hours)
+        XCTAssertEqual(window?.start, date)
+    }
 }

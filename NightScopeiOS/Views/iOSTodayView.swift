@@ -72,13 +72,23 @@ struct iOSTodayView: View {
         )
     }
 
+    /// 選択中の夜が現在の観測夜（今夜）か。予報から別の夜を選んでいるときは false。
+    private var isSelectedNightTonight: Bool {
+        ObservationTimeZone.isDate(
+            detailViewModel.selectedDate,
+            inSameDayAs: detailViewModel.currentObservationDate(),
+            timeZone: detailViewModel.selectedTimeZone
+        )
+    }
+
     private var verdict: NightVerdictPresentation? {
         guard let summary = nightSummary else { return nil }
         return NightVerdictPresentation(
             index: starGazingIndex,
             summary: summary,
             weather: weather,
-            hasReliableWeather: weather != nil && !detailViewModel.isCurrentWeatherCoverageIncomplete
+            hasReliableWeather: weather != nil && !detailViewModel.isCurrentWeatherCoverageIncomplete,
+            isTonight: isSelectedNightTonight
         )
     }
 
@@ -143,7 +153,7 @@ struct iOSTodayView: View {
 
     private var emptyStateView: some View {
         ContentUnavailableView(
-            "今夜の観測データがありません",
+            LocalizedStringKey(isSelectedNightTonight ? "今夜の観測データがありません" : "この夜の観測データがありません"),
             systemImage: "moon.zzz",
             description: Text("場所や日付を変更して再度お試しください")
         )
@@ -365,7 +375,8 @@ struct iOSTodayView: View {
             NavigationStack {
                 CalendarView(
                     selectedDate: $calendarDraftDate,
-                    timeZone: detailViewModel.selectedTimeZone
+                    timeZone: detailViewModel.selectedTimeZone,
+                    today: detailViewModel.currentObservationDate()
                 )
                 .navigationTitle("日付を選択")
                 .navigationBarTitleDisplayMode(.inline)

@@ -241,8 +241,13 @@ struct DashboardWindowView: View {
 
     private func handleCellSelection(locationID: UUID, date: Date) {
         guard let location = viewModel.matrix.locations.first(where: { $0.id == locationID }) else { return }
+        // 列の日付は端末タイムゾーンの 0 時なので、そのまま渡すと時差のある地点では別の夜になる。
+        // 地点のタイムゾーンでの同じ暦日（そのセルの夜の日付）を渡す。
         dependencies.dashboardCommandBridge.selectFromDashboard(
-            DashboardSelection(location: location, date: date)
+            DashboardSelection(
+                location: location,
+                date: viewModel.selectionDate(for: locationID, columnDate: date)
+            )
         )
     }
 }

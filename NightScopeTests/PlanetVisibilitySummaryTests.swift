@@ -56,14 +56,14 @@ final class PlanetVisibilitySummaryTests: XCTestCase {
 
     // MARK: - Rise/set times fall within the night window
 
-    /// riseTime・setTime が取得できる場合、夜間窓（18:00〜翌 06:00）に収まる。
-    func test_planetNightSummaries_riseSetTimesWithinNightWindow() {
+    /// riseTime・setTime が取得できる場合、夜間窓（日没〜日の出）に収まる。
+    func test_planetNightSummaries_riseSetTimesWithinNightWindow() throws {
         let date = makeDate(year: 2025, month: 6, day: 21, timeZoneIdentifier: "Asia/Tokyo")
-        let cal = ObservationTimeZone.gregorianCalendar(timeZone: tokyoTZ)
-        let startOfDay = cal.startOfDay(for: date)
-        let nightStart = cal.date(byAdding: .hour, value: 18, to: startOfDay)!
-        let nextDay    = cal.date(byAdding: .day,  value: 1,  to: startOfDay)!
-        let nightEnd   = cal.date(byAdding: .hour, value: 6,  to: nextDay)!
+        let night = try XCTUnwrap(
+            MilkyWayCalculator.sunsetSunriseInterval(date: date, location: tokyo, timeZone: tokyoTZ)
+        )
+        let nightStart = night.start
+        let nightEnd = night.end
 
         let summaries = MilkyWayCalculator.planetNightSummaries(
             date: date,
@@ -192,19 +192,74 @@ final class PlanetVisibilitySummaryTests: XCTestCase {
 
     // MARK: - altitudeSamples count
 
-    /// altitudeSamples は 47–51 点（18:00–06:00 を 15 分刻みの 49 サンプル ± 2 許容）。
-    func test_planetNightSummaries_altitudeSamplesCount() {
+    /// altitudeSamples は日没〜日の出を 15 分刻みにした点数（終端を含む）。
+    /// 夏至前後の東京は約 9 時間 26 分の夜なので 39 点（18:00–06:00 固定の 49 点より少ない）。
+    func test_planetNightSummaries_altitudeSamplesCount() throws {
         let date = makeDate(year: 2025, month: 6, day: 21, timeZoneIdentifier: "Asia/Tokyo")
+        let night = try XCTUnwrap(
+            MilkyWayCalculator.sunsetSunriseInterval(date: date, location: tokyo, timeZone: tokyoTZ)
+        )
         let summaries = MilkyWayCalculator.planetNightSummaries(
             date: date,
             location: tokyo,
             timeZone: tokyoTZ
         )
         for s in summaries {
-            XCTAssertGreaterThanOrEqual(s.altitudeSamples.count, 47,
-                "\(s.name) altitudeSamples.count \(s.altitudeSamples.count) < 47")
-            XCTAssertLessThanOrEqual(s.altitudeSamples.count, 51,
-                "\(s.name) altitudeSamples.count \(s.altitudeSamples.count) > 51")
+            XCTAssertGreaterThanOrEqual(s.altitudeSamples.count, 37, s.name)
+            XCTAssertLessThanOrEqual(s.altitudeSamples.count, 41, s.name)
+            XCTAssertEqual(s.altitudeSamples.first?.time, night.start, s.name)
+            XCTAssertEqual(s.altitudeSamples.last?.time, night.end, s.name)
+        }
+    }
+
+    // MARK: - 実際の夜（日没〜日の出）に沿ったサンプリング
+
+    /// 冬のヘルシンキは 15 時台に日没・9 時過ぎに日の出のため、18:00〜06:00 固定では
+    /// 明け方 8 時台に高く昇る金星（2026-12-06 朝）を取りこぼしていた。
+    func test_planetNightSummaries_highLatitudeWinter_coversLateMorningDarkness() throws {
+        let helsinki = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
+        let helsinkiTZ = try XCTUnwrap(TimeZone(identifier: "Europe/Helsinki"))
+        let date = makeDate(year: 2026, month: 12, day: 5, timeZoneIdentifier: helsinkiTZ.identifier)
+        let summaries = MilkyWayCalculator.planetNightSummaries(
+            date: date,
+            location: helsinki,
+            timeZone: helsinkiTZ
+        )
+        let venus = try XCTUnwrap(summaries.first { $0.name == "金星" })
+        XCTAssertTrue(venus.isVisibleTonight, "peakAlt=\(venus.peakAltitude)")
+        XCTAssertGreaterThan(venus.peakAltitude, 15.0)
+
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: helsinkiTZ)
+        let transit = try XCTUnwrap(venus.transitTime)
+        // 最良時刻は翌朝 06:00 より後（旧サンプリング範囲の外）
+        let nextDay = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: date))
+        let sixAM = try XCTUnwrap(calendar.date(bySettingHour: 6, minute: 0, second: 0, of: nextDay))
+        XCTAssertGreaterThan(transit, sixAM)
+
+        // サンプリングは 18:00 より前（日没直後）から始まる
+        let firstSample = try XCTUnwrap(venus.altitudeSamples.first?.time)
+        let sixPM = try XCTUnwrap(calendar.date(bySettingHour: 18, minute: 0, second: 0, of: date))
+        XCTAssertLessThan(firstSample, sixPM)
+    }
+
+    /// 極夜（トロムソの 12 月）は観測日 12:00 から 24 時間を評価する。
+    func test_planetNightSummaries_polarNight_samplesFullDayFromNoon() throws {
+        let tromso = CLLocationCoordinate2D(latitude: 69.6492, longitude: 18.9553)
+        let osloTZ = try XCTUnwrap(TimeZone(identifier: "Europe/Oslo"))
+        let date = makeDate(year: 2026, month: 12, day: 5, timeZoneIdentifier: osloTZ.identifier)
+        let summaries = MilkyWayCalculator.planetNightSummaries(
+            date: date,
+            location: tromso,
+            timeZone: osloTZ
+        )
+        XCTAssertEqual(summaries.count, 5)
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: osloTZ)
+        let noon = try XCTUnwrap(calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date))
+        for s in summaries {
+            XCTAssertEqual(s.altitudeSamples.count, 97, s.name)
+            XCTAssertEqual(s.altitudeSamples.first?.time, noon, s.name)
+            XCTAssertEqual(s.altitudeSamples.last?.time, noon.addingTimeInterval(24 * 60 * 60), s.name)
+            XCTAssertTrue(s.hasDarkSkySamples, s.name)
         }
     }
 
@@ -255,5 +310,85 @@ final class PlanetVisibilitySummaryTests: XCTestCase {
         XCTAssertTrue(s.transitAzimuthLabel().contains("180"))
         // 270° = 西
         XCTAssertTrue(s.setAzimuthLabel().contains("270"))
+    }
+
+    // MARK: - 空の明るさ（太陽高度）を考慮した可視判定
+
+    /// 白夜（太陽高度が -6° を下回らない夜）では、どの惑星も観測可能とみなさない。
+    func test_planetNightSummaries_whiteNight_noPlanetVisible() {
+        let longyearbyen = CLLocationCoordinate2D(latitude: 78.2232, longitude: 15.6469)
+        let osloTZ = TimeZone(identifier: "Europe/Oslo")!
+        let date = makeDate(year: 2026, month: 6, day: 21, timeZoneIdentifier: osloTZ.identifier)
+        let summaries = MilkyWayCalculator.planetNightSummaries(
+            date: date,
+            location: longyearbyen,
+            timeZone: osloTZ
+        )
+        XCTAssertEqual(summaries.count, 5)
+        for s in summaries {
+            XCTAssertFalse(s.hasDarkSkySamples, "\(s.name)")
+            XCTAssertFalse(s.isVisibleTonight, "\(s.name) peakAlt=\(s.peakAltitude)")
+            XCTAssertNotEqual(s.observationDifficulty, .nakedEye, "\(s.name)")
+        }
+    }
+
+    /// 最大高度（南中）時刻は、太陽高度が -6° 未満の暗い時間帯から選ばれる。
+    func test_planetNightSummaries_peakIsEvaluatedOnlyWhenSkyIsDark() {
+        // 夏至の東京: 18:00 台はまだ太陽が地平線上にある
+        let date = makeDate(year: 2026, month: 6, day: 21, timeZoneIdentifier: "Asia/Tokyo")
+        let summaries = MilkyWayCalculator.planetNightSummaries(
+            date: date,
+            location: tokyo,
+            timeZone: tokyoTZ
+        )
+        for s in summaries {
+            XCTAssertTrue(s.hasDarkSkySamples)
+            guard let transit = s.transitTime else { continue }
+            let jd = MilkyWayCalculator.julianDate(from: transit)
+            let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: tokyo.longitude)
+            let sun = MilkyWayCalculator.sunRaDec(jd: jd)
+            let sunAltitude = MilkyWayCalculator.altitude(ra: sun.ra, dec: sun.dec, latitude: tokyo.latitude, lst: lst)
+            XCTAssertLessThan(sunAltitude, MilkyWayCalculator.planetObservationSunAltitudeLimit, "\(s.name)")
+        }
+    }
+
+    // MARK: - 位相角を考慮した等級
+
+    /// 等級は PyEphem 4.2.1 の値と概ね一致する（内惑星 ±0.6 等、外惑星 ±0.3 等）。
+    func test_planetPositions_magnitudeMatchesPyEphem() {
+        // (JD, 水星以外の期待等級: 金星, 火星, 木星, 土星)
+        let cases: [(jd: Double, expected: [String: Double])] = [
+            (2461100.5, ["金星": -3.79, "火星": 1.19, "木星": -2.30, "土星": 1.04]),  // 2026-03-01 00:00 UTC
+            (2461337.5, ["金星": -3.70, "火星": 0.96, "木星": -1.82, "土星": 0.45]),  // 2026-10-24 00:00 UTC
+        ]
+        for c in cases {
+            let positions = MilkyWayCalculator.planetPositions(jd: c.jd, latitude: 35.68, lst: 0)
+            for position in positions {
+                guard let expected = c.expected[position.name] else { continue }
+                let tolerance = position.name == "金星" ? 0.6 : 0.3
+                XCTAssertEqual(position.magnitude, expected, accuracy: tolerance, "jd=\(c.jd) \(position.name)")
+            }
+        }
+    }
+
+    /// 内合付近の金星は細い三日月状のため、満ちた状態の等級（-7 等台）にはならない。
+    func test_planetPositions_venusNearInferiorConjunctionIsNotOverBright() throws {
+        let positions = MilkyWayCalculator.planetPositions(jd: 2461337.5, latitude: 35.68, lst: 0)  // 2026-10-24
+        let venus = try XCTUnwrap(positions.first { $0.name == "金星" })
+        XCTAssertGreaterThan(venus.magnitude, -5.0)
+        XCTAssertLessThan(venus.magnitude, -3.0)
+    }
+
+    // MARK: - Saturn magnitude
+
+    /// 2025-09-21 の土星 (衝の約2週間前、環ほぼ edge-on) は約 +0.6〜+0.9 等。
+    func test_planetPositions_saturnMagnitude_nearOpposition2025() {
+        let date = makeDate(year: 2025, month: 9, day: 21, hour: 12, timeZoneIdentifier: "UTC")
+        let jd = MilkyWayCalculator.julianDate(from: date)
+        let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: 0)
+        let saturn = MilkyWayCalculator.planetPositions(jd: jd, latitude: 0, lst: lst)
+            .first { $0.name == "土星" }
+        XCTAssertNotNil(saturn)
+        XCTAssertEqual(saturn?.magnitude ?? 99, 0.75, accuracy: 0.3)
     }
 }

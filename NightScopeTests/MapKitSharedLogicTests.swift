@@ -172,6 +172,41 @@ final class MapKitSharedLogicTests: XCTestCase {
         )
     }
 
+    func test_geoStateValidator_wrapsLongitudeBeyondAntimeridian() {
+        let wrapped = GeoStateValidator.sanitizedCoordinate(
+            CLLocationCoordinate2D(latitude: 10, longitude: 181)
+        )
+        XCTAssertEqual(wrapped?.longitude ?? 0, -179, accuracy: 0.000001)
+        XCTAssertEqual(wrapped?.latitude ?? 0, 10, accuracy: 0.000001)
+
+        let wrappedNegative = GeoStateValidator.sanitizedCoordinate(
+            CLLocationCoordinate2D(latitude: -10, longitude: -540.5)
+        )
+        XCTAssertEqual(wrappedNegative?.longitude ?? 0, 179.5, accuracy: 0.000001)
+    }
+
+    func test_geoStateValidator_rejectsNonFiniteCoordinate() {
+        XCTAssertNil(GeoStateValidator.sanitizedCoordinate(CLLocationCoordinate2D(latitude: .nan, longitude: 0)))
+        XCTAssertNil(GeoStateValidator.sanitizedCoordinate(CLLocationCoordinate2D(latitude: 0, longitude: .infinity)))
+    }
+
+    func test_updateViewingDirectionOverlay_nearAntimeridianKeepsAllSectorPoints() {
+        let mapView = MKMapView()
+        let center = CLLocationCoordinate2D(latitude: 0, longitude: 179.999)
+
+        MapKitViewSharedLogic.updateViewingDirectionOverlay(
+            on: mapView,
+            pinCoordinate: center,
+            viewingDirection: ViewingDirection(azimuth: 90, fov: 60, isActive: true)
+        )
+
+        guard let overlay = mapView.overlays.first as? MKPolygon else {
+            return XCTFail("視野オーバーレイが追加されませんでした")
+        }
+        // 中心 + 21 点（steps = 20）がすべて残る
+        XCTAssertEqual(overlay.pointCount, 22)
+    }
+
     func test_updateViewingDirectionOverlay_highLatitudeProducesSanitizedCoordinates() {
         let mapView = MKMapView()
         let center = CLLocationCoordinate2D(latitude: 89.999, longitude: 135.0)

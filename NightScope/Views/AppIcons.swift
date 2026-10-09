@@ -33,6 +33,7 @@ enum AppIcons {
         static let cloudRainFill      = "cloud.rain.fill"
         static let cloudHeavyrainFill = "cloud.heavyrain.fill"
         static let cloudSnowFill      = "cloud.snow.fill"
+        static let cloudSleetFill     = "cloud.sleet.fill"
         static let cloudBoltFill      = "cloud.bolt.fill"
         static let cloudBoltRainFill  = "cloud.bolt.rain.fill"
     }

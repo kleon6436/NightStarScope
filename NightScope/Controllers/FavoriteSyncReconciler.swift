@@ -184,7 +184,11 @@ final class FavoriteSyncReconciler: ObservableObject {
             saveIDs(observedIDs, forKey: Self.observedIDsKey)
         }
         let excluded = sentIDs.union(observedIDs)
-        let targets = local.subtracting(cloud).filter { !excluded.contains($0.id) }
+        // 他の端末で削除された記録（tombstone）がある地点は、観測前に削除されていても自動では送り返さない。
+        // 利用者が設定画面で選べば addToCloud で加え直せる（ストアが復活として記録する）。
+        let targets = local.subtracting(cloud).filter { favorite in
+            !excluded.contains(favorite.id) && iCloudStore?.isMarkedDeleted(favorite.id) != true
+        }
         guard !targets.isEmpty else { return }
         let added = addToICloud(targets)
         guard !added.isEmpty else { return }

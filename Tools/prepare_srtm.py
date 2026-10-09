@@ -11,7 +11,7 @@ Copernicus DEM GLO-30 データを NightScope 用の標高バイナリへ変換�
 
 主な利用例:
 
-  pip install rasterio numpy scipy
+  pip install rasterio numpy
 
   # 全球 0.05°, zlib 圧縮
   python3 Tools/prepare_srtm.py --resolution 0.05 \
@@ -209,11 +209,12 @@ def build_copernicus(
                 src_crs=src.crs,
                 dst_transform=tile_transform,
                 dst_crs="EPSG:4326",
+                src_nodata=src.nodata,
+                dst_nodata=np.nan,
                 resampling=Resampling.average,
             )
-            nodata = src.nodata
-            if nodata is not None:
-                tile_dst[tile_dst == nodata] = 0.0
+        # nodata を平均化に混ぜず NaN として扱い、最後に 0 へ置換する
+        tile_dst = np.nan_to_num(tile_dst, nan=0.0)
 
         grid[lat_i_lo:lat_i_hi, lon_j_lo:lon_j_hi] = np.flipud(tile_dst)
 
@@ -221,7 +222,11 @@ def build_copernicus(
     return grid
 
 
+HGT_NODATA = -32768
+
+
 def load_from_directory(input_dir: str):
+    """ディレクトリ内の HGT/TIF を結合し、(mosaic[float32, nodata=NaN], transform, crs) を返す。"""
     patterns = ["*.hgt", "*.HGT", "*.tif", "*.TIF", "*.tiff", "*.TIFF"]
     files = []
     for pattern in patterns:
@@ -232,26 +237,54 @@ def load_from_directory(input_dir: str):
         sys.exit(1)
 
     print(f"{len(files)} ファイルを結合します...")
+    import numpy as np
     import rasterio
     from rasterio.merge import merge as rasterio_merge
 
     datasets = [rasterio.open(file_path) for file_path in sorted(files)]
-    mosaic, transform = rasterio_merge(datasets)
-    for dataset in datasets:
-        dataset.close()
-    return mosaic[0], transform
+    try:
+        crs = datasets[0].crs or "EPSG:4326"
+        source_nodata = {ds.nodata for ds in datasets if ds.nodata is not None}
+        # タイル間の隙間は HGT と同じ値で埋め、後で NaN に置き換える。
+        mosaic, transform = rasterio_merge(datasets, nodata=HGT_NODATA)
+    finally:
+        for dataset in datasets:
+            dataset.close()
+
+    band = mosaic[0].astype(np.float32)
+    band[band == HGT_NODATA] = np.nan
+    for value in source_nodata:
+        band[band == value] = np.nan
+    return band, transform, crs
 
 
-def build_from_geotiff(input_path: str, lat_cells: int, lon_cells: int):
+def _target_transform(lat_min: float, lat_max: float, lon_min: float, lon_max: float, lat_cells: int, lon_cells: int):
+    import rasterio.transform
+
+    return rasterio.transform.from_bounds(lon_min, lat_min, lon_max, lat_max, lon_cells, lat_cells)
+
+
+def build_from_geotiff(
+    input_path: str,
+    lat_cells: int,
+    lon_cells: int,
+    lat_min: float = -90.0,
+    lat_max: float = 90.0,
+    lon_min: float = -180.0,
+    lon_max: float = 180.0,
+):
     try:
         import numpy as np
         import rasterio
+        import rasterio.transform
+        import rasterio.warp
         from rasterio.enums import Resampling
     except ImportError:
         print("ERROR: pip install numpy rasterio", file=sys.stderr)
         sys.exit(1)
 
-    data = np.zeros((lat_cells, lon_cells), dtype=np.float32)
+    # 入力が覆わないセルは NaN のまま残し、postprocess で 0 m にする。
+    data = np.full((lat_cells, lon_cells), np.nan, dtype=np.float32)
     print(f"入力: {input_path}")
     with rasterio.open(input_path) as src:
         rasterio.warp.reproject(
@@ -259,29 +292,49 @@ def build_from_geotiff(input_path: str, lat_cells: int, lon_cells: int):
             destination=data,
             src_transform=src.transform,
             src_crs=src.crs,
-            dst_transform=rasterio.transform.from_bounds(-180, -90, 180, 90, lon_cells, lat_cells),
+            src_nodata=src.nodata,
+            dst_transform=_target_transform(lat_min, lat_max, lon_min, lon_max, lat_cells, lon_cells),
             dst_crs="EPSG:4326",
+            dst_nodata=np.nan,
             resampling=Resampling.average,
         )
-        if src.nodata is not None:
-            data[data == src.nodata] = 0.0
 
     return np.flipud(data)
 
 
-def build_from_directory(input_dir: str, lat_cells: int, lon_cells: int):
+def build_from_directory(
+    input_dir: str,
+    lat_cells: int,
+    lon_cells: int,
+    lat_min: float = -90.0,
+    lat_max: float = 90.0,
+    lon_min: float = -180.0,
+    lon_max: float = 180.0,
+):
     try:
         import numpy as np
-        from scipy.ndimage import zoom as scipy_zoom
+        import rasterio.transform
+        import rasterio.warp
+        from rasterio.enums import Resampling
     except ImportError:
-        print("ERROR: pip install numpy rasterio scipy", file=sys.stderr)
+        print("ERROR: pip install numpy rasterio", file=sys.stderr)
         sys.exit(1)
 
-    raw_data, _ = load_from_directory(input_dir)
-    scale_lat = lat_cells / raw_data.shape[0]
-    scale_lon = lon_cells / raw_data.shape[1]
-    data = scipy_zoom(raw_data.astype("float32"), (scale_lat, scale_lon), order=1)
-    data = data[:lat_cells, :lon_cells]
+    mosaic, mosaic_transform, mosaic_crs = load_from_directory(input_dir)
+
+    # モザイクを実際の地理範囲に従って出力グリッドへ配置する（範囲外のセルは NaN → 0 m）。
+    data = np.full((lat_cells, lon_cells), np.nan, dtype=np.float32)
+    rasterio.warp.reproject(
+        source=mosaic,
+        destination=data,
+        src_transform=mosaic_transform,
+        src_crs=mosaic_crs,
+        src_nodata=np.nan,
+        dst_transform=_target_transform(lat_min, lat_max, lon_min, lon_max, lat_cells, lon_cells),
+        dst_crs="EPSG:4326",
+        dst_nodata=np.nan,
+        resampling=Resampling.average,
+    )
     return np.flipud(data)
 
 
@@ -342,6 +395,26 @@ def postprocess_and_write(
         print(f"完了: {size_kb:.0f} KB")
 
 
+def _fit_cells(lo: float, hi: float, res: float, upper_limit: float, axis: str):
+    """セル数と、ヘッダーに書く上端 (= lo + cells * res) を返す。
+
+    解像度が範囲を割り切れない場合、セル幅を res に保つために上端を調整する
+    （ヘッダー境界とセル幅の不整合で TerrainService の座標がずれるのを防ぐ）。
+    """
+    if hi <= lo or res <= 0:
+        print(f"ERROR: {axis} 範囲または解像度が不正です ({lo}〜{hi}, res={res})", file=sys.stderr)
+        sys.exit(1)
+    cells = max(1, round((hi - lo) / res))
+    fitted_hi = lo + cells * res
+    if fitted_hi > upper_limit + 1e-9 and cells > 1:
+        cells -= 1
+        fitted_hi = lo + cells * res
+    if abs(fitted_hi - hi) <= 1e-6:
+        return cells, hi
+    print(f"WARNING: 解像度 {res}° は {axis} 範囲 {lo}〜{hi} を割り切れないため、上端を {fitted_hi:.6f} に調整します。")
+    return cells, fitted_hi
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Copernicus DEM データ → 地形バイナリ変換ツール",
@@ -397,16 +470,16 @@ def main():
         args.compress = True
 
     res = args.resolution
-    lat_cells = round((lat_max - lat_min) / res)
-    lon_cells = round((lon_max - lon_min) / res)
+    lat_cells, lat_max = _fit_cells(lat_min, lat_max, res, upper_limit=90.0, axis="lat")
+    lon_cells, lon_max = _fit_cells(lon_min, lon_max, res, upper_limit=180.0, axis="lon")
     est_bytes = lat_cells * lon_cells * 2
     est_label = f"{est_bytes / (1024 * 1024):.1f} MB" if est_bytes >= 1024 * 1024 else f"{est_bytes / 1024:.0f} KB"
     print(f"解像度: {res}°  → {lat_cells} lat × {lon_cells} lon = {lat_cells * lon_cells:,} cells  (バイナリ ≈ {est_label})")
 
     if args.input:
-        data = build_from_geotiff(args.input, lat_cells, lon_cells)
+        data = build_from_geotiff(args.input, lat_cells, lon_cells, lat_min, lat_max, lon_min, lon_max)
     elif args.input_dir:
-        data = build_from_directory(args.input_dir, lat_cells, lon_cells)
+        data = build_from_directory(args.input_dir, lat_cells, lon_cells, lat_min, lat_max, lon_min, lon_max)
     else:
         data = build_copernicus(lat_cells, lon_cells, res, lat_min, lat_max, lon_min, lon_max)
 

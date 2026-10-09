@@ -1,17 +1,57 @@
 #!/usr/bin/env python3
 """
-Generate stars_fill.json from Yale Bright Star Catalogue (BSC5) – FULL catalog.
-Downloads BSC5 catalog from VizieR and outputs fill star data for NightScope.
+Generate stars_fill.json from the HYG star database v4.1 (hygdata_v41.csv).
+
+Source
+------
+  HYG Database v4.1 by David Nash / astronexus
+  https://github.com/astronexus/HYG-Database  (hyg/CURRENT/hygdata_v41.csv)
+  License: CC BY-SA 4.0 (attribution required; the derived stars_fill.json is
+  an adaptation and is therefore also CC BY-SA 4.0).
+
+  NOTE: Earlier versions of this script read the Yale Bright Star Catalogue
+  (BSC5, ~9,000 stars, 3 columns). The bundled stars_fill.json (25,650 stars,
+  mag <= 7.5, 4th column = B-V) was actually produced from HYG v4.1. This script
+  reproduces that file byte-for-byte when NAMED_STARS holds the coordinates in
+  use at the time (see "Reproducibility" below).
 
 Output: NightScope/Data/stars_fill.json
-Format: [[ra_deg, dec_deg, magnitude], ...]  (all ~9000 BSC5 stars minus named stars)
-"""
-import json
-import math
-import urllib.request
-import gzip
+Format: [[ra_deg, dec_deg, magnitude, bv?], ...]
+  - ra/dec: J2000 degrees rounded to 3 decimals
+  - magnitude: V rounded to 2 decimals
+  - bv: B-V colour index (HYG "ci") rounded to 3 decimals; omitted when HYG has none
+  - Rows keep HYG's file order (HYG id order); the Sun (id 0) is skipped.
+  - Stars with mag > 7.5 are dropped.
+  - Stars inside a +/-0.301 deg box (raw RA and Dec difference, not an
+    angular distance) around any entry of NAMED_STARS are dropped, because
+    StarCatalog.swift draws those stars itself.
 
-# Named stars RA+Dec from StarCatalog.swift — used to exclude duplicates
+Reproducibility
+---------------
+  The bundled file was generated while several named stars in StarCatalog.swift
+  had wrong RA values. Those were corrected (StarCatalog.swift and NAMED_STARS
+  below), so regenerating now yields a slightly different file: the corrected
+  stars move out of the fill list and a few stars near the old wrong positions
+  come back. StarCatalog also removes fill entries that duplicate a named star
+  at load time, so the app is correct with either file.
+
+Usage:
+  python3 Tools/generate_stars.py [--input hygdata_v41.csv] [--output PATH]
+"""
+import argparse
+import csv
+import io
+import json
+import os
+import urllib.request
+
+HYG_URL = "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv"
+MAX_MAGNITUDE = 7.5
+# Exclusion half-width (degrees) applied to |dRA| and |dDec| separately.
+NAMED_EXCLUSION_DEG = 0.301
+
+# Named stars RA+Dec from StarCatalog.swift — used to exclude duplicates.
+# Keep in sync with StarCatalog.namedStars.
 NAMED_STARS = [
     (101.287, -16.716),  # シリウス
     ( 95.988, -52.696),  # カノープス
@@ -53,7 +93,7 @@ NAMED_STARS = [
     (206.885,  49.313),  # アルカイド
     (276.043, -34.385),  # カウス・オーストラリス
     ( 89.882,  44.948),  # メンカリナン
-    (247.562, -68.679),  # アトリア
+    (252.166, -69.028),  # アトリア
     ( 99.428,  16.400),  # アルヘナ
     (306.412, -56.735),  # ピーコック
     ( 37.954,  89.264),  # ポラリス
@@ -73,7 +113,7 @@ NAMED_STARS = [
     (340.654, -46.885),  # ティアキ
     (177.265,  14.572),  # デネボラ
     (190.379, -48.959),  # ムフルファイン
-    (247.555, -28.216),  # タウ・スコルピ
+    (248.971, -28.216),  # タウ・スコルピ
     (305.557,  40.257),  # サドル
     (252.541, -34.293),  # イプシロン・スコルピ
     (240.083, -22.622),  # デシュッバ
@@ -88,8 +128,8 @@ NAMED_STARS = [
     (241.359, -19.805),  # グラフィアス
     (220.482, -47.388),  # アルファ・ルピ
     ( 21.454,  60.236),  # ルクバー
-    (219.461,  18.398),  # ムフリド
-    (274.407, -29.828),  # カウスメディア
+    (208.671,  18.398),  # ムフリド
+    (275.249, -29.828),  # カウスメディア
     (296.565,  10.613),  # タラゼド
     (190.415,  -1.449),  # ポリマ
     (276.992, -25.422),  # カウスボレアリス
@@ -107,141 +147,99 @@ NAMED_STARS = [
     (  2.294,  59.150),  # カフ
     ( 84.411,  21.143),  # ゼータ・タウリ
     (292.680,  27.960),  # アルビレオ
-    (253.084, -38.047),  # ムー・スコルピ
-    (286.736, -27.671),  # アルナスル
-    (271.452, -30.424),  # ナッシュ
+    (252.968, -38.047),  # ムー・スコルピ
+    (286.735, -27.670),  # タウ・サジタリ
+    (271.452, -30.424),  # アルナスル (γ2 Sgr)
     (230.182,  71.834),  # フルカド
     (100.983,  25.131),  # メブスダ
-    (253.504, -42.363),  # ゼータ・スコルピ
-    (254.655, -43.239),  # エータ・スコルピ
-    (264.330, -37.303),  # ウプシロン・スコルピ
+    (253.646, -42.361),  # ゼータ・スコルピ
+    (258.038, -43.239),  # エータ・スコルピ
+    (262.691, -37.296),  # ウプシロン・スコルピ
     (224.633, -43.133),  # ベータ・ルピ
-    (288.138,   5.569),  # ゼータ・アクィラ
+    (286.353,  13.863),  # ゼータ・アクィラ
     (284.736,  32.690),  # スラファト
     (282.520,  33.363),  # シェリアク
     ( 28.599,  63.670),  # セギン
     (183.857,  57.033),  # メグレズ
     (146.463,  23.774),  # ラス・エラセド
-    (148.028,  16.762),  # エータ・レオニス
+    (151.833,  16.763),  # エータ・レオニス
     (154.171,  23.417),  # アドハフェラ
     (110.031,  21.982),  # ワサット
     (101.321,  12.896),  # アルツィル
     ( 56.871,  24.105),  # イータ・タウリ
-    ( 26.350,  20.808),  # シェラト
-    ( 65.649,  15.629),  # ガンマ・タウリ
-    ( 67.154,  17.542),  # デルタ・タウリ
-    ( 68.499,  19.180),  # エプシロン・タウリ
+    ( 28.660,  20.808),  # シェラト
+    ( 64.948,  15.628),  # ガンマ・タウリ
+    ( 65.734,  17.543),  # デルタ・タウリ
+    ( 67.154,  19.180),  # エプシロン・タウリ
     ( 75.492,  43.823),  # アルマアズ
-    (290.418,  -0.821),  # テータ・アクィラ
-    (277.893, -26.987),  # ファイ・スゲータリ
+    (302.826,  -0.821),  # テータ・アクィラ
+    (281.414, -26.991),  # ファイ・スゲータリ
 ]
 
 
-def angular_distance_deg(ra1, dec1, ra2, dec2):
-    """Compute angular distance between two points (all in degrees)."""
-    r1 = math.radians(ra1)
-    d1 = math.radians(dec1)
-    r2 = math.radians(ra2)
-    d2 = math.radians(dec2)
-    cos_d = (math.sin(d1) * math.sin(d2) +
-             math.cos(d1) * math.cos(d2) * math.cos(r1 - r2))
-    cos_d = max(-1.0, min(1.0, cos_d))
-    return math.degrees(math.acos(cos_d))
-
-
-def is_named(ra, dec, tol=0.15):
-    """Return True if star is within tol degrees of any named star."""
+def is_named(ra, dec, tol=NAMED_EXCLUSION_DEG):
+    """Return True if star lies inside the exclusion box of any named star."""
     for nra, ndec in NAMED_STARS:
-        if angular_distance_deg(ra, dec, nra, ndec) < tol:
+        if abs(ra - nra) <= tol and abs(dec - ndec) <= tol:
             return True
     return False
 
 
-def download_bsc5():
-    """Download BSC5 catalog.gz from VizieR."""
-    urls = [
-        "https://cdsarc.cds.unistra.fr/ftp/V/50/catalog.gz",
-        "http://cdsarc.u-strasbg.fr/ftp/V/50/catalog.gz",
-    ]
-    for url in urls:
-        try:
-            print(f"Downloading BSC5 from {url} ...")
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                raw = resp.read()
-            return gzip.decompress(raw).decode("ascii", errors="replace")
-        except Exception as e:
-            print(f"  Failed: {e}")
-    raise RuntimeError("Could not download BSC5 catalog.")
+def load_hyg_text(path=None):
+    """Read hygdata_v41.csv from a local path or download it."""
+    if path:
+        with open(path, newline="", encoding="utf-8") as f:
+            return f.read()
+    print(f"Downloading HYG v4.1 from {HYG_URL} ...")
+    req = urllib.request.Request(HYG_URL, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return resp.read().decode("utf-8")
 
 
-def parse_bsc5(text):
-    """
-    Parse BSC5 fixed-format lines.
-    Empirically verified column positions (0-indexed):
-      75-76  RA2000 hours    (2 chars)
-      77-78  RA2000 minutes  (2 chars)
-      79-82  RA2000 seconds  (4 chars, F4.1)
-      83     Dec2000 sign    (1 char)
-      84-85  Dec2000 degrees (2 chars)
-      86-87  Dec2000 arcmin  (2 chars)
-      88-89  Dec2000 arcsec  (2 chars, integer)
-     102-106 Vmag            (5 chars, F5.2)
-    Verified: Sirius gives RA=101.287 Dec=-16.716 Vmag=-1.46 ✓
-    """
+def parse_hyg(text):
+    """Convert HYG CSV rows to [ra_deg, dec_deg, mag, bv?] fill-star rows."""
     stars = []
-    for line in text.splitlines():
-        if len(line) < 107:
+    for row in csv.DictReader(io.StringIO(text)):
+        if row["id"] == "0":  # Sun
             continue
-
-        # RA J2000 (0-indexed)
-        ra_h_s  = line[75:77].strip()
-        ra_m_s  = line[77:79].strip()
-        ra_s_s  = line[79:83].strip()
-
-        # Dec J2000 (0-indexed)
-        sign    = line[83]
-        dec_d_s = line[84:86].strip()
-        dec_m_s = line[86:88].strip()
-        dec_s_s = line[88:90].strip()
-
-        # Vmag (0-indexed: 102-107)
-        vmag_s  = line[102:107].strip()
-
-        if not ra_h_s or not vmag_s:
-            continue
-
         try:
-            ra_deg  = (float(ra_h_s) + float(ra_m_s or 0) / 60 +
-                       float(ra_s_s or 0) / 3600) * 15.0
-            dec_abs = (float(dec_d_s or 0) + float(dec_m_s or 0) / 60 +
-                       float(dec_s_s or 0) / 3600)
-            dec_deg = -dec_abs if sign == '-' else dec_abs
-            vmag    = float(vmag_s)
+            mag = float(row["mag"])
+            ra_deg = float(row["ra"]) * 15.0  # HYG RA is in hours
+            dec_deg = float(row["dec"])
         except ValueError:
             continue
-
-        if is_named(ra_deg, dec_deg):
+        if mag > MAX_MAGNITUDE:
             continue
 
-        stars.append([round(ra_deg, 3), round(dec_deg, 3), round(vmag, 2)])
+        ra_r, dec_r, mag_r = round(ra_deg, 3), round(dec_deg, 3), round(mag, 2)
+        if is_named(ra_r, dec_r):
+            continue
 
+        entry = [ra_r, dec_r, mag_r]
+        ci = row["ci"].strip()
+        if ci:
+            try:
+                entry.append(round(float(ci), 3))
+            except ValueError:
+                pass
+        stars.append(entry)
     return stars
 
 
 if __name__ == "__main__":
-    import os, sys
+    default_out = os.path.join(os.path.dirname(__file__), "..", "NightScope", "Data", "stars_fill.json")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--input", help="local hygdata_v41.csv (downloaded when omitted)")
+    parser.add_argument("--output", default=default_out, help="output JSON path")
+    args = parser.parse_args()
 
-    text   = download_bsc5()
-    stars  = parse_bsc5(text)
-    print(f"Parsed {len(stars)} fill stars from BSC5.")
+    stars = parse_hyg(load_hyg_text(args.input))
+    print(f"Parsed {len(stars)} fill stars (mag <= {MAX_MAGNITUDE}) from HYG v4.1.")
 
-    out_dir  = os.path.join(os.path.dirname(__file__), "..", "NightScope", "Data")
-    out_path = os.path.join(out_dir, "stars_fill.json")
-    os.makedirs(out_dir, exist_ok=True)
-
-    with open(out_path, "w") as f:
+    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+    with open(args.output, "w") as f:
         json.dump(stars, f, separators=(",", ":"))
 
-    size_kb = os.path.getsize(out_path) / 1024
-    print(f"Written to {out_path}  ({size_kb:.1f} KB)")
+    size_kb = os.path.getsize(args.output) / 1024
+    print(f"Written to {args.output}  ({size_kb:.1f} KB)")
+    print("Note: HYG is CC BY-SA 4.0 — the app must credit it (Settings → Data Sources & Credits).")

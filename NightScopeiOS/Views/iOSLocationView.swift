@@ -258,6 +258,10 @@ struct iOSLocationView: View {
                     Text(L10n.format("ボルトル%d級", Int(bortle.rounded())))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } else if sidebarViewModel.isLightPollutionOutOfCoverage {
+                    Text(L10n.tr("データなし"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else if sidebarViewModel.hasLightPollutionFetchFailed {
                     Button("再試行") {
                         sidebarViewModel.retryLightPollution()
@@ -474,12 +478,16 @@ private struct iOSFavoritesSection: View {
                             .accessibilityLabel(
                                 L10n.format("お気に入りの場所: %@", favorite.name)
                             )
-                            .swipeActions(edge: .trailing) {
+                            // swipeActions は List の行でしか効かないため、長押しメニューで削除できるようにする。
+                            .contextMenu {
                                 Button(role: .destructive) {
                                     viewModel.removeFavorite(favorite)
                                 } label: {
                                     Label("削除", systemImage: "trash")
                                 }
+                            }
+                            .accessibilityAction(named: Text("削除")) {
+                                viewModel.removeFavorite(favorite)
                             }
 
                             if favorite.id != viewModel.favorites.last?.id {

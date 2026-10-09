@@ -101,10 +101,9 @@ struct IndexBreakdownView: View {
 
     /// 光害スコアが未取得のときに値欄へ出す文言。
     private var lightPollutionStatusText: String {
-        guard let lightPollutionViewModel, lightPollutionViewModel.fetchFailed else {
-            return L10n.tr("取得中...")
-        }
-        return L10n.tr("取得失敗")
+        guard let lightPollutionViewModel else { return L10n.tr("取得中...") }
+        if lightPollutionViewModel.isOutOfCoverage { return L10n.tr("データなし") }
+        return L10n.tr(lightPollutionViewModel.fetchFailed ? "取得失敗" : "取得中...")
     }
 
     /// 表示項目を値として組み立てる。View に依存しないため、そのまま検証できる。

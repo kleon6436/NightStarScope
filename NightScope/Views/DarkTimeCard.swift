@@ -23,14 +23,23 @@ struct DarkTimeCard: View {
     private var compactBody: some View {
         MetricCard(icon: AppIcons.Observation.clock, title: "観測可能時間", tint: .green) {
             VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(L10n.format("%.1f時間", summary.totalDarkHours))
-                    .font(.title3.weight(.semibold).monospacedDigit())
-                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
-                Text(viewModel.displayText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(style.textLineLimit(for: dynamicTypeSize))
-                    .minimumScaleFactor(0.75)
+                if viewModel.isUnavailable {
+                    // regular と同様、観測できない日は時間数を出さずに理由だけを示す。
+                    Text(viewModel.displayText)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(style.textLineLimit(for: dynamicTypeSize))
+                        .minimumScaleFactor(0.75)
+                } else {
+                    Text(L10n.format("%.1f時間", summary.totalDarkHours))
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                        .lineLimit(style.textLineLimit(for: dynamicTypeSize))
+                    Text(viewModel.displayText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(style.textLineLimit(for: dynamicTypeSize))
+                        .minimumScaleFactor(0.75)
+                }
             }
         }
         .accessibilityElement(children: .ignore)
@@ -100,7 +109,7 @@ private struct DarkTimeArc: View {
                          radius: r, startAngle: .degrees(180), endAngle: .degrees(0),
                          clockwise: false)
             ctx.stroke(track,
-                       with: .color(Color.white.opacity(CardVisual.trackOpacity)),
+                       with: .color(Color.primary.opacity(CardVisual.trackOpacity)),
                        style: StrokeStyle(lineWidth: lineW, lineCap: .round))
 
             let fraction = min(max(darkHours / 12.0, 0), 1)
@@ -117,7 +126,7 @@ private struct DarkTimeArc: View {
             ctx.draw(
                 Text(String(format: "%.1fh", darkHours))
                     .font(.caption2.weight(.semibold).monospacedDigit())
-                    .foregroundColor(.white.opacity(0.85)),
+                    .foregroundStyle(.secondary),
                 at: CGPoint(x: cx, y: cy - r * 0.35)
             )
         }

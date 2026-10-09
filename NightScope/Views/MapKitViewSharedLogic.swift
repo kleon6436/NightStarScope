@@ -198,16 +198,28 @@ enum MapKitViewSharedLogic {
         pinCoordinate: CLLocationCoordinate2D?,
         viewingDirection: ViewingDirection?
     ) {
-        mapView.overlays
-            .compactMap { $0 as? ViewingDirectionOverlay }
-            .forEach { mapView.removeOverlay($0) }
+        let existing = mapView.overlays.compactMap { $0 as? ViewingDirectionOverlay }
 
         guard let dir = viewingDirection, dir.isActive,
-              let center = pinCoordinate else { return }
+              let center = pinCoordinate else {
+            existing.forEach { mapView.removeOverlay($0) }
+            return
+        }
+
+        // 方位・視野角・ピン位置が変わっていなければ、再描画のちらつきを避けて既存のものを残す。
+        let parameters = ViewingDirectionOverlay.Parameters(
+            latitude: center.latitude,
+            longitude: center.longitude,
+            azimuth: dir.azimuth,
+            fov: dir.fov
+        )
+        if existing.count == 1, existing[0].parameters == parameters { return }
+        existing.forEach { mapView.removeOverlay($0) }
 
         var coords = sectorCoordinates(center: center, azimuth: dir.azimuth, fov: dir.fov)
         guard coords.count >= 3 else { return }
         let overlay = ViewingDirectionOverlay(coordinates: &coords, count: coords.count)
+        overlay.parameters = parameters
         mapView.addOverlay(overlay, level: .aboveRoads)
     }
 
@@ -231,8 +243,9 @@ enum MapKitViewSharedLogic {
                 Config.minimumLongitudeMetersPerDegree
             )
             let lonOffset  = radius * sin(angleRad) / metersPerLongitudeDegree
+            // 極を越える点は緯度を丸め、±180 をまたぐ経度は sanitizedCoordinate で折り返す（点を欠落させない）。
             let coordinate = CLLocationCoordinate2D(
-                latitude:  lat + latOffset,
+                latitude:  min(max(lat + latOffset, -90), 90),
                 longitude: sanitizedCenter.longitude + lonOffset
             )
             if let sanitizedCoordinate = GeoStateValidator.sanitizedCoordinate(coordinate) {
@@ -247,7 +260,17 @@ enum MapKitViewSharedLogic {
 // MARK: - ViewingDirectionOverlay
 
 /// サイドバーマップで視野方向を示す扇形ポリゴンオーバーレイ。
-final class ViewingDirectionOverlay: MKPolygon {}
+final class ViewingDirectionOverlay: MKPolygon {
+    /// 扇形を作ったときの入力。次回の更新で再生成が必要かの判定に使う。
+    struct Parameters: Equatable {
+        let latitude: CLLocationDegrees
+        let longitude: CLLocationDegrees
+        let azimuth: Double
+        let fov: Double
+    }
+
+    var parameters: Parameters?
+}
 
 /// MapKit の delegate 状態とプログラム更新の抑止を管理する。
 @MainActor

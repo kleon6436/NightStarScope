@@ -5,9 +5,15 @@ import MapKit
 /// 光害データ取得時の代表的なエラー。
 enum LightPollutionServiceError: Error, LocalizedError {
     case noData
+    case outOfCoverage
 
     var errorDescription: String? {
-        L10n.tr("現在地の光害データが取得できませんでした。")
+        switch self {
+        case .noData:
+            return L10n.tr("現在地の光害データが取得できませんでした。")
+        case .outOfCoverage:
+            return L10n.tr("現在地は光害データの収録範囲外です。")
+        }
     }
 }
 
@@ -20,6 +26,9 @@ protocol LightPollutionProviding: AnyObject, ObservableObject {
     var isLoadingPublisher: Published<Bool>.Publisher { get }
     var fetchFailed: Bool { get }
     var fetchFailedPublisher: Published<Bool>.Publisher { get }
+    /// 収録範囲外（極域など）。取得失敗ではなくデータなしとして扱う。
+    var isOutOfCoverage: Bool { get }
+    var isOutOfCoveragePublisher: Published<Bool>.Publisher { get }
 
     func fetch(latitude: Double, longitude: Double) async
     func fetchBortle(latitude: Double, longitude: Double) async throws -> Double
@@ -139,15 +148,21 @@ struct BortleGridData: Sendable {
     func brightness(latitude: Double, longitude: Double) -> Double {
         // rasterio from_bounds はセル中心グリッドを生成するため 0.5 セル分引く
         let latF = ((latitude + 90.0) / 180.0 * Double(latCells) - 0.5).clamped(to: 0...Double(latCells - 1))
-        let lonF = ((longitude + 180.0) / 360.0 * Double(lonCells) - 0.5).clamped(to: 0...Double(lonCells - 1))
+        // 経度は ±180° でつながっているため、端で値を固定せず日付変更線の反対側のセルと補間する。
+        // 両端の半セル分（-0.5 未満・lonCells - 0.5 以上）は lonCells - 1 と 0 の間になる。
+        let lonRaw = (longitude + 180.0) / 360.0 * Double(lonCells) - 0.5
+        let lonF = lonRaw.isFinite
+            ? lonRaw.clamped(to: -1...Double(lonCells))
+            : 0
+        let lonFloor = lonF.rounded(.down)
 
         let lat0 = Int(latF.rounded(.down)).clamped(to: 0..<latCells)
-        let lon0 = Int(lonF.rounded(.down)).clamped(to: 0..<lonCells)
         let lat1 = (lat0 + 1).clamped(to: 0..<latCells)
-        let lon1 = (lon0 + 1).clamped(to: 0..<lonCells)
+        let lon0 = Int(lonFloor).wrapped(modulo: lonCells)
+        let lon1 = (Int(lonFloor) + 1).wrapped(modulo: lonCells)
 
         let dt = latF - Double(lat0)
-        let ds = lonF - Double(lon0)
+        let ds = lonF - lonFloor
 
         let v00 = Double(float(at: lat0 * lonCells + lon0))
         let v01 = Double(float(at: lat0 * lonCells + lon1))
@@ -232,6 +247,11 @@ private extension Int {
     func clamped(to range: Range<Int>) -> Int {
         Swift.max(range.lowerBound, Swift.min(self, range.upperBound - 1))
     }
+
+    /// 0..<modulo の範囲へ巻き戻す（負の値も正しく扱う）。
+    func wrapped(modulo: Int) -> Int {
+        ((self % modulo) + modulo) % modulo
+    }
 }
 
 private extension Double {
@@ -311,12 +331,15 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     private enum Constants {
         /// 同一座標とみなすキャッシュ半径（度）≈ 5 km
         static let cacheRadiusDegrees = 0.05
+        /// Falchi World Atlas 2015 の収録緯度範囲。範囲外は 0 埋めのため Bortle 1 と誤判定される。
+        static let coveredLatitudeRange: ClosedRange<Double> = -60.0...75.0
     }
 
     /// 直近の取得結果と UI 反映用フラグをまとめる。
     struct FetchResult {
         let bortleClass: Double?
         let fetchFailed: Bool
+        var isOutOfCoverage = false
         let lastFetchedCoordinate: (lat: Double, lon: Double)?
         let fetchedAt: Date
     }
@@ -327,8 +350,12 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
     @Published var fetchFailed = false
     var fetchFailedPublisher: Published<Bool>.Publisher { $fetchFailed }
+    @Published var isOutOfCoverage = false
+    var isOutOfCoveragePublisher: Published<Bool>.Publisher { $isOutOfCoverage }
 
     private var lastFetchResult: FetchResult?
+    /// 取得の世代。観測地変更や新しい取得で進め、待機中だった古い取得の結果を反映しないために使う。
+    private var fetchGeneration = 0
 
     /// バンドルデータ。未ロード時は provider から非同期に取得する。
     private var gridData: BortleGridData?
@@ -351,16 +378,24 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
 
     /// 観測地変更前に、表示中の光害状態を初期化する。
     func prepareForLocationChange() {
+        // 旧観測地の取得がグリッド読み込み待ちのまま残っていても、新しい観測地の値を上書きさせない
+        fetchGeneration += 1
         isLoading = false
         fetchFailed = false
+        isOutOfCoverage = false
         bortleClass = nil
     }
 
     /// 指定座標の光害データを非同期取得する。
     func fetch(latitude: Double, longitude: Double) async {
+        fetchGeneration += 1
+        let generation = fetchGeneration
         isLoading = true
         fetchFailed = false
+        isOutOfCoverage = false
         let result = await fetchSnapshot(latitude: latitude, longitude: longitude)
+        // 待機中に観測地が変わった、または新しい取得が始まった場合は古い結果を捨てる
+        guard generation == fetchGeneration else { return }
         applyFetchResult(result)
     }
 
@@ -384,6 +419,14 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
                 lastFetchedCoordinate: (latitude, longitude),
                 fetchedAt: Date()
             )
+        } catch LightPollutionServiceError.outOfCoverage {
+            return FetchResult(
+                bortleClass: nil,
+                fetchFailed: false,
+                isOutOfCoverage: true,
+                lastFetchedCoordinate: (latitude, longitude),
+                fetchedAt: Date()
+            )
         } catch {
             return FetchResult(
                 bortleClass: nil,
@@ -398,6 +441,7 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
     func applyFetchResult(_ result: FetchResult) {
         bortleClass = result.bortleClass
         fetchFailed = result.fetchFailed
+        isOutOfCoverage = result.isOutOfCoverage
         lastFetchResult = result
         isLoading = false
     }
@@ -416,6 +460,9 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
             throw LightPollutionServiceError.noData
         }
         gridData = grid
+        guard Constants.coveredLatitudeRange.contains(latitude) else {
+            throw LightPollutionServiceError.outOfCoverage
+        }
         let brightness = grid.brightness(latitude: latitude, longitude: longitude)
         return scaleConverter.bortleClass(for: brightness)
     }

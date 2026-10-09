@@ -190,7 +190,7 @@ private extension Int {
 // MARK: - Service
 
 /// 観測地周辺の地形データを提供する Actor。
-/// Copernicus DEM バンドルデータから各方位の標高を読み込み、地球曲率と
+/// Copernicus DEM バンドルデータから各方位の標高を読み込み、地球曲率・大気差と
 /// 観測者の目の高さを考慮した地平仰角プロファイルを構築する。
 /// 高解像度グリッド（日本等）があれば優先的に使い、範囲外は全球グリッドにフォールバックする。
 /// バンドルデータが存在しない場合は nil を返す（平坦地扱い）。
@@ -200,15 +200,32 @@ actor TerrainService {
         static let cachePrecisionDegrees = 0.001
         static let eyeHeightMeters = 1.7
         static let earthRadiusMeters = 6_371_000.0
-        /// サンプリング距離候補 (m)。近距離は密に、遠距離は粗くなる。
-        static let sampleDistanceCandidates: [Double] = [
-            500, 1_000, 2_000, 4_000, 8_000,
-            15_000, 25_000, 40_000, 60_000, 80_000, 100_000
-        ]
+        /// 標準大気差係数 k。光線の屈折で見かけの地球半径が R / (1 − k) に伸びる。
+        static let refractionCoefficient = 0.13
+        /// 最初のサンプル距離かつ最小サンプル間隔 (m)。高解像度グリッド (0.01° ≈ 1.1km) のセルより細かい。
+        static let minSampleStepMeters = 250.0
+        /// 距離に比例して広げるサンプル間隔の割合。
+        static let sampleStepGrowthRatio = 0.05
+        /// 最大サンプル間隔 (m)。全球グリッド (0.05° ≈ 5.5km) のセルより十分細かく、尾根を取りこぼさない。
+        static let maxSampleStepMeters = 1_500.0
         /// 想定最高峰 (m)。最大サンプリング距離の計算に使用。
         static let maxPeakElevationMeters = 4_500.0
         /// 100km を超えると仰角 < 2° となり星空遮蔽への影響が小さいためキャップ。
         static let maxSamplingDistanceMeters = 100_000.0
+        /// サンプリング距離候補 (m)。250m 間隔から距離の 5% ずつ広げ、最大 1.5km 間隔で 100km まで (約 100 点/方位)。
+        static let sampleDistanceCandidates: [Double] = {
+            var distances: [Double] = []
+            var distance = Constants.minSampleStepMeters
+            while distance <= Constants.maxSamplingDistanceMeters {
+                distances.append(distance)
+                let step = min(
+                    max(Constants.minSampleStepMeters, distance * Constants.sampleStepGrowthRatio),
+                    Constants.maxSampleStepMeters
+                )
+                distance += step
+            }
+            return distances
+        }()
     }
 
     static let shared = TerrainService()
@@ -323,7 +340,9 @@ actor TerrainService {
     }
 
     /// バンドルデータから 72 方位の地平仰角を計算する。
-    /// 地球曲率と観測者の目の高さ (1.7m) を考慮する。
+    /// 各方位で約 100 点 (250m〜1.5km 間隔) をサンプリングし、最大仰角を採る。
+    /// 地球曲率による沈み込みは標準大気差 (k = 0.13) を含めて d²/(2R)·(1 − k) とし、
+    /// 観測者の目の高さ (1.7m) を考慮する。
     private func computeAngles(latitude: Double, longitude: Double) -> [Double] {
         let obsElev = elevation(latitude: latitude, longitude: longitude)
         let maxDist = Self.maxUsefulDistance(observerElevation: obsElev)
@@ -340,13 +359,17 @@ actor TerrainService {
                     distanceM: sampleDistance
                 )
                 let targetElev = self.elevation(latitude: lat2, longitude: lon2)
-                let curvatureDrop = sampleDistance * sampleDistance
-                    / (2.0 * Constants.earthRadiusMeters)
+                let curvatureDrop = Self.curvatureDrop(distance: sampleDistance)
                 let apparentHeight = targetElev - viewerHeight - curvatureDrop
                 let angle = atan2(apparentHeight, sampleDistance) * 180.0 / .pi
                 return max(highestAngle, angle)
             }
         }
+    }
+
+    /// 距離 distance (m) 先の地点が、地球曲率と大気差により見かけ上沈む高さ (m)。
+    nonisolated static func curvatureDrop(distance: Double) -> Double {
+        distance * distance / (2.0 * Constants.earthRadiusMeters) * (1.0 - Constants.refractionCoefficient)
     }
 
     private nonisolated static func roundedCoordinateComponent(_ value: Double) -> Double {

@@ -25,7 +25,10 @@ struct ContentView: View {
                 viewModel: rootStore.sidebarViewModel,
                 selectedDate: selectedDateBinding,
                 starMapViewModel: rootStore.starMapViewModel,
-                favoriteSyncReconciler: rootStore.favoriteSyncReconciler
+                favoriteSyncReconciler: rootStore.favoriteSyncReconciler,
+                currentObservationDate: { [detailViewModel = rootStore.detailViewModel] in
+                    detailViewModel.currentObservationDate()
+                }
             )
             .navigationSplitViewColumnWidth(
                 min: LayoutMacOS.sidebarMinWidth,
@@ -67,6 +70,9 @@ struct ContentView: View {
         })
         .focusedValue(\.currentLocationAction, {
             rootStore.appController.locationController.requestCurrentLocation()
+        })
+        .focusedValue(\.currentObservationDateProvider, {
+            rootStore.detailViewModel.currentObservationDate()
         })
     }
 }

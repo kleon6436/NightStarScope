@@ -150,17 +150,25 @@ enum MeteorShowerCatalog {
     /// 指定日時以降で最も近い極大日の流星群を返す。
     static func next(after date: Date, timeZone: TimeZone = .current) -> (shower: MeteorShower, daysUntilPeak: Int)? {
         let cal   = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let month = cal.component(.month, from: date)
-        let day   = cal.component(.day,   from: date)
-        let doy   = dayOfYear(month: month, day: day)
+        let today = cal.startOfDay(for: date)
+        let year  = cal.component(.year, from: date)
 
+        // 実際の暦日差で数える（固定 365 日表ではうるう年の 2/29 をまたぐと 1 日ずれるため）
         return all
-            .map { shower -> (MeteorShower, Int) in
-                let peak = dayOfYear(month: shower.peakMonth, day: shower.peakDay)
-                let diff = (peak - doy + 365) % 365
-                return (shower, diff)
+            .compactMap { shower -> (MeteorShower, Int)? in
+                for yearOffset in 0...1 {
+                    let components = DateComponents(
+                        year: year + yearOffset,
+                        month: shower.peakMonth,
+                        day: shower.peakDay
+                    )
+                    guard let peak = cal.date(from: components),
+                          let diff = cal.dateComponents([.day], from: today, to: peak).day,
+                          diff > 0 else { continue }
+                    return (shower, diff)
+                }
+                return nil
             }
-            .filter { $0.1 > 0 }
             .min { $0.1 < $1.1 }
             .map { ($0.0, $0.1) }
     }

@@ -106,7 +106,8 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
                 locationKey: locationKey,
                 timeZoneIdentifier: timeZone.identifier,
                 currentTemperatureCelsius: cachedCurrent?.celsius,
-                currentObservedAt: cachedCurrent?.observedAt
+                currentObservedAt: cachedCurrent?.observedAt,
+                cachedAt: timestamp
             )
         }
         return await loadWeather(
@@ -120,8 +121,9 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         activeLocationKey = result.locationKey
         activeTimeZoneIdentifier = result.timeZoneIdentifier
         weatherByDateByLocation[result.locationKey] = result.weatherByDate
+        // キャッシュから返した結果では取得時刻を据え置く。更新すると TTL が延び続け、再取得されなくなる。
         if result.errorMessage == nil && !result.weatherByDate.isEmpty {
-            cacheTimestamps[result.locationKey] = Date()
+            cacheTimestamps[result.locationKey] = result.cachedAt ?? Date()
         }
         // 取得失敗時は既存の値を残し、鮮度判定で古いものだけ落とす
         if let celsius = result.currentTemperatureCelsius {
@@ -220,7 +222,10 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
 
     private func evictCacheIfNeeded() {
         guard weatherByDateByLocation.count > maxCachedLocations else { return }
-        let keysToEvict = weatherByDateByLocation.keys.filter { $0 != activeLocationKey }
+        // 取得時刻の古い順に追い出す。取得時刻がない（失敗のみ等）場所は最も古い扱いにする。
+        let keysToEvict = weatherByDateByLocation.keys
+            .filter { $0 != activeLocationKey }
+            .sorted { (cacheTimestamps[$0] ?? .distantPast) < (cacheTimestamps[$1] ?? .distantPast) }
         for key in keysToEvict.prefix(weatherByDateByLocation.count - maxCachedLocations) {
             weatherByDateByLocation.removeValue(forKey: key)
             cacheTimestamps.removeValue(forKey: key)
@@ -347,6 +352,52 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
             )
         }
 
+        return Self.nightlySummaries(from: hours, coordinate: coordinate, timeZone: timeZone)
+    }
+
+    /// 天気予報を束ねる 1 夜分の区間。
+    /// 市民薄明終了後（太陽高度 < -6°）の区間を基本とし、その区間に正時が 1 つも含まれない夜
+    /// （高緯度の夏など、太陽が -6° まで沈まない／沈む時間が 1 時間に満たない白夜）は、
+    /// 太陽が地平線下（< 0°）の区間で代用する。月・惑星モードでは薄明の空でも観測対象になるため、
+    /// 天気が全く得られない夜を作らない。
+    /// 根拠: NightSummary の天気網羅判定（weatherCoverageHourStarts）と同じ基準・同じ順序で判定する。
+    static func weatherNightInterval(
+        date: Date,
+        coordinate: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> DateInterval? {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let civil = MilkyWayCalculator.civilDarknessInterval(
+            date: date,
+            location: coordinate,
+            timeZone: timeZone
+        )
+        if let civil, containsHourStart(civil, calendar: calendar) {
+            return civil
+        }
+        if let horizon = MilkyWayCalculator.sunBelowHorizonInterval(
+            date: date,
+            location: coordinate,
+            timeZone: timeZone
+        ), containsHourStart(horizon, calendar: calendar) {
+            return horizon
+        }
+        return civil
+    }
+
+    /// 区間 [start, end) に正時（時計の hh:00）が含まれるか。予報は正時ごとのため、含まれなければ天気は得られない。
+    private static func containsHourStart(_ interval: DateInterval, calendar: Calendar) -> Bool {
+        guard let hour = calendar.dateInterval(of: .hour, for: interval.start) else { return false }
+        let firstHourStart = hour.start == interval.start ? hour.start : hour.end
+        return firstHourStart < interval.end
+    }
+
+    /// 共通形式の時間別予報を夜間区間ごとに束ねる（テストから直接呼べるよう分離）。
+    static func nightlySummaries(
+        from hours: [HourlyWeather],
+        coordinate: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> [String: DayWeatherSummary] {
         guard let earliest = hours.min(by: { $0.date < $1.date }),
               let latest   = hours.max(by: { $0.date < $1.date }) else {
             return [:]
@@ -365,18 +416,20 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
             to: calendar.startOfDay(for: latest.date)
         ) ?? calendar.startOfDay(for: latest.date)
 
-        // 各日の夜間インターバルを列挙（MilkyWayCalculator.civilDarknessInterval と統一）
-        var intervals: [(key: String, interval: DateInterval)] = []
+        // 各日の夜間インターバルを列挙（市民薄明終了後。白夜は太陽が地平線下の区間で代用。NightSummary と統一）
+        var intervals: [(key: String, day: Date, interval: DateInterval)] = []
         var currentDay = startDay
         while currentDay <= endDay {
-            if let interval = MilkyWayCalculator.civilDarknessInterval(
+            if let interval = weatherNightInterval(
                 date: currentDay,
-                location: coordinate,
+                coordinate: coordinate,
                 timeZone: timeZone
             ) {
-                intervals.append((formatter.string(from: currentDay), interval))
+                intervals.append((formatter.string(from: currentDay), currentDay, interval))
             }
+            // 0 時が飛ぶ日を経由すると時刻が 1:00 などにずれたまま進むため、毎回その日の始まりへ揃える。
             currentDay = calendar.date(byAdding: .day, value: 1, to: currentDay)
+                .map { calendar.startOfDay(for: $0) }
                 ?? endDay.addingTimeInterval(1)
         }
 
@@ -390,8 +443,11 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
 
         // DayWeatherSummary を生成
         var summaries: [String: DayWeatherSummary] = [:]
+        // キー文字列を DateFormatter で読み戻すと、0 時が夏時間で飛ぶ日（例: America/Santiago）は
+        // nil になりその夜が落ちる。キーを作った日付（その日の始まり）をそのまま使う。
+        let dayByKey = Dictionary(intervals.map { ($0.key, $0.day) }, uniquingKeysWith: { first, _ in first })
         for (key, groupedHours) in grouped {
-            guard let date = formatter.date(from: key) else { continue }
+            guard let date = dayByKey[key] else { continue }
             summaries[key] = DayWeatherSummary(
                 date: date,
                 nighttimeHours: groupedHours.sorted { $0.date < $1.date }

@@ -273,7 +273,8 @@ struct CameraNotice: Equatable {
 final class StarMapMotionController: NSObject, ObservableObject {
     private let motionManager = CMMotionManager()
     private let headingManager = CLLocationManager()
-    private var lastPose: StarMapMotionPose?
+    /// 平滑化済みの姿勢ベクトル。天頂付近の方位・ロール反転を避けるためベクトルで平滑化する。
+    private var lastVectors: StarMapMotionVectors?
     private var screenOrientation: StarMapScreenOrientation = .portrait
     /// `xMagneticNorthZVertical` 使用時の磁気偏角（真北 − 磁気北、度）。
     /// `xTrueNorthZVertical` では CoreMotion が WMM 補正済みのため不要。
@@ -287,33 +288,66 @@ final class StarMapMotionController: NSObject, ObservableObject {
     @Published private(set) var isMotionActive: Bool = false
 
     var canEnableGyroMode: Bool {
-        motionManager.isDeviceMotionAvailable && preferredReferenceFrame != nil
+        motionManager.isDeviceMotionAvailable && !candidateReferenceFrames.isEmpty
     }
 
-    private var preferredReferenceFrame: CMAttitudeReferenceFrame? {
-        let availableFrames = CMMotionManager.availableAttitudeReferenceFrames()
+    /// 位置情報の利用が許可されているか。`xTrueNorthZVertical` は位置情報が必要で、
+    /// 未許可のまま開始すると CoreMotion がエラーを返すため判定に使う。
+    private var isLocationAuthorized: Bool {
+        switch headingManager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            true
+        default:
+            false
+        }
+    }
 
-        if availableFrames.contains(.xTrueNorthZVertical) {
-            return .xTrueNorthZVertical
+    /// 優先順に並べた利用可能な基準座標系。真北系は位置情報が許可されている場合のみ候補にする。
+    private var candidateReferenceFrames: [CMAttitudeReferenceFrame] {
+        let availableFrames = CMMotionManager.availableAttitudeReferenceFrames()
+        var frames: [CMAttitudeReferenceFrame] = []
+
+        if availableFrames.contains(.xTrueNorthZVertical), isLocationAuthorized {
+            frames.append(.xTrueNorthZVertical)
         }
         if availableFrames.contains(.xMagneticNorthZVertical) {
-            return .xMagneticNorthZVertical
+            frames.append(.xMagneticNorthZVertical)
         }
 
-        return nil
+        return frames
     }
 
     func start(
         onPoseUpdate: @escaping (StarMapMotionPose) -> Void,
         onFailure: @escaping () -> Void
     ) {
-        guard let referenceFrame = preferredReferenceFrame, motionManager.isDeviceMotionAvailable else {
+        let frames = candidateReferenceFrames
+        guard !frames.isEmpty, motionManager.isDeviceMotionAvailable else {
             onFailure()
             return
         }
         guard !motionManager.isDeviceMotionActive else { return }
 
-        lastPose = nil
+        startUpdates(
+            referenceFrames: frames,
+            onPoseUpdate: onPoseUpdate,
+            onFailure: onFailure
+        )
+    }
+
+    /// 先頭の基準座標系でモーション更新を開始し、エラー時は次の候補（磁北系）へフォールバックする。
+    private func startUpdates(
+        referenceFrames: [CMAttitudeReferenceFrame],
+        onPoseUpdate: @escaping (StarMapMotionPose) -> Void,
+        onFailure: @escaping () -> Void
+    ) {
+        guard let referenceFrame = referenceFrames.first else {
+            onFailure()
+            return
+        }
+        let fallbackFrames = Array(referenceFrames.dropFirst())
+
+        lastVectors = nil
 
         // xMagneticNorthZVertical 使用時のみ CLHeading で磁気偏角を補正する。
         // xTrueNorthZVertical は CoreMotion が WMM 補正済みのため CLHeading 不要。
@@ -321,6 +355,8 @@ final class StarMapMotionController: NSObject, ObservableObject {
             headingManager.delegate = self
             headingManager.headingFilter = 0
             headingManager.startUpdatingHeading()
+        } else {
+            headingManager.stopUpdatingHeading()
         }
 
         motionManager.deviceMotionUpdateInterval = 1.0 / 45
@@ -331,37 +367,49 @@ final class StarMapMotionController: NSObject, ObservableObject {
             guard let self else { return }
 
             if error != nil {
+                // 真北系が失敗した場合（位置情報の権限なし等）は磁北系で再開する。
                 self.stop()
-                onFailure()
+                if fallbackFrames.isEmpty {
+                    onFailure()
+                } else {
+                    self.startUpdates(
+                        referenceFrames: fallbackFrames,
+                        onPoseUpdate: onPoseUpdate,
+                        onFailure: onFailure
+                    )
+                }
                 return
             }
 
             guard let motion else { return }
 
-            let rawPose = StarMapMotionPose.make(
+            let rawVectors = StarMapMotionVectors.make(
                 rotationMatrix: StarMapMotionMatrix(rotationMatrix: motion.attitude.rotationMatrix),
                 screenOrientation: self.screenOrientation
             )
+            // 方位・ロールを個別に平滑化すると天頂付近で 180° 反転して回転・跳躍するため、
+            // 視線方向と画面上方向のベクトルを平滑化してから姿勢へ変換する。
+            let smoothedVectors = StarMapMotionVectors.smoothed(previous: self.lastVectors, next: rawVectors)
+            self.lastVectors = smoothedVectors
+            let smoothedPose = smoothedVectors.pose
 
             // xMagneticNorthZVertical 使用時のみ磁気偏角を加算して真北基準に補正する。
-            // xTrueNorthZVertical は CoreMotion が WMM 補正済みのため rawPose をそのまま使用する。
+            // 鉛直軸まわりの回転なのでロールはそのまま保たれる。
             let correctedPose: StarMapMotionPose
             if referenceFrame == .xMagneticNorthZVertical,
                let declination = self.latestMagneticDeclination {
                 correctedPose = StarMapMotionPose(
-                    azimuth: rawPose.azimuth + declination,
-                    altitude: rawPose.altitude,
-                    roll: rawPose.roll
+                    azimuth: smoothedPose.azimuth + declination,
+                    altitude: smoothedPose.altitude,
+                    roll: smoothedPose.roll
                 )
             } else {
-                correctedPose = rawPose
+                correctedPose = smoothedPose
             }
 
-            let smoothedPose = StarMapMotionPose.smoothed(previous: self.lastPose, next: correctedPose)
-            self.lastPose = smoothedPose
-            self.calibrationAzimuth = smoothedPose.azimuth
+            self.calibrationAzimuth = correctedPose.azimuth
             if !self.isMotionActive { self.isMotionActive = true }
-            onPoseUpdate(smoothedPose)
+            onPoseUpdate(correctedPose)
         }
     }
 
@@ -372,7 +420,7 @@ final class StarMapMotionController: NSObject, ObservableObject {
     func stop() {
         motionManager.stopDeviceMotionUpdates()
         headingManager.stopUpdatingHeading()
-        lastPose = nil
+        lastVectors = nil
         latestMagneticDeclination = nil
         isMotionActive = false
         headingAccuracy = nil
@@ -385,13 +433,18 @@ final class StarMapMotionController: NSObject, ObservableObject {
 
 extension StarMapMotionController: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
-        guard newHeading.headingAccuracy >= 0, newHeading.trueHeading >= 0 else { return }
+        guard newHeading.headingAccuracy >= 0 else { return }
 
         // 磁気偏角 = 真北 − 磁気北。rawPose.azimuth（磁気北基準）に加算することで真北基準へ補正する。
-        let declination = newHeading.trueHeading - newHeading.magneticHeading
+        // 位置情報が未許可だと trueHeading は負値になるため、その場合は偏角を更新せず磁北基準のまま扱う。
+        let declination: Double? = newHeading.trueHeading >= 0
+            ? newHeading.trueHeading - newHeading.magneticHeading
+            : nil
         let accuracy = newHeading.headingAccuracy
         Task { @MainActor [weak self] in
-            self?.latestMagneticDeclination = declination
+            if let declination {
+                self?.latestMagneticDeclination = declination
+            }
             self?.headingAccuracy = accuracy >= 0 ? accuracy : nil
         }
     }
@@ -478,6 +531,8 @@ final class StarMapCameraController: NSObject, ObservableObject {
         }
         guard !isConfiguringSession else { return }
         isConfiguringSession = true
+        // 前回の失敗を消し、再試行が同じエラーで失敗しても onChange が発火するようにする。
+        lastErrorMessage = nil
 
         let session = session
         sessionQueue.async {
@@ -551,8 +606,9 @@ final class StarMapCameraController: NSObject, ObservableObject {
 
     nonisolated private static func makeCameraFieldOfView(for device: AVCaptureDevice) -> StarMapCameraFieldOfView {
         let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+        // videoFieldOfView はセンサー横長向きの水平視野角（Apple ドキュメント記載）であり、対角視野角ではない。
         return StarMapCameraFieldOfView(
-            diagonalDegrees: Double(device.activeFormat.videoFieldOfView),
+            landscapeHorizontalDegrees: Double(device.activeFormat.videoFieldOfView),
             sensorWidth: dimensions.width,
             sensorHeight: dimensions.height
         )

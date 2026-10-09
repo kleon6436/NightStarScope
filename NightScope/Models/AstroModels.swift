@@ -157,16 +157,15 @@ struct NightSummary {
 
     private var darkEvents: [AstroEvent] { events.filter { $0.isDark } }
 
-    /// 夕方側の暗い時間の開始（12時以降の最初の isDark イベント）
+    /// 暗い時間の開始（夜全体を時刻順に見た最初の isDark イベント）。
+    /// 根拠: 高緯度の夏など天文薄明が深夜0時以降に始まる夜もあるため、時刻（12時）で区切らない。
     var eveningDarkStart: Date? {
-        let cal = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        return darkEvents.first { cal.component(.hour, from: $0.date) >= 12 }?.date
+        darkEvents.min { $0.date < $1.date }?.date
     }
 
-    /// 早朝側の暗い時間の終了（12時前の最後の isDark イベントの次の区間）
+    /// 暗い時間の終了（夜全体を時刻順に見た最後の isDark イベントの次の区間）。
     var morningDarkEnd: Date? {
-        let cal = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        return darkEvents.last { cal.component(.hour, from: $0.date) < 12 }.map {
+        darkEvents.max { $0.date < $1.date }.map {
             $0.date.addingTimeInterval(MilkyWayCalculator.Constants.sampleIntervalSeconds)
         }
     }
@@ -200,7 +199,9 @@ struct NightSummary {
         nighttimeHours: [HourlyWeather],
         referenceDate: Date = Date()
     ) -> String? {
-        guard hasUsableWeatherData(nighttimeHours: nighttimeHours, referenceDate: referenceDate) else { return nil }
+        // 暗時間がない夜（白夜等）は観測可能時間帯を評価できないため、天文学的時間の表示に任せる
+        guard !darkEvents.isEmpty,
+              hasUsableWeatherData(nighttimeHours: nighttimeHours, referenceDate: referenceDate) else { return nil }
         if let w = weatherAwareObservableWindow(nighttimeHours: nighttimeHours, referenceDate: referenceDate) {
             return "\(w.start.nightTimeString(timeZone: timeZone)) 〜 \(w.end.nightTimeString(timeZone: timeZone))"
         }
@@ -265,7 +266,7 @@ struct NightSummary {
             )
         }
 
-        guard ObservationTimeZone.isDateInToday(date, timeZone: timeZone, referenceDate: referenceDate),
+        guard isTonight(referenceDate: referenceDate),
               let partialSummary = clippedToCoveredDarkHours(coverage.hours) else {
             return nil
         }
@@ -277,19 +278,38 @@ struct NightSummary {
         )
     }
 
+    /// この夜が `referenceDate` 時点の「今夜」かを返す。深夜〜明け方は進行中の前夜も今夜とみなす。
+    private func isTonight(referenceDate: Date) -> Bool {
+        if ObservationTimeZone.isDateInToday(date, timeZone: timeZone, referenceDate: referenceDate) {
+            return true
+        }
+        guard let nextDay = ObservationTimeZone.date(byAdding: .day, value: 1, to: date, timeZone: timeZone),
+              ObservationTimeZone.isDate(nextDay, inSameDayAs: referenceDate, timeZone: timeZone),
+              let lastNightEvent = events.last(where: {
+                  $0.sunAltitude < MilkyWayCalculator.standardSunsetAltitude
+              }) else {
+            return false
+        }
+        // アプリ全体の「今日」と同じく日の出で切り替える
+        let nightEnd = lastNightEvent.date.addingTimeInterval(MilkyWayCalculator.Constants.sampleIntervalSeconds)
+        return referenceDate < nightEnd
+    }
+
     private func makeWeatherByHour(nighttimeHours: [HourlyWeather], calendar: Calendar) -> WeatherByHour {
         Dictionary(
-            uniqueKeysWithValues: nighttimeHours.compactMap { weather in
+            nighttimeHours.compactMap { weather in
                 guard let hourStart = calendar.dateInterval(of: .hour, for: weather.date)?.start else {
                     return nil
                 }
                 return (hourStart, weather)
-            }
+            },
+            // 同一時刻が重複しても trap させず、先頭のエントリを採用する
+            uniquingKeysWith: { first, _ in first }
         )
     }
 
     private func darkWeatherCoverage(nighttimeHours: [HourlyWeather]) -> (hours: [HourlyWeather], hasFullCoverage: Bool) {
-        let expectedHourStarts = darkHourStarts
+        let expectedHourStarts = weatherCoverageHourStarts
         guard !expectedHourStarts.isEmpty else {
             return ([], false)
         }
@@ -316,6 +336,34 @@ struct NightSummary {
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         return Set(darkEvents.compactMap { event in
             calendar.dateInterval(of: .hour, for: event.date)?.start
+        })
+    }
+
+    /// 天気データの網羅性を判定する基準の時間帯（正時の集合）。
+    /// 暗時間があればその時間帯、暗時間がない夜（白夜等）は天気の夜間区間
+    /// （WeatherKitService.weatherNightInterval）と同じく市民薄明終了後（太陽高度 < -6°）の正時、
+    /// それも 1 つもない夜は太陽が地平線下（< 0°）の正時を基準にする。
+    /// 根拠: 白夜では暗時間が空集合になり、天気が揃っていても「一部のみ」と誤判定されるため。
+    ///       また -6° まで沈まない夜の天気は地平線下の区間で束ねられるため、同じ基準で判定しないと
+    ///       天気があっても「データなし」になる。
+    private var weatherCoverageHourStarts: Set<Date> {
+        let darkHours = darkHourStarts
+        guard darkHours.isEmpty else { return darkHours }
+        let civilHours = onTheHourStarts(sunAltitudeBelow: MilkyWayCalculator.civilTwilightSunAltitude)
+        guard civilHours.isEmpty else { return civilHours }
+        return onTheHourStarts(sunAltitudeBelow: MilkyWayCalculator.horizonSunAltitude)
+    }
+
+    /// 太陽高度が `threshold` 未満となる正時のイベント時刻の集合。
+    private func onTheHourStarts(sunAltitudeBelow threshold: Double) -> Set<Date> {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        return Set(events.compactMap { event in
+            guard event.sunAltitude < threshold,
+                  let hourStart = calendar.dateInterval(of: .hour, for: event.date)?.start,
+                  hourStart == event.date else {
+                return nil
+            }
+            return hourStart
         })
     }
 
@@ -466,11 +514,11 @@ struct PlanetNightSummary: Identifiable {
     let name: String
     /// 地平線通過（負→正）時刻。夜間 (18:00–06:00) 内に通過しなければ nil
     let riseTime: Date?
-    /// 南中（最大高度）時刻
+    /// 南中（最大高度）時刻。空が暗い時間帯（太陽高度 < -6°）があればその中で評価する
     let transitTime: Date?
     /// 地平線通過（正→負、transit より後の最後）時刻。夜間内に通過しなければ nil
     let setTime: Date?
-    /// 夜間内の最大高度 (度)
+    /// 夜間内の最大高度 (度)。空が暗い時間帯（太陽高度 < -6°）があればその中で評価する
     let peakAltitude: Double
     /// 南中時（南中なければ最大高度時）の等級
     let magnitude: Double
@@ -482,6 +530,9 @@ struct PlanetNightSummary: Identifiable {
     let setAzimuth: Double?
     /// 18:00–06:00 の高度サンプル列（グラフ用）
     let altitudeSamples: [AltitudeSample]
+    /// 夜間に太陽高度が -6° 未満（市民薄明終了後）のサンプルが存在するか。
+    /// false の場合（白夜など）、空が明るく惑星は観測可能とみなさない。
+    let hasDarkSkySamples: Bool
 
     init(
         name: String,
@@ -493,7 +544,8 @@ struct PlanetNightSummary: Identifiable {
         riseAzimuth: Double?          = nil,
         transitAzimuth: Double?       = nil,
         setAzimuth: Double?           = nil,
-        altitudeSamples: [AltitudeSample] = []
+        altitudeSamples: [AltitudeSample] = [],
+        hasDarkSkySamples: Bool = true
     ) {
         self.name            = name
         self.riseTime        = riseTime
@@ -505,12 +557,13 @@ struct PlanetNightSummary: Identifiable {
         self.transitAzimuth  = transitAzimuth
         self.setAzimuth      = setAzimuth
         self.altitudeSamples = altitudeSamples
+        self.hasDarkSkySamples = hasDarkSkySamples
     }
 
     var id: String { name }
     var localizedName: String { L10n.tr(name) }
-    /// 実用的な観測可能判定: 夜間に 10° 超の高度に達する
-    var isVisibleTonight: Bool { peakAltitude > 10.0 }
+    /// 実用的な観測可能判定: 空が暗い時間帯（太陽高度 < -6°）に 10° 超の高度に達する
+    var isVisibleTonight: Bool { hasDarkSkySamples && peakAltitude > 10.0 }
 
     /// 南中方位の 16 方位名。高度サンプルが得られない場合は nil
     var transitDirectionName: String? { transitAzimuth.map { directionName(for: $0) } }

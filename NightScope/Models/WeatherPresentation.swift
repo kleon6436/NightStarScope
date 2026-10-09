@@ -15,6 +15,7 @@ enum WeatherPresentation {
         case 3:          return .secondary
         case 45, 48:     return .secondary
         case 51...65:    return .blue
+        case 68:         return .cyan
         case 71...77:    return Color.blue.opacity(0.7)
         case 80...82:    return .blue
         case 85, 86:     return Color.blue.opacity(0.7)
@@ -85,6 +86,8 @@ struct ForecastCardPresentation {
     let hasPartialWeather: Bool
     let isForecastOutOfRange: Bool
     let hasWeatherLoadError: Bool
+    /// アプリ全体の「今夜」にあたる観測日。nil なら暦日の今日を使う。
+    var currentObservationDate: Date? = nil
 
     var shortDateLabel: String {
         FormatterFactory.localizedDate(template: "MEd", timeZone: timeZone).string(from: night.date)
@@ -92,8 +95,13 @@ struct ForecastCardPresentation {
 
     var relativeNightLabel: String? {
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        if ObservationTimeZone.isDateInToday(night.date, timeZone: timeZone) { return L10n.tr("今夜") }
-        if calendar.isDateInTomorrow(night.date) { return L10n.tr("明夜") }
+        // 深夜〜明け方は進行中の前夜を「今夜」とするため、暦日ではなく観測日と比べる
+        let tonight = calendar.startOfDay(for: currentObservationDate ?? Date())
+        if calendar.isDate(night.date, inSameDayAs: tonight) { return L10n.tr("今夜") }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: tonight),
+           calendar.isDate(night.date, inSameDayAs: tomorrow) {
+            return L10n.tr("明夜")
+        }
         return nil
     }
 

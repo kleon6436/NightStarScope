@@ -2,14 +2,23 @@ import Foundation
 
 extension StarGazingIndex {
     /// 観測モードに合わせて既存の星空指数を再重み付けする。
-    func adjusted(for mode: ObservationMode, nightSummary: NightSummary, weather: DayWeatherSummary?) -> StarGazingIndex {
+    /// - Parameter referenceDate: 「今日」の判定に使う基準時刻。ベース指数の `compute` と同じ値を渡す。
+    func adjusted(
+        for mode: ObservationMode,
+        nightSummary: NightSummary,
+        weather: DayWeatherSummary?,
+        referenceDate: Date = Date()
+    ) -> StarGazingIndex {
         guard mode != .general else { return self }
 
-        // 暗時間に絞った天気データを使用（ベース指数の usableWeatherContext と整合させる）
-        // 未来夜など context が取得できない場合は元の weather にフォールバック
+        // ベース指数と同じ usableWeatherContext（同じ referenceDate）で評価対象の天気を絞る。
+        // context が取得できない場合はベース指数も天気を評価していないため、天気由来のキャップは掛けない。
         let darkWeather: DayWeatherSummary? = weather.flatMap {
-            nightSummary.usableWeatherContext(nighttimeHours: $0.nighttimeHours)?.weather
-        } ?? weather
+            nightSummary.usableWeatherContext(
+                nighttimeHours: $0.nighttimeHours,
+                referenceDate: referenceDate
+            )?.weather
+        }
 
         var adjustedScore = Self.modeWeightedScore(for: mode, index: self) + Self.modeBonus(for: mode, nightSummary: nightSummary)
         adjustedScore = min(adjustedScore, Self.confidenceCap(for: self))

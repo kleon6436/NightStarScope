@@ -53,7 +53,8 @@ struct iOSStarMapView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
         }
         .onAppear {
-            viewModel.activatePresentationIfNeeded()
+            // 初回は初期化、2 回目以降（タブ復帰）は不在中の地点変更などを反映して再計算する。
+            viewModel.refreshPresentationOnAppear()
             updateInterfaceOrientation()
             cameraController.refreshAuthorizationStatus()
             syncMotionState()
@@ -71,6 +72,13 @@ struct iOSStarMapView: View {
             handleScenePhaseChange(newPhase)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            // デバイスの向き通知はインターフェース回転の完了前に届くことがあるため、次のランループで読み直す。
+            Task { @MainActor in
+                updateInterfaceOrientation()
+            }
+        }
+        .onChange(of: viewModel.canvasSize) { _, _ in
+            // 回転完了後は描画領域サイズが変わるため、ここで確定したインターフェース向きを反映する。
             updateInterfaceOrientation()
         }
         .onChange(of: cameraController.authorizationStatus) { _, newStatus in
@@ -197,7 +205,7 @@ struct iOSStarMapView: View {
             isPresentingDatePicker = true
         } label: {
             HStack(spacing: IOSDesignTokens.StarMap.statusIconSpacing) {
-                Text(viewModel.observationDate, format: .dateTime.month(.abbreviated).day())
+                Text(viewModel.observationDate, format: observationDateLabelFormat)
                 Image(systemName: "chevron.down")
                     .font(.caption2)
             }
@@ -209,13 +217,15 @@ struct iOSStarMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(L10n.tr("観測日"))
-        .accessibilityValue(Text(viewModel.observationDate, format: .dateTime.year().month().day()))
+        .accessibilityValue(Text(viewModel.observationDate, format: observationDateAccessibilityFormat))
         .popover(isPresented: $isPresentingDatePicker) {
             // graphical の DatePicker は固有サイズを持たず、popover 内では極端に細く潰れるため
             // カレンダーが収まる固定枠を与える。
             DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
                 .labelsHidden()
                 .datePickerStyle(.graphical)
+                // 観測日は観測地のタイムゾーン基準の暦日なので、端末のタイムゾーンではなく観測地で表示・選択する。
+                .environment(\.timeZone, viewModel.observationTimeZone)
                 .frame(
                     width: IOSDesignTokens.StarMap.datePickerPopoverWidth,
                     height: IOSDesignTokens.StarMap.datePickerPopoverHeight
@@ -274,6 +284,19 @@ struct iOSStarMapView: View {
             .accessibilityLabel(L10n.tr("時刻"))
             .accessibilityValue(viewModel.displayTimeString)
         }
+    }
+
+    /// 観測日ラベルの書式。観測地のタイムゾーンで暦日を表示する。
+    private var observationDateLabelFormat: Date.FormatStyle {
+        var style = Date.FormatStyle.dateTime.month(.abbreviated).day()
+        style.timeZone = viewModel.observationTimeZone
+        return style
+    }
+
+    private var observationDateAccessibilityFormat: Date.FormatStyle {
+        var style = Date.FormatStyle.dateTime.year().month().day()
+        style.timeZone = viewModel.observationTimeZone
+        return style
     }
 
     private var observationDateBinding: Binding<Date> {

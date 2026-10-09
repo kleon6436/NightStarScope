@@ -78,16 +78,30 @@ struct DetailView: View {
                         isWeatherLoading: viewModel.isWeatherLoading
                     )
                     UpcomingNightsGrid(viewModel: upcomingGridViewModel)
-                    MeteorShowerCalendarView(selectedDate: viewModel.selectedDate)
+                    MeteorShowerCalendarView(
+                        selectedDate: viewModel.selectedDate,
+                        timeZone: viewModel.selectedTimeZone,
+                        today: viewModel.currentObservationDate()
+                    )
                     PlanetVisibilityView(
                         selectedDate: viewModel.selectedDate,
                         location: summary.location,
-                        timeZone: viewModel.selectedTimeZone
+                        timeZone: viewModel.selectedTimeZone,
+                        isTonight: isSelectedNightTonight
                     )
                 }
                 .padding(Spacing.md)
             }
         }
+    }
+
+    /// 選択中の夜が現在の観測夜（今夜）か。予報から別の夜を選んでいるときは false。
+    private var isSelectedNightTonight: Bool {
+        ObservationTimeZone.isDate(
+            viewModel.selectedDate,
+            inSameDayAs: viewModel.currentObservationDate(),
+            timeZone: viewModel.selectedTimeZone
+        )
     }
 
     private var loadingContent: some View {
@@ -200,7 +214,8 @@ struct DetailView: View {
             index: index,
             summary: summary,
             weather: weather,
-            hasReliableWeather: weather != nil && !viewModel.isCurrentWeatherCoverageIncomplete
+            hasReliableWeather: weather != nil && !viewModel.isCurrentWeatherCoverageIncomplete,
+            isTonight: isSelectedNightTonight
         )
         let timeline = NightTimelineModel(
             summary: summary,
@@ -431,6 +446,8 @@ private struct MacStarMapSheet: View {
             DatePicker("", selection: observationDateBinding, displayedComponents: [.date])
                 .labelsHidden()
                 .datePickerStyle(.compact)
+                // 観測日は観測地のタイムゾーン基準の暦日なので、端末ではなく観測地のタイムゾーンで表示・選択する。
+                .environment(\.timeZone, viewModel.observationTimeZone)
                 .fixedSize()
 
             Spacer()

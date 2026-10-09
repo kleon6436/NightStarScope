@@ -366,11 +366,246 @@ final class MilkyWayCalculatorTests: XCTestCase {
         }
     }
 
+    // MARK: - 日没・日の出（太陽中心高度 -0.833°）
+
+    /// 12:00 時点で既に太陽が沈んでいる高緯度（ウトキアグヴィク 11 月）でも、
+    /// 正午前後の短い昼の後の日没〜翌日の出を返す。
+    func test_sunsetSunriseInterval_anchorsAtSolarNoonWhenSunIsDownAtClockNoon() throws {
+        let timeZone = TimeZone(identifier: "America/Anchorage")!
+        let date = makeDate(year: 2026, month: 11, day: 16, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 71.29, longitude: -156.79)
+
+        let interval = try XCTUnwrap(
+            MilkyWayCalculator.sunsetSunriseInterval(date: date, location: location, timeZone: timeZone)
+        )
+        // PyEphem (horizon -0:34): 日没 14:13 AKST、翌日の出 12:2x AKST
+        let expectedSunset = makeDate(year: 2026, month: 11, day: 16, hour: 14, minute: 13, timeZoneIdentifier: timeZone.identifier)
+        XCTAssertEqual(interval.start.timeIntervalSince(expectedSunset), 0, accuracy: 3 * 60)
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let end = calendar.dateComponents([.day, .hour], from: interval.end)
+        XCTAssertEqual(end.day, 17)
+        XCTAssertEqual(end.hour, 12)
+        XCTAssertGreaterThan(interval.duration, 20 * 3600)
+    }
+
+    /// 標準の日没高度 (-0.833°) を使い、暦の日没・日の出時刻と 3 分以内で一致する。
+    func test_findSunsetSunrise_usesStandardRefractionAltitude() throws {
+        let timeZone = TestTimeZones.tokyo
+        let date = makeDate(year: 2026, month: 8, day: 12, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
+
+        let times = try XCTUnwrap(
+            MilkyWayCalculator.findSunsetSunrise(date: date, location: location, timeZone: timeZone)
+        )
+        // PyEphem 4.2.1 (horizon -0:50, 大気差なし): 東京 2026-08-12 日没 18:36、08-13 日の出 4:57
+        let expectedSunset = makeDate(year: 2026, month: 8, day: 12, hour: 18, minute: 36, timeZoneIdentifier: timeZone.identifier)
+        let expectedSunrise = makeDate(year: 2026, month: 8, day: 13, hour: 4, minute: 57, timeZoneIdentifier: timeZone.identifier)
+        XCTAssertEqual(times.sunset.timeIntervalSince(expectedSunset), 0, accuracy: 3 * 60)
+        XCTAssertEqual(times.sunrise.timeIntervalSince(expectedSunrise), 0, accuracy: 3 * 60)
+    }
+
+    /// 夏時間開始の夜でも、日の出を経過秒ではなく時計時刻（PDT）で返す。
+    func test_findSunsetSunriseMinutes_returnsWallClockOnDstStartNight() throws {
+        let timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let date = makeDate(year: 2026, month: 3, day: 7, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
+
+        let minutes = try XCTUnwrap(
+            MilkyWayCalculator.findSunsetSunriseMinutes(date: date, location: location, timeZone: timeZone)
+        )
+        // PyEphem: 日没 17:54 PST、翌日の出 07:12 PDT
+        XCTAssertEqual(minutes.sunsetMinutes, 17 * 60 + 54, accuracy: 3)
+        XCTAssertEqual(minutes.sunriseMinutes, 7 * 60 + 12, accuracy: 3)
+    }
+
+    /// 極夜では日没・日の出が同じ時計時刻 (12:00) になる。
+    func test_findSunsetSunriseMinutes_polarNightReturnsSameClockTime() throws {
+        let timeZone = TimeZone(identifier: "Europe/Oslo")!
+        let date = makeDate(year: 2026, month: 12, day: 21, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 78.2232, longitude: 15.6469)
+
+        let minutes = try XCTUnwrap(
+            MilkyWayCalculator.findSunsetSunriseMinutes(date: date, location: location, timeZone: timeZone)
+        )
+        XCTAssertEqual(minutes.sunsetMinutes, 720, accuracy: 0.001)
+        XCTAssertEqual(minutes.sunriseMinutes, 720, accuracy: 0.001)
+    }
+
+    /// 日没が深夜 0 時を過ぎる夜（6 月のレイキャビク）は、翌日 0 時台の日没から始まる区間を返す。
+    func test_sunsetSunriseInterval_sunsetAfterMidnight() throws {
+        let timeZone = TimeZone(identifier: "Atlantic/Reykjavik")!
+        let date = makeDate(year: 2026, month: 6, day: 21, timeZoneIdentifier: timeZone.identifier)
+        let location = CLLocationCoordinate2D(latitude: 64.1466, longitude: -21.9426)
+
+        let interval = try XCTUnwrap(
+            MilkyWayCalculator.sunsetSunriseInterval(date: date, location: location, timeZone: timeZone)
+        )
+        let expectedSunset = makeDate(year: 2026, month: 6, day: 22, hour: 0, minute: 4, timeZoneIdentifier: timeZone.identifier)
+        let expectedSunrise = makeDate(year: 2026, month: 6, day: 22, hour: 2, minute: 55, timeZoneIdentifier: timeZone.identifier)
+        XCTAssertEqual(interval.start.timeIntervalSince(expectedSunset), 0, accuracy: 3 * 60)
+        XCTAssertEqual(interval.end.timeIntervalSince(expectedSunrise), 0, accuracy: 3 * 60)
+    }
+
+    // MARK: - 月の位置精度
+
+    /// 月の高度（視差補正込み）が PyEphem 4.2.1（大気差なし）と 0.3° 以内で一致する。
+    func test_moonHorizontal_matchesPyEphemAtTokyo() {
+        let latitude = 35.6762
+        let longitude = 139.6503
+        let latRad = AngleMath.toRadians(latitude)
+        // (UTC 年月日時, PyEphem の高度)
+        let cases: [(month: Int, day: Int, hour: Int, altitude: Double)] = [
+            (1, 15, 12, -82.230),
+            (3, 3, 15, 59.349),
+            (5, 20, 9, 52.802),
+            (7, 8, 18, 41.373),
+            (9, 26, 21, -2.821),
+            (11, 30, 3, -6.883),
+            (12, 24, 14, 71.253),
+        ]
+        for c in cases {
+            let date = makeDate(year: 2026, month: c.month, day: c.day, hour: c.hour, timeZoneIdentifier: "UTC")
+            let jd = MilkyWayCalculator.julianDate(from: date)
+            let observer = MilkyWayCalculator.HorizontalObserver(
+                cosLat: cos(latRad),
+                sinLat: sin(latRad),
+                lst: MilkyWayCalculator.localSiderealTime(jd: jd, longitude: longitude)
+            )
+            let moon = MilkyWayCalculator.moonHorizontal(jd: jd, observer: observer)
+            XCTAssertEqual(moon.alt, c.altitude, accuracy: 0.3, "2026-\(c.month)-\(c.day) \(c.hour)h UTC")
+        }
+    }
+
+    /// 地平線上の月は視差で約 1° 低く見える。
+    func test_moonTopocentricAltitude_lowersHorizonAltitudeByParallax() {
+        XCTAssertEqual(
+            MilkyWayCalculator.moonTopocentricAltitude(geocentricAltitude: 0, parallax: 0.95),
+            -0.95,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MilkyWayCalculator.moonTopocentricAltitude(geocentricAltitude: 90, parallax: 0.95),
+            90,
+            accuracy: 0.001
+        )
+    }
+
     // MARK: - planets in NightSummary テストは削除済み（Feature #1 Planet Visibility を撤去）
+}
+
+/// 星空マップの夜間スライダーと時計時刻の対応（夏時間・深夜 0 時以降の日没・極夜）を検証する。
+final class StarMapDateLogicNightRangeTests: XCTestCase {
+    private func makeDate(
+        _ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0,
+        timeZone: TimeZone
+    ) -> Date {
+        var components = DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
+        components.timeZone = timeZone
+        return Calendar(identifier: .gregorian).date(from: components)!
+    }
+
+    private let reykjavik = CLLocationCoordinate2D(latitude: 64.1466, longitude: -21.9426)
+    private let reykjavikTZ = TimeZone(identifier: "Atlantic/Reykjavik")!
+
+    /// 日没が翌日 0 時台の夜は、開始分を観測日 0:00 からの 1440 分以上で表し、スライダー時刻を翌日に写像する。
+    func test_nightRange_sunsetAfterMidnightMapsSliderToNextDay() throws {
+        let date = makeDate(2026, 6, 21, timeZone: reykjavikTZ)
+        let range = StarMapDateLogic.nightRange(
+            for: date,
+            location: reykjavik,
+            timeZone: reykjavikTZ,
+            fallback: .init(startMinutes: 18 * 60, durationMinutes: 600)
+        )
+        XCTAssertEqual(range.startMinutes, 1_440 + 4, accuracy: 3)
+        XCTAssertEqual(range.durationMinutes, 171, accuracy: 4)
+
+        let realMinutes = StarMapDateLogic.nightOffsetToRealMinutes(30, nightStartMinutes: range.startMinutes)
+        let mapped = try XCTUnwrap(StarMapDateLogic.date(
+            bySettingClockMinutes: realMinutes,
+            onObservationDate: date,
+            timeZone: reykjavikTZ,
+            nightStartMinutes: range.startMinutes
+        ))
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: reykjavikTZ)
+        XCTAssertEqual(calendar.component(.day, from: mapped), 22)
+        XCTAssertEqual(calendar.component(.hour, from: mapped), 0)
+        XCTAssertEqual(
+            StarMapDateLogic.realMinutesToNightOffset(
+                realMinutes,
+                nightStartMinutes: range.startMinutes,
+                nightDurationMinutes: range.durationMinutes
+            ),
+            30,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            StarMapDateLogic.observationDate(for: mapped, timeZone: reykjavikTZ, nightStartMinutes: range.startMinutes),
+            date
+        )
+    }
+
+    /// 日没が翌日 0 時台の夜に参照時刻 01:00 を渡すと、翌日 01:00 を返す。
+    func test_resolvedPresentationDate_sunsetAfterMidnightKeepsNightTime() throws {
+        let date = makeDate(2026, 6, 21, timeZone: reykjavikTZ)
+        let reference = makeDate(2025, 1, 1, 1, 0, timeZone: reykjavikTZ)
+        let resolved = try XCTUnwrap(StarMapDateLogic.resolvedPresentationDate(
+            for: date,
+            referenceDate: reference,
+            location: reykjavik,
+            timeZone: reykjavikTZ
+        ))
+        XCTAssertEqual(resolved, makeDate(2026, 6, 22, 1, 0, timeZone: reykjavikTZ))
+    }
+
+    /// 夏時間開始の夜は、スライダー最大位置が日の出の時計時刻 (PDT) に一致する。
+    func test_nightRange_durationMatchesWallClockOnDstNight() {
+        let timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let location = CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
+        let date = makeDate(2026, 3, 7, timeZone: timeZone)
+        let range = StarMapDateLogic.nightRange(
+            for: date,
+            location: location,
+            timeZone: timeZone,
+            fallback: .init(startMinutes: 18 * 60, durationMinutes: 600)
+        )
+        let sunrise = MilkyWayCalculator.findSunsetSunriseMinutes(date: date, location: location, timeZone: timeZone)
+        XCTAssertEqual(range.startMinutes, sunrise?.sunsetMinutes ?? -1, accuracy: 1)
+        XCTAssertEqual(
+            StarMapDateLogic.nightOffsetToRealMinutes(range.durationMinutes, nightStartMinutes: range.startMinutes),
+            sunrise?.sunriseMinutes ?? -1,
+            accuracy: 1
+        )
+    }
+
+    /// 極夜では夜間区間が終日のため、参照時刻を 12:00 に丸めずそのまま使う。
+    func test_resolvedPresentationDate_polarNightKeepsReferenceTime() throws {
+        let timeZone = TimeZone(identifier: "Europe/Oslo")!
+        let location = CLLocationCoordinate2D(latitude: 78.2232, longitude: 15.6469)
+        let date = makeDate(2026, 12, 21, timeZone: timeZone)
+
+        let evening = try XCTUnwrap(StarMapDateLogic.resolvedPresentationDate(
+            for: date,
+            referenceDate: makeDate(2025, 1, 1, 21, 7, timeZone: timeZone),
+            location: location,
+            timeZone: timeZone
+        ))
+        XCTAssertEqual(evening, makeDate(2026, 12, 21, 21, 7, timeZone: timeZone))
+
+        let morning = try XCTUnwrap(StarMapDateLogic.resolvedPresentationDate(
+            for: date,
+            referenceDate: makeDate(2025, 1, 1, 3, 0, timeZone: timeZone),
+            location: location,
+            timeZone: timeZone
+        ))
+        XCTAssertEqual(morning, makeDate(2026, 12, 22, 3, 0, timeZone: timeZone))
+    }
 }
 
 /// MilkyWayCalculator の角度計算を現行の出力値に固定する特性テスト。
 /// 期待値はリファクタ前のコードを実行して得た値。計算式を意図的に変えた場合のみ更新する。
+/// 更新履歴: 惑星の期待値は (1) 軌道要素を JPL Table 1 に合わせた修正（木星 e 変化率 -0.00013253、
+/// 長半径の変化率 aRate を追加）と (2) 惑星の夜間サンプリングを 18:00〜06:00 固定から日没〜日の出へ
+/// 変更したことに合わせ、Swift 実装を逐語移植した Python で再生成した。
 final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
     private let accuracy = 1e-9
 
@@ -402,54 +637,54 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             jd: 2440000.5, latitude: 35.6762, longitude: 139.6503,
             gst: 241.65463699121028, lst: 21.304936991210297,
             sunRA: 60.832097501349033, sunDec: 20.735222451768635,
-            moonRA: 24.744094477608865, moonDec: 10.959535727980091, moonPhase: 0.9000886175366972,
+            moonRA: 24.677970390955274, moonDec: 11.1199350191259, moonPhase: 0.9000815335501197,
             planets: [
-                PlanetGolden(name: "水星", altitude: 34.781835535765744, azimuth: 81.647017461286325,
-                             magnitude: -2.7954146205756687, distanceAU: 0.82871671970404737),
-                PlanetGolden(name: "金星", altitude: 56.632778052743951, azimuth: 112.30695174439839,
-                             magnitude: -3.9329529139327053, distanceAU: 1.7150834721586161),
-                PlanetGolden(name: "火星", altitude: 46.346662390086166, azimuth: 93.811054388250042,
-                             magnitude: 1.4312172485493075, distanceAU: 2.5334303933812166),
-                PlanetGolden(name: "木星", altitude: -21.370115537665001, azimuth: 54.229278866193937,
-                             magnitude: -2.0733272100755382, distanceAU: 5.4047214258400595),
-                PlanetGolden(name: "土星", altitude: 60.677395347006822, azimuth: 180.66633622911971,
-                             magnitude: 1.0048582076540029, distanceAU: 10.111734254833129),
+                PlanetGolden(name: "水星", altitude: 34.78180254069655, azimuth: 81.64699047677568,
+                             magnitude: 0.44687145156425245, distanceAU: 0.8287150913972336),
+                PlanetGolden(name: "金星", altitude: 56.63277822622247, azimuth: 112.30695222765459,
+                             magnitude: -3.8904618624869416, distanceAU: 1.7150804769257126),
+                PlanetGolden(name: "火星", altitude: 46.34666732048459, azimuth: 93.811060428623,
+                             magnitude: 1.4643081461020495, distanceAU: 2.533422748603226),
+                PlanetGolden(name: "木星", altitude: -21.37020125426606, azimuth: 54.229231439085424,
+                             magnitude: -2.0010241023843998, distanceAU: 5.404758758732948),
+                PlanetGolden(name: "土星", altitude: 60.672680989186325, azimuth: 180.6898185648289,
+                             magnitude: 0.6771066612510045, distanceAU: 10.111670497464866),
             ]
         ),
         EphemerisGolden(
             jd: 2460678.25, latitude: -33.8688, longitude: 151.2093,
             gst: 12.624450793955475, lst: 163.83375079395549,
             sunRA: 283.69106491796879, sunDec: -22.842199992162605,
-            moonRA: 319.72731074454714, moonDec: -19.098638563098387, moonPhase: 0.0934289301631703,
+            moonRA: 321.26719646670057, moonDec: -18.77472343037527, moonPhase: 0.09756259955139576,
             planets: [
-                PlanetGolden(name: "水星", altitude: 6.5342994719240872, azimuth: 112.54685460955415,
-                             magnitude: -1.9072914940267334, distanceAU: 1.1769955061876394),
-                PlanetGolden(name: "金星", altitude: -41.81444740189135, azimuth: 164.2056070239795,
-                             magnitude: -5.7663432961461547, distanceAU: 0.73796502219753646),
-                PlanetGolden(name: "火星", altitude: 21.081218999691917, azimuth: 321.23617276851292,
-                             magnitude: -1.4060890790285858, distanceAU: 0.65282428610666354),
-                PlanetGolden(name: "木星", altitude: -13.931757551064488, azimuth: 287.01201702763007,
-                             magnitude: -2.7529815766219894, distanceAU: 4.2024062395167752),
-                PlanetGolden(name: "土星", altitude: -48.089181262630987, azimuth: 183.76538144798718,
-                             magnitude: 1.0467307618171251, distanceAU: 10.045074037842303),
+                PlanetGolden(name: "水星", altitude: 6.534284493476195, azimuth: 112.54686719180864,
+                             magnitude: -0.38090193752332735, distanceAU: 1.1769968620158278),
+                PlanetGolden(name: "金星", altitude: -41.81444567812262, azimuth: 164.20560342687077,
+                             magnitude: -4.444673774455317, distanceAU: 0.7379660554192765),
+                PlanetGolden(name: "火星", altitude: 21.081191950679774, azimuth: 321.23613290527004,
+                             magnitude: -1.2432479651581014, distanceAU: 0.6528277752032595),
+                PlanetGolden(name: "木星", altitude: -13.931795276016679, azimuth: 287.0119847760995,
+                             magnitude: -2.731475067124823, distanceAU: 4.202376899312364),
+                PlanetGolden(name: "土星", altitude: -48.09220636977525, azimuth: 183.7793197285681,
+                             magnitude: 1.085830333387177, distanceAU: 10.044399438959942),
             ]
         ),
         EphemerisGolden(
             jd: 2462000.8, latitude: 64.1466, longitude: -21.9426,
             gst: 74.192382547538728, lst: 52.249782547538729,
             sunRA: 147.19663966172325, sunDec: 13.217891756576329,
-            moonRA: 103.75082706022624, moonDec: 23.132623701481087, moonPhase: 0.8825405961964429,
+            moonRA: 102.85180218772956, moonDec: 23.921562643917998, moonPhase: 0.8800597886336586,
             planets: [
-                PlanetGolden(name: "水星", altitude: -4.3752140503284451, azimuth: 65.580621093072054,
-                             magnitude: -1.7797222531650434, distanceAU: 1.2136228958914006),
-                PlanetGolden(name: "金星", altitude: 36.071277203856567, azimuth: 121.47578332694313,
-                             magnitude: -5.6934982172325972, distanceAU: 0.75956497125683542),
-                PlanetGolden(name: "火星", altitude: 34.682713182028621, azimuth: 109.82015373237687,
-                             magnitude: 1.1996403159223035, distanceAU: 2.2467615758382435),
-                PlanetGolden(name: "木星", altitude: -13.464144483642455, azimuth: 55.594321316577322,
-                             magnitude: -1.7344922411880184, distanceAU: 6.2622112654772417),
-                PlanetGolden(name: "土星", altitude: 37.778744014506557, azimuth: 196.03400678501299,
-                             magnitude: 0.70889784600420036, distanceAU: 8.9529842910855884),
+                PlanetGolden(name: "水星", altitude: -4.375198336766287, azimuth: 65.58063682913384,
+                             magnitude: -0.26044029049877904, distanceAU: 1.2136244952087747),
+                PlanetGolden(name: "金星", altitude: 36.07127573637081, azimuth: 121.47577930297824,
+                             magnitude: -4.343323553095222, distanceAU: 0.7595661898641424),
+                PlanetGolden(name: "火星", altitude: 34.68272967646966, azimuth: 109.8201823133902,
+                             magnitude: 1.5688290258691033, distanceAU: 2.246767861263104),
+                PlanetGolden(name: "木星", altitude: -13.464116088573478, azimuth: 55.59435278007359,
+                             magnitude: -1.7100758792390391, distanceAU: 6.26217787665897),
+                PlanetGolden(name: "土星", altitude: 37.78345846619784, azimuth: 196.02166787931642,
+                             magnitude: 0.26179183549556156, distanceAU: 8.953372193913253),
             ]
         ),
     ]
@@ -550,76 +785,83 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
     private let nightCases: [NightGolden] = [
         NightGolden(
             year: 2025, month: 1, day: 15, latitude: 35.6762, longitude: 139.6503,
-            moonPhaseAtMidnight: 0.5597429022812699, viewingWindowCount: 0,
-            firstEvent: (18.217455892481304, 210.1453554200271, 33.188422321494244, -30.969832992939939),
+            moonPhaseAtMidnight: 0.5571634511120888, viewingWindowCount: 0,
+            firstEvent: (18.2174558924813, 210.1453554200271, 33.18842232149424, -32.13116732571031),
             planets: [
-                PlanetNightGolden(name: "水星", riseTime: 1736974751.0796528, riseAzimuth: 119.79340358531016,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 0.14478912700932942,
-                                  transitAzimuth: 119.91043346176924, magnitude: -1.4522443760337238),
+                PlanetNightGolden(name: "水星", riseTime: 1736974753.0468397, riseAzimuth: 119.80513617799309,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 3.945176870328709,
+                                  transitAzimuth: 123.19699772502597, magnitude: -0.45975907059657617),
                 PlanetNightGolden(name: "金星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1736940908.2760425, setAzimuth: 261.26400903457903,
-                                  peakAltitude: 29.120747093936934,
-                                  transitAzimuth: 234.90307653126533, magnitude: -6.0652910963394921),
+                                  setTime: 1736940908.549375, setAzimuth: 261.26578808647974,
+                                  peakAltitude: 35.07829009035552,
+                                  transitAzimuth: 226.26477265362956, magnitude: -4.574634825220615),
                 PlanetNightGolden(name: "火星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 79.417812646646993,
-                                  transitAzimuth: 185.05701779563321, magnitude: -1.4224263993309632),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 79.42019564891248,
+                                  transitAzimuth: 175.14564865857594, magnitude: -1.4449572020750951),
                 PlanetNightGolden(name: "木星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1736966757.8944156, setAzimuth: 296.96779696820505,
-                                  peakAltitude: 75.912639402480394,
-                                  transitAzimuth: 183.73775625132382, magnitude: -2.6873900080709996),
+                                  setTime: 1736966759.4224179, setAzimuth: 296.97733626821207,
+                                  peakAltitude: 75.90994906817083,
+                                  transitAzimuth: 176.07190512769057, magnitude: -2.648977022977218),
                 PlanetNightGolden(name: "土星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1736941704.0294647, setAzimuth: 260.71777740431963,
-                                  peakAltitude: 31.247447644997639,
-                                  transitAzimuth: 231.36723839766421, magnitude: 1.0831241183983291),
+                                  setTime: 1736941706.7710838, setAzimuth: 260.7215428599125,
+                                  peakAltitude: 36.89799100246175,
+                                  transitAzimuth: 222.2102394807375, magnitude: 1.115237889013571),
             ]
         ),
         NightGolden(
             year: 2026, month: 6, day: 20, latitude: -33.8688, longitude: 151.2093,
-            moonPhaseAtMidnight: 0.20270625349686505, viewingWindowCount: 1,
-            firstEvent: (-24.823905259896158, 162.54549032370343, 30.751643876899209, 23.529049395202641),
+            moonPhaseAtMidnight: 0.20668008404629595, viewingWindowCount: 1,
+            firstEvent: (-24.823905259896158, 162.54549032370343, 30.75164387689921, 22.69557692534274),
             planets: [
                 PlanetNightGolden(name: "水星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: -4.4005895990495185,
-                                  transitAzimuth: 293.24057303921745, magnitude: -2.7858173858883881),
+                                  setTime: 1781944597.4489903, setAzimuth: 296.4325600170333,
+                                  peakAltitude: 12.795374550182462,
+                                  transitAzimuth: 307.5260230744066, magnitude: 0.829332012954497),
                 PlanetNightGolden(name: "金星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1781948753.7896223, setAzimuth: 294.66367614914975,
-                                  peakAltitude: 8.3997799143880094,
-                                  transitAzimuth: 301.40463695206171, magnitude: -4.8611490159089223),
-                PlanetNightGolden(name: "火星", riseTime: 1781979419.7914689, riseAzimuth: 67.742689527988915,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 27.331811683799952,
-                                  transitAzimuth: 39.31791098312987, magnitude: 0.90533879120438465),
+                                  setTime: 1781948752.3294654, setAzimuth: 294.6732604712471,
+                                  peakAltitude: 23.67331638993527,
+                                  transitAzimuth: 318.6335863557154, magnitude: -4.01959804995281),
+                PlanetNightGolden(name: "火星", riseTime: 1781979420.6555429, riseAzimuth: 67.73687368606322,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 22.22312619791923,
+                                  transitAzimuth: 46.870854533521864, magnitude: 1.2966222839638677),
                 PlanetNightGolden(name: "木星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: -0.04011335289394647,
-                                  transitAzimuth: 295.61809361240904, magnitude: -1.8511527171066433),
-                PlanetNightGolden(name: "土星", riseTime: 1781967657.790566, riseAzimuth: 86.247324732805268,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 52.978288786637364,
-                                  transitAzimuth: 2.7787703345689758, magnitude: 0.92625391825693804),
+                                  setTime: 1781945985.3019514, setAzimuth: 295.66003796614046,
+                                  peakAltitude: 16.682616176170487,
+                                  transitAzimuth: 310.7724288280269, magnitude: -1.8307242024398818),
+                PlanetNightGolden(name: "土星", riseTime: 1781967661.20436, riseAzimuth: 86.24067833195296,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 52.43182380923936,
+                                  transitAzimuth: 11.428638772435319, magnitude: 0.8239814036418236),
             ]
         ),
         NightGolden(
             year: 2027, month: 11, day: 3, latitude: 64.1466, longitude: -21.9426,
-            moonPhaseAtMidnight: 0.1681095874240564, viewingWindowCount: 0,
-            firstEvent: (-52.366841870922237, 328.79604910039461, -37.378584537779311, -47.270646348035385),
+            moonPhaseAtMidnight: 0.167847589665512, viewingWindowCount: 0,
+            firstEvent: (-52.36684187092224, 328.7960491003946, -37.37858453777931, -47.555830532139),
             planets: [
-                PlanetNightGolden(name: "水星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1825261587.2757006, setAzimuth: 254.75483795850158,
-                                  peakAltitude: 19.334813357923309,
-                                  transitAzimuth: 179.56188295269558, magnitude: -2.9760676332730021),
-                PlanetNightGolden(name: "金星", riseTime: 1825243743.4733818, riseAzimuth: 145.55137770178993,
-                                  setTime: 1825261614.4789228, setAzimuth: 214.2216228745971,
-                                  peakAltitude: 4.7469970169796216,
-                                  transitAzimuth: 181.53104985203453, magnitude: -4.1455354669253985),
-                PlanetNightGolden(name: "火星", riseTime: 1825248781.9330196, riseAzimuth: 154.77923440734637,
-                                  setTime: 1825262021.2015114, setAzimuth: 205.16361247915657,
-                                  peakAltitude: 2.6084246585284889,
-                                  transitAzimuth: 181.4998552144728, magnitude: 0.97251649430327314),
-                PlanetNightGolden(name: "木星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1825260169.3523657, setAzimuth: 280.96121175221839,
-                                  peakAltitude: 30.621866105389373,
-                                  transitAzimuth: 178.78464469648497, magnitude: -1.8444336546473235),
-                PlanetNightGolden(name: "土星", riseTime: 1825261959.8864291, riseAzimuth: 75.444245978010869,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 23.503456580815548,
-                                  transitAzimuth: 128.58404153783533, magnitude: 0.58123384555948299),
+                PlanetNightGolden(name: "水星", riseTime: 1825311488.2182994, riseAzimuth: 105.68076858495887,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 8.039944820722024,
+                                  transitAzimuth: 124.40825689021527, magnitude: -0.5124460372976105),
+                PlanetNightGolden(name: "金星", riseTime: nil, riseAzimuth: nil,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -4.118512688204039,
+                                  transitAzimuth: 227.12030494992015, magnitude: -3.8889191303148114),
+                PlanetNightGolden(name: "火星", riseTime: nil, riseAzimuth: nil,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -2.8696679513550296,
+                                  transitAzimuth: 216.60315672313536, magnitude: 1.3213699014835107),
+                PlanetNightGolden(name: "木星", riseTime: 1825298550.1578116, riseAzimuth: 79.10580086072295,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 27.833768268731355,
+                                  transitAzimuth: 151.22954204098042, magnitude: -1.8054944392807553),
+                PlanetNightGolden(name: "土星", riseTime: 1825261959.5516527, riseAzimuth: 75.42978740087383,
+                                  setTime: 1825311326.7079697, setAzimuth: 284.53565657768775,
+                                  peakAltitude: 32.14058720160805,
+                                  transitAzimuth: 180.2605234435665, magnitude: 0.16977104387496333),
             ]
         ),
     ]
@@ -633,7 +875,12 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
         return Calendar(identifier: .gregorian).date(from: components)!
     }
 
+    /// 時刻 (Unix 秒, 約 1.8e9) は 1 ulp が約 2.4e-7 秒のため、角度用の 1e-9 では libm の末尾ビット差でも落ちる。
+    /// 補間時刻の特性固定には 1 ms で十分なのでこの許容値を使う。
+    private let timeAccuracy = 1e-3
+
     private func assertOptionalEqual(_ actual: Double?, _ expected: Double?, _ message: String,
+                                     accuracy: Double? = nil,
                                      file: StaticString = #filePath, line: UInt = #line) {
         guard let expected else {
             XCTAssertNil(actual, message, file: file, line: line)
@@ -643,7 +890,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             XCTFail("nil (expected \(expected)) \(message)", file: file, line: line)
             return
         }
-        XCTAssertEqual(actual, expected, accuracy: accuracy, message, file: file, line: line)
+        XCTAssertEqual(actual, expected, accuracy: accuracy ?? self.accuracy, message, file: file, line: line)
     }
 
     func test_planetNightSummaries_matchesGolden() {
@@ -656,9 +903,9 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             XCTAssertEqual(summaries.map(\.name), golden.planets.map(\.name))
             for (summary, expected) in zip(summaries, golden.planets) {
                 let label = "\(golden.year)-\(golden.month)-\(golden.day) \(expected.name)"
-                assertOptionalEqual(summary.riseTime?.timeIntervalSince1970, expected.riseTime, label)
+                assertOptionalEqual(summary.riseTime?.timeIntervalSince1970, expected.riseTime, label, accuracy: timeAccuracy)
                 assertOptionalEqual(summary.riseAzimuth, expected.riseAzimuth, label)
-                assertOptionalEqual(summary.setTime?.timeIntervalSince1970, expected.setTime, label)
+                assertOptionalEqual(summary.setTime?.timeIntervalSince1970, expected.setTime, label, accuracy: timeAccuracy)
                 assertOptionalEqual(summary.setAzimuth, expected.setAzimuth, label)
                 XCTAssertEqual(summary.peakAltitude, expected.peakAltitude, accuracy: accuracy, label)
                 assertOptionalEqual(summary.transitAzimuth, expected.transitAzimuth, label)
@@ -685,5 +932,170 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             XCTAssertEqual(first.sunAltitude, golden.firstEvent.sunAltitude, accuracy: accuracy, label)
             XCTAssertEqual(first.moonAltitude, golden.firstEvent.moonAltitude, accuracy: accuracy, label)
         }
+    }
+
+    /// peakTime / peakAltitude / peakAzimuth は同一サンプル (観測スコア最大) から取る
+    func test_findViewingWindows_peakFieldsComeFromSameSample() {
+        let base = Date(timeIntervalSince1970: 0)
+        // 0: 高度は最大だが太陽が浅い (スコア低)、1: 高度はやや低いが空が暗い (スコア高)
+        let specs: [(alt: Double, az: Double, sun: Double)] = [
+            (40, 150, -19), (35, 170, -60), (30, 190, -19)
+        ]
+        let events = specs.enumerated().map { i, spec in
+            AstroEvent(
+                date: base.addingTimeInterval(Double(i) * 900),
+                galacticCenterAltitude: spec.alt,
+                galacticCenterAzimuth: spec.az,
+                sunAltitude: spec.sun,
+                moonAltitude: -5.0,
+                moonPhase: 0.1
+            )
+        }
+        let windows = MilkyWayCalculator.findViewingWindows(events: events)
+        XCTAssertEqual(windows.count, 1)
+        XCTAssertEqual(windows[0].peakTime, events[1].date)
+        XCTAssertEqual(windows[0].peakAltitude, 35.0)
+        XCTAssertEqual(windows[0].peakAzimuth, 170.0)
+    }
+
+    /// 天頂に近い極 (|lat|=90) でも方位角が有限値で返る
+    func test_altAz_atPole_returnsFiniteAzimuth() {
+        let result = MilkyWayCalculator.altAz(ra: 10, dec: 45, latitude: 90, lst: 100)
+        XCTAssertTrue(result.az.isFinite)
+        XCTAssertEqual(result.alt, 45, accuracy: 1e-6)
+    }
+}
+
+/// 月の輝面の向き（Meeus 48 章の位置角 χ と視差角 q）と、その画面描画への反映。
+final class MoonBrightLimbTests: XCTestCase {
+
+    /// Meeus 例題 48.a（1992-04-12 0h TD）: 太陽 α0=20.6579°, δ0=8.6964° / 月 α=134.6885°, δ=13.7684° → χ=285.0°
+    func test_moonBrightLimbPositionAngle_matchesMeeusExample48a() {
+        let chi = MilkyWayCalculator.moonBrightLimbPositionAngle(
+            sunRA: 20.6579, sunDec: 8.6964,
+            moonRA: 134.6885, moonDec: 13.7684
+        )
+        XCTAssertEqual(chi, 285.0, accuracy: 0.1)
+    }
+
+    /// アプリの太陽・月の位置から求めた χ は PyEphem 4.2.1（地心視位置）から求めた χ と 0.5° 以内で一致する。
+    func test_moonBrightLimbPositionAngle_matchesPyEphem() {
+        let cases: [(jd: Double, expected: Double)] = [
+            (2461043.5, 310.939),          // 2026-01-03 00:00 UTC
+            (2461045.0541666667, 90.672),  // 2026-01-04 13:18 UTC
+        ]
+        for c in cases {
+            let sun = MilkyWayCalculator.sunRaDec(jd: c.jd)
+            let moon = MilkyWayCalculator.moonRaDec(jd: c.jd)
+            let chi = MilkyWayCalculator.moonBrightLimbPositionAngle(
+                sunRA: sun.ra, sunDec: sun.dec, moonRA: moon.ra, moonDec: moon.dec
+            )
+            XCTAssertEqual(chi, c.expected, accuracy: 0.5, "jd=\(c.jd)")
+        }
+    }
+
+    /// 東京での月の視差角は PyEphem 4.2.1 の Moon.parallactic_angle() と 0.5° 以内で一致する。
+    func test_parallacticAngle_matchesPyEphemAtTokyo() {
+        let tokyo = (latitude: 35.68, longitude: 139.65)
+        let cases: [(jd: Double, expected: Double)] = [
+            (2461043.5, 29.682),
+            (2461045.0541666667, -61.122),
+        ]
+        for c in cases {
+            let moon = MilkyWayCalculator.moonRaDec(jd: c.jd)
+            let lst = MilkyWayCalculator.localSiderealTime(jd: c.jd, longitude: tokyo.longitude)
+            let q = MilkyWayCalculator.parallacticAngle(
+                hourAngle: lst - moon.ra, declination: moon.dec, latitude: tokyo.latitude
+            )
+            XCTAssertEqual(q, c.expected, accuracy: 0.5, "jd=\(c.jd)")
+        }
+    }
+
+    /// 南中時の視差角: 天頂より南の天体は 0°（天頂方向 = 北）、北の天体は 180°。
+    func test_parallacticAngle_onMeridian() {
+        XCTAssertEqual(MilkyWayCalculator.parallacticAngle(hourAngle: 0, declination: 10, latitude: 35), 0, accuracy: 1e-9)
+        XCTAssertEqual(abs(MilkyWayCalculator.parallacticAngle(hourAngle: 0, declination: 60, latitude: 35)), 180, accuracy: 1e-9)
+        // 南中前（東側）は負、南中後（西側）は正
+        XCTAssertLessThan(MilkyWayCalculator.parallacticAngle(hourAngle: -30, declination: 10, latitude: 35), 0)
+        XCTAssertGreaterThan(MilkyWayCalculator.parallacticAngle(hourAngle: 30, declination: 10, latitude: 35), 0)
+    }
+
+    /// 日没後の西空の三日月（東京 2026-02-20 18:30 JST、太陽は月のほぼ真下）は輝面が下（地平線側）を向く。
+    /// 南半球（シドニー）の同時刻では太陽が月の左下にあり、輝面は左下を向く。
+    func test_moonBrightLimbZenithAngle_eveningCrescentPointsTowardSetSun() {
+        let jd = 2461091.8958333335  // 2026-02-20 09:30 UTC
+        let tokyoAngle = MilkyWayCalculator.moonBrightLimbZenithAngle(
+            jd: jd,
+            latitude: 35.6762,
+            localSiderealTime: MilkyWayCalculator.localSiderealTime(jd: jd, longitude: 139.6503)
+        )
+        XCTAssertEqual(tokyoAngle, 189.6, accuracy: 1.0)
+        let sydneyAngle = MilkyWayCalculator.moonBrightLimbZenithAngle(
+            jd: jd,
+            latitude: -33.8688,
+            localSiderealTime: MilkyWayCalculator.localSiderealTime(jd: jd, longitude: 151.2093)
+        )
+        XCTAssertEqual(sydneyAngle, 118.0, accuracy: 1.0)
+    }
+
+    /// 方位角が右に増え、高度が上に増える単純な投影では、天頂角 0° は画面の上、90° は左（方位角が減る側）を向く。
+    func test_moonBrightLimbScreenAngle_followsProjectionOrientation() throws {
+        let project: (Double, Double) -> CGPoint? = { altitude, azimuth in
+            CGPoint(x: azimuth * 1000, y: -altitude * 1000)
+        }
+        let up = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 0, altitudeDegrees: 0, azimuthDegrees: 180, project: project
+        ))
+        XCTAssertEqual(up, -Double.pi / 2, accuracy: 1e-6)
+        let left = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 90, altitudeDegrees: 0, azimuthDegrees: 180, project: project
+        ))
+        XCTAssertEqual(abs(left), Double.pi, accuracy: 1e-6)
+        let down = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 180, altitudeDegrees: 0, azimuthDegrees: 180, project: project
+        ))
+        XCTAssertEqual(down, Double.pi / 2, accuracy: 1e-6)
+
+        // 画面を 90° 回した（ロールした）投影では、天頂方向も画面上で回る
+        let rolled: (Double, Double) -> CGPoint? = { altitude, azimuth in
+            CGPoint(x: altitude * 1000, y: azimuth * 1000)
+        }
+        let rolledUp = try XCTUnwrap(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 0, altitudeDegrees: 0, azimuthDegrees: 180, project: rolled
+        ))
+        XCTAssertEqual(rolledUp, 0, accuracy: 1e-6)
+
+        // 投影できない場合は nil
+        XCTAssertNil(StarMapCanvasView.moonBrightLimbScreenAngle(
+            zenithAngleDegrees: 0, altitudeDegrees: 0, azimuthDegrees: 0, project: { _, _ in nil }
+        ))
+    }
+
+    /// 輝面の向きを指定すると、多角形の輝面側がその向きへ回転する。指定しなければ従来の左右表示。
+    func test_moonLitPolygon_rotatesLitSideToBrightLimbAngle() {
+        let center = CGPoint(x: 100, y: 100)
+        func centroid(_ points: [CGPoint]) -> CGPoint {
+            CGPoint(
+                x: points.map(\.x).reduce(0, +) / CGFloat(points.count),
+                y: points.map(\.y).reduce(0, +) / CGFloat(points.count)
+            )
+        }
+        // 上弦（半月）: 指定なしは右側が光る
+        let legacy = centroid(StarMapCanvasView.moonLitPolygon(center: center, radius: 10, phase: 0.25))
+        XCTAssertGreaterThan(legacy.x, center.x + 2)
+        XCTAssertEqual(legacy.y, center.y, accuracy: 1e-6)
+
+        // 輝面を下（+y）へ向ける
+        let down = centroid(StarMapCanvasView.moonLitPolygon(
+            center: center, radius: 10, phase: 0.25, brightLimbScreenAngle: Double.pi / 2
+        ))
+        XCTAssertGreaterThan(down.y, center.y + 2)
+        XCTAssertEqual(down.x, center.x, accuracy: 1e-6)
+
+        // 下弦でも向きの指定が優先される（左右反転しない）
+        let waningUp = centroid(StarMapCanvasView.moonLitPolygon(
+            center: center, radius: 10, phase: 0.75, brightLimbScreenAngle: -Double.pi / 2
+        ))
+        XCTAssertLessThan(waningUp.y, center.y - 2)
     }
 }

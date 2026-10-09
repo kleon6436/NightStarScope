@@ -34,12 +34,14 @@ enum WeatherConditionMapper {
             return 95
         case .hail:
             return 96
-        case .blizzard, .wintryMix:
+        case .wintryMix:
             return 71
         case .flurries, .snow, .sunFlurries, .blowingSnow:
             return 73
-        case .heavySnow:
+        // 吹雪は大雪として扱い、表示（大雪）と深刻度（コードの大小）を揃える
+        case .heavySnow, .blizzard:
             return 75
+        // みぞれ・着氷性の雨。表示文言・アイコン・色は DayWeatherSummary / WeatherPresentation で 68 として定義
         case .sleet, .freezingRain:
             return 68
         case .tropicalStorm, .hurricane:

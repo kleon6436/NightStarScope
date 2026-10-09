@@ -18,9 +18,15 @@ extension FocusedValues {
         get { self[CurrentLocationActionKey.self] }
         set { self[CurrentLocationActionKey.self] = newValue }
     }
+    /// 現在の観測日（アプリ全体の「今日」）を返す。「今日に移動」で使う。
+    var currentObservationDateProvider: (() -> Date)? {
+        get { self[CurrentObservationDateProviderKey.self] }
+        set { self[CurrentObservationDateProviderKey.self] = newValue }
+    }
 }
 
 private struct RefreshActionKey: FocusedValueKey { typealias Value = () -> Void }
 private struct FocusSearchActionKey: FocusedValueKey { typealias Value = () -> Void }
 private struct CurrentLocationActionKey: FocusedValueKey { typealias Value = () -> Void }
+private struct CurrentObservationDateProviderKey: FocusedValueKey { typealias Value = () -> Date }
 

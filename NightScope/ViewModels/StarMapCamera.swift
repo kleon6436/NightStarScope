@@ -32,23 +32,28 @@ enum StarMapScreenOrientation: Sendable {
 }
 
 /// カメラの画角から、描画上で見える水平視野角を求める。
+/// `AVCaptureDevice.Format.videoFieldOfView` はセンサー横長（landscape）向きの水平視野角なので、
+/// 対角視野角ではなく横長向きの水平視野角として受け取る。
 struct StarMapCameraFieldOfView: Equatable, Sendable {
-    let diagonalDegrees: Double
+    /// センサー横長向き（長辺方向）の水平視野角（度）
+    let landscapeHorizontalDegrees: Double
     let sensorWidth: Int32
     let sensorHeight: Int32
 
+    /// センサー長辺 / 短辺。フォーマットの幅・高さの向きに依存しないよう長辺基準で求める。
     private var sensorAspectRatio: Double? {
         guard sensorWidth > 0, sensorHeight > 0 else { return nil }
-        return Double(sensorWidth) / Double(sensorHeight)
-    }
-
-    private var landscapeHorizontalDegrees: Double? {
-        degreesForAxis(multiplier: sensorAspectRatio)
+        let longSide = Double(max(sensorWidth, sensorHeight))
+        let shortSide = Double(min(sensorWidth, sensorHeight))
+        return longSide / shortSide
     }
 
     private var landscapeVerticalDegrees: Double? {
-        guard let sensorAspectRatio else { return nil }
-        return degreesForAxis(multiplier: 1.0 / sensorAspectRatio)
+        guard let sensorAspectRatio, landscapeHorizontalDegrees > 0, landscapeHorizontalDegrees < 180 else {
+            return nil
+        }
+        let halfHorizontalRadians = landscapeHorizontalDegrees * .pi / 360
+        return atan(tan(halfHorizontalRadians) / sensorAspectRatio) * 360 / .pi
     }
 
     func visibleHorizontalDegrees(
@@ -57,7 +62,6 @@ struct StarMapCameraFieldOfView: Equatable, Sendable {
     ) -> Double? {
         guard viewportSize.width > 0, viewportSize.height > 0 else { return nil }
         guard let sensorAspectRatio,
-              let landscapeHorizontalDegrees,
               let landscapeVerticalDegrees else {
             return nil
         }
@@ -73,21 +77,16 @@ struct StarMapCameraFieldOfView: Equatable, Sendable {
             ? landscapeVerticalDegrees
             : landscapeHorizontalDegrees
 
+        // resizeAspectFill: ビューポートの方が横長なら左右いっぱいに表示され、上下が切り取られる。
         if viewportAspectRatio >= contentAspectRatio {
             return contentHorizontalDegrees
         }
 
+        // ビューポートの方が縦長なら上下いっぱいに表示され、左右が切り取られる。
         let visibleHalfHorizontalRadians = atan(
             tan(contentVerticalDegrees * .pi / 360) * viewportAspectRatio
         )
         return visibleHalfHorizontalRadians * 360 / .pi
-    }
-
-    private func degreesForAxis(multiplier: Double?) -> Double? {
-        guard let multiplier else { return nil }
-        let halfDiagonalRadians = diagonalDegrees * .pi / 360
-        let base = tan(halfDiagonalRadians) / sqrt(multiplier * multiplier + 1)
-        return atan(multiplier * base) * 360 / .pi
     }
 }
 

@@ -9,6 +9,8 @@ struct SidebarView: View {
     @ObservedObject var starMapViewModel: StarMapViewModel
     @Binding var selectedDate: Date
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
+    /// カレンダーで「今日」として強調する観測日を返す。
+    private let currentObservationDate: (@MainActor () -> Date)?
     @State private var highlightedIndex = SidebarSearchInteraction.noSelectionIndex
     @FocusState private var isSearchFocused: Bool
     @State private var locationInputMode: LocationInputMode = .map
@@ -18,12 +20,14 @@ struct SidebarView: View {
         viewModel: SidebarViewModel,
         selectedDate: Binding<Date>,
         starMapViewModel: StarMapViewModel,
-        favoriteSyncReconciler: FavoriteSyncReconciler? = nil
+        favoriteSyncReconciler: FavoriteSyncReconciler? = nil,
+        currentObservationDate: (@MainActor () -> Date)? = nil
     ) {
         self._viewModel = StateObject(wrappedValue: viewModel)
         self.starMapViewModel = starMapViewModel
         self._selectedDate = selectedDate
         self.favoriteSyncReconciler = favoriteSyncReconciler
+        self.currentObservationDate = currentObservationDate
     }
 
     var body: some View {
@@ -233,13 +237,23 @@ struct SidebarView: View {
 
     /// ハイライト中の候補（なければ先頭）を確定する
     private func confirmHighlightedOrFirst() {
+        // 検索中は候補リストを隠しており、searchResults は前回クエリの結果のまま。
+        // 表示中の候補（結果フェーズ）からだけ確定する。
         let target = SidebarSearchInteraction.highlightedTarget(
-            in: viewModel.searchResults,
+            in: visibleSearchResults,
             highlightedIndex: highlightedIndex
         )
         if let item = target {
             confirmSelection(item)
         }
+    }
+
+    /// 画面に表示している検索候補。検索中・結果なし・エラー時は空。
+    private var visibleSearchResults: [MKMapItem] {
+        if case .results(let results) = viewModel.searchPresentation {
+            return results
+        }
+        return []
     }
 
     /// 候補を選択して検索状態をリセットする
@@ -252,7 +266,7 @@ struct SidebarView: View {
     private func handleSearchDownArrow() -> KeyPress.Result {
         highlightedIndex = SidebarSearchInteraction.nextHighlightedIndex(
             current: highlightedIndex,
-            totalResults: viewModel.searchResults.count
+            totalResults: visibleSearchResults.count
         )
         return .handled
     }
@@ -279,7 +293,12 @@ struct SidebarView: View {
     // MARK: - Date Section
 
     private var dateSection: some View {
-        SidebarDateSection(selectedDate: $selectedDate, timeZone: viewModel.selectedTimeZone, cellHeight: viewModel.calendarCellHeight)
+        SidebarDateSection(
+            selectedDate: $selectedDate,
+            timeZone: viewModel.selectedTimeZone,
+            cellHeight: viewModel.calendarCellHeight,
+            today: currentObservationDate?()
+        )
     }
 }
 
@@ -404,6 +423,7 @@ private struct SidebarDateSection: View {
     @Binding var selectedDate: Date
     let timeZone: TimeZone
     var cellHeight: CGFloat = 32
+    var today: Date? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -412,7 +432,7 @@ private struct SidebarDateSection: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
 
-            CalendarView(selectedDate: $selectedDate, timeZone: timeZone, cellHeight: cellHeight)
+            CalendarView(selectedDate: $selectedDate, timeZone: timeZone, cellHeight: cellHeight, today: today)
                 .padding(.horizontal, -Layout.sidebarHorizontalPadding)
         }
     }

@@ -91,7 +91,9 @@ final class DashboardViewModel: ObservableObject {
         self.searchController = DashboardSearchController()
         self.comparisonController.dayCount = Self.dayCount
         reloadFavorites()
+        // 購読直後の現在値は reloadFavorites() で反映済みのため、二重の refresh を避けて読み飛ばす。
         favoriteStore.locationsPublisher
+            .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] favorites in
                 self?.applyFavorites(favorites, triggerRefresh: true)
@@ -322,24 +324,46 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func matchingMatrixDate(for date: Date) -> Date? {
-        matrix.dates.first { Calendar.current.isDate($0, inSameDayAs: date) }
+        // 列の日付は暦日を表すため、列を作ったタイムゾーンで同じ日かを判定する。
+        matrix.dates.first {
+            ObservationTimeZone.isDate($0, inSameDayAs: date, timeZone: matrix.columnTimeZone)
+        }
+    }
+
+    /// セル選択時にメインウィンドウへ渡す日付。
+    /// 地点の夜の日付（その地点のタイムゾーンの 0 時）を優先し、なければ列の年月日を地点のタイムゾーンへ写す。
+    func selectionDate(for locationID: UUID, columnDate: Date) -> Date {
+        if let nightDate = cell(for: locationID, date: columnDate)?.nightSummary?.date {
+            return nightDate
+        }
+        guard let location = matrix.locations.first(where: { $0.id == locationID }),
+              let timeZone = TimeZone(identifier: location.timeZoneIdentifier) else {
+            return columnDate
+        }
+        return matrix.localDay(for: columnDate, in: timeZone)
     }
 
     private func makeLoadingMatrix(locations: [FavoriteLocation], referenceDate: Date) -> ComparisonMatrix {
-        let dates = (0..<Self.dayCount).compactMap { offset in
-            Calendar(identifier: .gregorian).date(
-                byAdding: .day,
-                value: offset,
-                to: Calendar(identifier: .gregorian).startOfDay(for: referenceDate)
-            )
-        }
+        let columnTimeZone = TimeZone.current
+        // 計算結果の行列と同じ列（各地点の観測日にそろえた暦日）を使い、読み込み中に列がずれないようにする
+        let dates = ComparisonController.makeDates(
+            referenceDate: referenceDate,
+            dayCount: Self.dayCount,
+            timeZone: columnTimeZone,
+            locations: locations
+        )
         let cellsByID = Dictionary(uniqueKeysWithValues: locations.flatMap { location in
             dates.map { date in
                 let cell = ComparisonCell(locationID: location.id, date: date, loadState: .loading)
                 return (cell.id, cell)
             }
         })
-        return ComparisonMatrix(locations: locations, dates: dates, cellsByID: cellsByID)
+        return ComparisonMatrix(
+            locations: locations,
+            dates: dates,
+            cellsByID: cellsByID,
+            columnTimeZone: columnTimeZone
+        )
     }
 
     private func selectFavorite(id: UUID, name: String, allowSwap: Bool) -> SwappedSelection? {
@@ -436,7 +460,12 @@ final class DashboardViewModel: ObservableObject {
             guard generation == self.refreshGeneration, !Task.isCancelled else { return }
 
             self.matrix = computed
-            self.lastError = computed.locations.isEmpty ? L10n.tr("ダッシュボードのデータ取得に失敗しました") : nil
+            // 計算結果が空、またはすべての地点で天気の取得に失敗したときは、再試行できるようエラーを出す。
+            let didAllWeatherFail = !computed.locations.isEmpty
+                && computed.locations.allSatisfy { computed.weatherFailedLocationIDs.contains($0.id) }
+            self.lastError = (computed.locations.isEmpty || didAllWeatherFail)
+                ? L10n.tr("ダッシュボードのデータ取得に失敗しました")
+                : nil
             self.isInitialLoad = false
         }
         refreshTask = task

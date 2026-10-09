@@ -72,29 +72,134 @@ extension StarMapCanvasView {
             with: .color(.white.opacity(0.5)), lineWidth: 1)
     }
 
-    func drawMoon(ctx: GraphicsContext, at point: CGPoint, phase: Double) {
+    /// 月を描く。`brightLimbScreenAngle`（画面座標で輝面が向く角度, rad）が nil の場合は
+    /// 従来どおり満ちていく月は右、欠けていく月は左を光らせる。
+    func drawMoon(ctx: GraphicsContext, at point: CGPoint, phase: Double, brightLimbScreenAngle: Double? = nil) {
         let radius: Double = 10
         let rect = CGRect(x: point.x - radius, y: point.y - radius,
                           width: radius * 2, height: radius * 2)
-        ctx.fill(Circle().path(in: rect), with: .color(.white.opacity(0.9)))
+        // 欠け際の暗部（地球照程度にうっすら見せる）
+        ctx.fill(Circle().path(in: rect), with: .color(Color(white: 0.35).opacity(0.35)))
 
-        let illumination = 1 - abs(phase * 2 - 1)
-        if illumination < 0.98 {
-            let shadowXScale = 1 - illumination * 2
-            let shadowW = abs(shadowXScale) * radius * 2
-            let shadowX = shadowXScale >= 0
-                ? point.x - radius
-                : point.x - radius + (radius * 2 - shadowW)
-            let shadowRect = CGRect(x: shadowX, y: point.y - radius,
-                                    width: shadowW, height: radius * 2)
-            ctx.fill(Ellipse().path(in: shadowRect),
-                     with: .color(Color.black.opacity(max(0, 1 - illumination))))
+        let litPolygon = Self.moonLitPolygon(
+            center: point,
+            radius: radius,
+            phase: phase,
+            brightLimbScreenAngle: brightLimbScreenAngle
+        )
+        if litPolygon.count >= 3 {
+            var litPath = Path()
+            litPath.move(to: litPolygon[0])
+            for vertex in litPolygon.dropFirst() {
+                litPath.addLine(to: vertex)
+            }
+            litPath.closeSubpath()
+            ctx.fill(litPath, with: .color(.white.opacity(0.9)))
         }
 
         let glowR = radius * 1.8
+        let glowOpacity = 0.06 * max(0.2, Self.moonIlluminatedFraction(phase: phase))
         ctx.fill(Circle().path(in: CGRect(x: point.x - glowR, y: point.y - glowR,
                                            width: glowR * 2, height: glowR * 2)),
-                 with: .color(.white.opacity(0.06)))
+                 with: .color(.white.opacity(glowOpacity)))
+    }
+
+    /// 月相（0=新月, 0.25=上弦, 0.5=満月, 0.75=下弦）から輝面比 (0〜1) を返す。
+    nonisolated static func moonIlluminatedFraction(phase: Double) -> Double {
+        (1 - cos(2 * .pi * phase)) / 2
+    }
+
+    /// 月の輝面が画面上で向く角度 (rad, 画面座標: +x から +y（下）方向へ測る) を返す。
+    /// - Parameters:
+    ///   - zenithAngleDegrees: 天頂方向を 0° とし観測者から見て左回りに測った輝面の向き
+    ///     （`MilkyWayCalculator.moonBrightLimbZenithAngle`）。
+    ///   - project: 地平座標 (高度・方位角, rad) → 画面座標の投影。
+    /// 月の位置から輝面の方向へ少しずらした点を同じ投影で写し、その差分の向きを使う。
+    /// 天頂方向の画面上の向きや投影の鏡像・ロールを別途仮定しないため、どの視点・投影でも空の向きと一致する。
+    /// 投影できない場合は nil。
+    nonisolated static func moonBrightLimbScreenAngle(
+        zenithAngleDegrees: Double,
+        altitudeDegrees: Double,
+        azimuthDegrees: Double,
+        project: (_ altitudeRadians: Double, _ azimuthRadians: Double) -> CGPoint?
+    ) -> Double? {
+        let degreesToRadians = Double.pi / 180
+        let offsetDegrees = 0.5
+        let theta = zenithAngleDegrees * degreesToRadians
+        // 方位角方向の 1° は高度が上がるほど天球上で短くなるため cos(高度) で割る（天頂付近は上限を設ける）
+        let azimuthScale = 1 / max(cos(altitudeDegrees * degreesToRadians), 0.05)
+        guard let origin = project(altitudeDegrees * degreesToRadians, azimuthDegrees * degreesToRadians) else {
+            return nil
+        }
+        // 輝面側の点が投影できなければ反対側の点から向きを求める
+        for sign in [1.0, -1.0] {
+            // 観測者から見た左は方位角が減る向き
+            let altitude = altitudeDegrees + sign * offsetDegrees * cos(theta)
+            let azimuth = azimuthDegrees - sign * offsetDegrees * sin(theta) * azimuthScale
+            guard let target = project(altitude * degreesToRadians, azimuth * degreesToRadians) else { continue }
+            let dx = Double(target.x - origin.x) * sign
+            let dy = Double(target.y - origin.y) * sign
+            guard dx * dx + dy * dy > 1e-12 else { continue }
+            return atan2(dy, dx)
+        }
+        return nil
+    }
+
+    /// 月の輝面を表す多角形（画面座標）を返す。
+    /// `brightLimbScreenAngle`（rad, 画面座標で +x から +y 方向へ測る）を渡すと輝面の縁の中点がその向きになる。
+    /// nil の場合は北半球の見え方に合わせ、満ちていく月（phase < 0.5）は右側、欠けていく月は左側が光る。
+    /// 欠け際（ターミネーター）は楕円弧で表し、輝面方向の半径は radius × cos(2π·phase)。
+    nonisolated static func moonLitPolygon(
+        center: CGPoint,
+        radius: Double,
+        phase: Double,
+        brightLimbScreenAngle: Double? = nil,
+        segments: Int = 24
+    ) -> [CGPoint] {
+        let normalizedPhase = phase - floor(phase)
+        let fraction = moonIlluminatedFraction(phase: normalizedPhase)
+        guard fraction > 0.005, segments > 1 else { return [] }
+
+        // 光っている側: 向きの指定があれば +x 側に作って回転する。
+        // 指定がなければ満ちていく月は右 (+1)、欠けていく月は左 (-1)
+        let litSide: Double
+        if brightLimbScreenAngle != nil {
+            litSide = 1
+        } else {
+            litSide = normalizedPhase < 0.5 ? 1 : -1
+        }
+        // ターミネーターの x 方向の比率。新月で +1（縁と一致）、上弦/下弦で 0、満月で -1。
+        let terminatorScale = cos(2 * .pi * normalizedPhase)
+
+        var points: [CGPoint] = []
+        points.reserveCapacity((segments + 1) * 2)
+        // 光っている側の縁（上 → 下）
+        for step in 0...segments {
+            let theta = -Double.pi / 2 + Double.pi * Double(step) / Double(segments)
+            points.append(CGPoint(
+                x: center.x + litSide * radius * cos(theta),
+                y: center.y + radius * sin(theta)
+            ))
+        }
+        // ターミネーター（下 → 上）
+        for step in stride(from: segments, through: 0, by: -1) {
+            let theta = -Double.pi / 2 + Double.pi * Double(step) / Double(segments)
+            points.append(CGPoint(
+                x: center.x + litSide * terminatorScale * radius * cos(theta),
+                y: center.y + radius * sin(theta)
+            ))
+        }
+        guard let brightLimbScreenAngle else { return points }
+        let cosAngle = cos(brightLimbScreenAngle)
+        let sinAngle = sin(brightLimbScreenAngle)
+        return points.map { point in
+            let dx = Double(point.x - center.x)
+            let dy = Double(point.y - center.y)
+            return CGPoint(
+                x: center.x + dx * cosAngle - dy * sinAngle,
+                y: center.y + dx * sinAngle + dy * cosAngle
+            )
+        }
     }
 
     func drawGalacticCenter(ctx: GraphicsContext, at point: CGPoint) {
@@ -202,10 +307,13 @@ extension StarMapCanvasView {
         var milkyWayCtx = ctx
         milkyWayCtx.addFilter(.blur(radius: 6))
 
+        // 銀経 355° → 0°（銀河中心隣接）の区間も含め、銀経で隣接する点同士だけをつなぐ。
+        let segmentPairs = StarMapComputation.milkyWayBandSegmentIndexPairs(for: bandPoints)
+
         for layer in layers {
-            for i in 0..<bandPoints.count - 1 {
-                let bp0 = bandPoints[i]
-                let bp1 = bandPoints[i + 1]
+            for pair in segmentPairs {
+                let bp0 = bandPoints[pair.start]
+                let bp1 = bandPoints[pair.end]
 
                 // ラップアラウンドの不連続をスキップ
                 let azDiff = atan2(

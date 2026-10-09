@@ -68,6 +68,27 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isShowingCommittedSelection)
     }
 
+    func test_selectFavorite_passesSavedNameAndTimeZone() {
+        let locationController = MockLocationController()
+        let lightService = MockLightPollutionService()
+        let vm = SidebarViewModel(locationController: locationController, lightPollutionService: lightService)
+        let favorite = FavoriteLocation(
+            name: "パース郊外",
+            latitude: -31.95,
+            longitude: 115.86,
+            timeZoneIdentifier: "Australia/Perth"
+        )
+
+        vm.selectFavorite(favorite)
+
+        XCTAssertEqual(locationController.selectedCoordinateDetailCalls.count, 1)
+        XCTAssertEqual(locationController.selectedCoordinateDetailCalls.first?.name, "パース郊外")
+        XCTAssertEqual(locationController.selectedCoordinateDetailCalls.first?.timeZoneIdentifier, "Australia/Perth")
+        XCTAssertEqual(locationController.locationName, "パース郊外")
+        XCTAssertEqual(locationController.selectedTimeZone.identifier, "Australia/Perth")
+        XCTAssertEqual(locationController.currentLocationCenterTrigger, 1)
+    }
+
     func test_requestCurrentLocation_clearsSearchPresentationImmediately() {
         let locationController = MockLocationController()
         let lightService = MockLightPollutionService()

@@ -71,6 +71,9 @@ enum MilkyWayCalculator {
         let cosAlt = cos(altRad)
         guard cosAlt > 1e-10 else { return (alt, 0.0) }
 
+        // 極 (|lat|≈90) では方位が定義できないため 0 を返す
+        guard abs(cosLat) > 1e-9 else { return (alt, 0.0) }
+
         let sinA = -sinHa * cosDec / cosAlt
         let cosA = (sinDec - sinLat * sinAlt) / (cosLat * cosAlt)
         var az = atan2(sinA, cosA) * 180.0 / .pi
@@ -104,7 +107,8 @@ enum MilkyWayCalculator {
         var events: [AstroEvent] = []
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let observationDate = calendar.startOfDay(for: date)
-        let samplingStart = calendar.date(byAdding: .hour, value: 12, to: observationDate)
+        // 夏時間の切替日でも時計の 12:00 から始めるため、経過時間ではなく時刻指定で求める
+        let samplingStart = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: observationDate)
             ?? observationDate.addingTimeInterval(12 * 60 * 60)
         let latRad = AngleMath.toRadians(location.latitude)
         let cosLat = cos(latRad)
@@ -121,8 +125,8 @@ enum MilkyWayCalculator {
             let sun = sunRaDec(jd: jd)
             let sunAlt = observer.altAz(ra: sun.ra, dec: sun.dec).alt
 
-            let moon = moonRaDec(jd: jd)
-            let moonAlt = observer.altAz(ra: moon.ra, dec: moon.dec).alt
+            let moon = moonHorizontal(jd: jd, observer: observer)
+            let moonAlt = moon.alt
 
             events.append(AstroEvent(
                 date: sampleDate,

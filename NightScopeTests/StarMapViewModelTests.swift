@@ -127,7 +127,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_initialFOV_usesNaturalDefaultFieldOfView() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
 
         XCTAssertEqual(StarMapLayout.defaultFOV, 60, accuracy: 0.001)
@@ -319,7 +319,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_setShowsConstellationLines_updatesDisplaySettings() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
 
         viewModel.setShowsConstellationLines(false)
@@ -586,7 +586,7 @@ final class StarMapViewModelTests: XCTestCase {
 
     func test_StarMapCameraFieldOfView_visibleHorizontalDegrees_matchesViewportAndOrientation() {
         let fieldOfView = StarMapCameraFieldOfView(
-            diagonalDegrees: 90,
+            landscapeHorizontalDegrees: 90,
             sensorWidth: 4_000,
             sensorHeight: 3_000
         )
@@ -606,9 +606,12 @@ final class StarMapViewModelTests: XCTestCase {
         XCTAssertNotNil(landscapeDegrees)
         XCTAssertNotNil(portraitDegrees)
         XCTAssertNotNil(narrowPortraitDegrees)
-        XCTAssertEqual(landscapeDegrees ?? 0, 77.3196, accuracy: 0.001)
-        XCTAssertEqual(portraitDegrees ?? 0, 61.9275, accuracy: 0.001)
-        XCTAssertEqual(narrowPortraitDegrees ?? 0, 40.5759, accuracy: 0.001)
+        // videoFieldOfView は横長向きの水平視野角なので、横長でアスペクトが一致すればそのまま返る。
+        XCTAssertEqual(landscapeDegrees ?? 0, 90, accuracy: 0.001)
+        // 縦持ちでは画面水平方向がセンサー短辺になる: 2·atan(tan45° / (4/3))
+        XCTAssertEqual(portraitDegrees ?? 0, 73.7398, accuracy: 0.001)
+        // 縦長ビューポートでは左右が切り取られる: 2·atan(tan45° × 390/844)
+        XCTAssertEqual(narrowPortraitDegrees ?? 0, 49.6019, accuracy: 0.001)
     }
 
     func test_StarMapCameraSessionActivationState_rejectsStaleRequests() {
@@ -702,7 +705,7 @@ final class StarMapViewModelTests: XCTestCase {
             }
         }
 
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
         var cancellables = Set<AnyCancellable>()
 
@@ -742,7 +745,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_initialPose_usesResetAltitude() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
         let size = CGSize(width: 860, height: 620)
 
@@ -759,7 +762,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_prepareForStarMapPresentation_onlyAppliesInitialPoseOnce() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
         let size = CGSize(width: 860, height: 620)
 
@@ -813,7 +816,7 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_resetToNorth_usesResetAltitude() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
 
         viewModel.viewAzimuth = 180
@@ -1359,17 +1362,19 @@ final class StarMapViewModelTests: XCTestCase {
             CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437)
         )
 
-        await waitUntil(timeout: 2.0) {
-            locationController.selectedTimeZone.identifier == losAngeles.identifier
-        }
-
         let expectedDate = StarMapDateLogic.resolvedPresentationDate(
             for: appController.selectedDate,
             referenceDate: initialDisplayDate,
-            location: locationController.selectedLocation,
+            location: CLLocationCoordinate2D(latitude: 34.0522, longitude: -118.2437),
             timeZone: losAngeles
         )
 
+        // VM の再同期は購読経由で非同期に走るため、VM 自身の状態を待つ。
+        await waitUntil(timeout: 2.0) {
+            viewModel.displayDate == expectedDate
+        }
+
+        XCTAssertEqual(locationController.selectedTimeZone.identifier, losAngeles.identifier)
         XCTAssertEqual(viewModel.displayDate, expectedDate)
     }
 
@@ -1726,5 +1731,335 @@ final class StarMapViewModelTests: XCTestCase {
 
         let placement = try XCTUnwrap(placements.first)
         XCTAssertLessThanOrEqual(placement.bounds.maxY, 180 - 44)
+    }
+
+    // MARK: - 日付変更後の「現在」
+
+    private func makeTokyoAfterMidnightReference() -> (calendar: Calendar, today: Date, previousDay: Date, now: Date) {
+        let calendar = observationCalendar(for: TestTimeZones.tokyo)
+        let today = calendar.date(from: DateComponents(year: 2026, month: 1, day: 2))!
+        let previousDay = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 1, day: 2, hour: 2, minute: 7))!
+        return (calendar, today, previousDay, now)
+    }
+
+    func test_StarMapViewModel_currentObservationDate_afterMidnightBelongsToPreviousEvening() {
+        let reference = makeTokyoAfterMidnightReference()
+        let tokyo = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
+        let morning = reference.calendar.date(from: DateComponents(year: 2026, month: 1, day: 2, hour: 10))!
+        let evening = reference.calendar.date(from: DateComponents(year: 2026, month: 1, day: 2, hour: 21))!
+
+        XCTAssertEqual(
+            StarMapViewModel.currentObservationDate(for: reference.now, location: tokyo, timeZone: TestTimeZones.tokyo),
+            reference.previousDay
+        )
+        XCTAssertEqual(
+            StarMapViewModel.currentObservationDate(for: morning, location: tokyo, timeZone: TestTimeZones.tokyo),
+            reference.today
+        )
+        XCTAssertEqual(
+            StarMapViewModel.currentObservationDate(for: evening, location: tokyo, timeZone: TestTimeZones.tokyo),
+            reference.today
+        )
+    }
+
+    func test_StarMapViewModel_resetToNow_afterMidnightShowsCurrentInstant() {
+        let appController = makeTokyoAppController()
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            computationDependency: makeStaticComputationDependency()
+        )
+        let reference = makeTokyoAfterMidnightReference()
+
+        // 明夜（暦日の今日）を選んでいても、「現在」は進行中の前夜の現在時刻へ戻す。
+        appController.selectedDate = reference.today
+        viewModel.resetToNow(referenceDate: reference.now)
+
+        XCTAssertEqual(appController.selectedDate, reference.previousDay)
+        XCTAssertEqual(viewModel.displayDate, reference.now)
+        XCTAssertEqual(viewModel.displayTimeString, "02:07")
+    }
+
+    func test_StarMapViewModel_activatePresentationIfNeeded_afterMidnightLaunchShowsCurrentInstant() {
+        let appController = makeTokyoAppController()
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            computationDependency: makeStaticComputationDependency()
+        )
+        let reference = makeTokyoAfterMidnightReference()
+
+        // AppController は深夜の起動で進行中の前夜を「今日」に選ぶため、星図を開いても選択日は動かない。
+        appController.onStart(referenceDate: reference.now, refreshExternalData: false)
+        XCTAssertEqual(appController.selectedDate, reference.previousDay)
+        viewModel.activatePresentationIfNeeded(referenceDate: reference.now)
+
+        XCTAssertEqual(appController.selectedDate, reference.previousDay)
+        XCTAssertEqual(viewModel.displayDate, reference.now)
+        XCTAssertEqual(viewModel.displayTimeString, "02:07")
+    }
+
+    /// 深夜に明夜（暦日の今日）を選んでいる場合、星図を開いても選択日を黙って前夜へ戻さない。
+    func test_StarMapViewModel_syncWithSelectedDate_afterMidnightKeepsExplicitNextNight() {
+        let appController = makeTokyoAppController()
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            computationDependency: makeStaticComputationDependency()
+        )
+        let reference = makeTokyoAfterMidnightReference()
+
+        appController.selectedDate = reference.today
+        viewModel.activatePresentationIfNeeded(referenceDate: reference.now)
+        viewModel.syncWithSelectedDate(referenceDate: reference.now)
+
+        let displayComponents = reference.calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: viewModel.displayDate
+        )
+        XCTAssertEqual(appController.selectedDate, reference.today)
+        XCTAssertEqual(displayComponents.day, 3)
+        XCTAssertEqual(displayComponents.hour, 2)
+        XCTAssertEqual(displayComponents.minute, 7)
+    }
+
+    /// 星図を開いたまま深夜 0 時を越えて前景復帰しても、選択日は今夜のままで、表示は 24 時間先へ飛ばない。
+    func test_StarMapViewModel_openAcrossMidnight_keepsShowingRealInstant() async {
+        let appController = makeTokyoAppController()
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            computationDependency: makeStaticComputationDependency()
+        )
+        let calendar = observationCalendar(for: TestTimeZones.tokyo)
+        let tonight = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12))!
+        let evening = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12, hour: 23))!
+        let afterMidnight = calendar.date(from: DateComponents(year: 2026, month: 8, day: 13, hour: 0, minute: 30))!
+
+        appController.onStart(referenceDate: evening, refreshExternalData: false)
+        viewModel.activatePresentationIfNeeded(referenceDate: evening)
+        XCTAssertEqual(viewModel.displayDate, evening)
+
+        appController.handleSceneDidBecomeActive(referenceDate: afterMidnight, refreshExternalData: false)
+        // 選択日の変更通知はメインキュー経由で届くため、反映の機会を与える。
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(appController.selectedDate, tonight)
+        XCTAssertEqual(viewModel.displayDate, evening)
+
+        viewModel.resetToNow(referenceDate: afterMidnight)
+        XCTAssertEqual(appController.selectedDate, tonight)
+        XCTAssertEqual(viewModel.displayDate, afterMidnight)
+        XCTAssertEqual(viewModel.displayTimeString, "00:30")
+    }
+
+    func test_StarMapViewModel_setObservationDate_afterResetToNowAtMidnightKeepsPickedDate() {
+        let appController = makeTokyoAppController()
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            computationDependency: makeStaticComputationDependency()
+        )
+        let reference = makeTokyoAfterMidnightReference()
+
+        appController.selectedDate = reference.today
+        viewModel.resetToNow(referenceDate: reference.now)
+        viewModel.setObservationDate(reference.today)
+
+        let displayComponents = reference.calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: viewModel.displayDate
+        )
+        XCTAssertEqual(appController.selectedDate, reference.today)
+        XCTAssertEqual(displayComponents.day, 3)
+        XCTAssertEqual(displayComponents.hour, 2)
+        XCTAssertEqual(displayComponents.minute, 7)
+    }
+
+    // MARK: - 同一タイムゾーン内の地点変更
+
+    func test_StarMapViewModel_locationChangeWithinSameTimeZone_recomputesSkyForNewLocation() async {
+        let appController = makeTokyoAppController()
+        // 計算に渡された緯度を sunAltitude に入れて、どの地点で再計算されたかを判別する。
+        let viewModel = StarMapViewModel(
+            appController: appController,
+            terrainDependency: StarMapTerrainDependency(fetchProfile: { _, _ in nil }),
+            computationDependency: StarMapComputationDependency(
+                computeSnapshot: { latitude, _, _, _, _, _ in
+                    StarMapComputation.Snapshot(
+                        starPositions: [],
+                        sunAltitude: latitude,
+                        moonAltitude: -10,
+                        moonAzimuth: 180,
+                        moonPhase: 0.1,
+                        galacticCenterAltitude: 30,
+                        galacticCenterAzimuth: 180,
+                        constellationLines: [],
+                        constellationLabels: [],
+                        planetPositions: [],
+                        meteorShowerRadiants: [],
+                        milkyWayBandPoints: []
+                    )
+                }
+            )
+        )
+        let calendar = observationCalendar(for: TestTimeZones.tokyo)
+        appController.selectedDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 12))!
+        let referenceDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 22, minute: 0))!
+        viewModel.activatePresentationIfNeeded(referenceDate: referenceDate)
+
+        await waitUntil(timeout: 2.0) {
+            abs(viewModel.sunAltitude - 35.6762) < 0.0001
+        }
+        let displayDateBeforeChange = viewModel.displayDate
+
+        // 大阪（同じ Asia/Tokyo）。夜間の表示日時は変わらないが、天体位置は再計算されなければならない。
+        appController.locationController.selectCoordinate(
+            CLLocationCoordinate2D(latitude: 34.6937, longitude: 135.5023)
+        )
+
+        await waitUntil(timeout: 2.0) {
+            abs(viewModel.sunAltitude - 34.6937) < 0.0001
+        }
+        XCTAssertEqual(viewModel.displayDate, displayDateBeforeChange)
+        XCTAssertEqual(viewModel.displayTimeString, "22:00")
+    }
+
+    // MARK: - 描画ヘルパー
+
+    func test_StarMapCanvasView_cardinalLabelPlacements_doesNotStackOffscreenLabels() {
+        let size = CGSize(width: 390, height: 844)
+        let placements = StarMapCanvasView.cardinalLabelPlacements(
+            size: size,
+            centerAlt: 30,
+            centerAz: 20,
+            roll: 0,
+            fov: 60
+        )
+
+        // 東 (画面外右) は北東と同じ位置へ寄せられて重なるため表示しない。
+        XCTAssertFalse(placements.map(\.label).contains(L10n.tr("東")))
+        XCTAssertTrue(placements.map(\.label).contains(L10n.tr("北")))
+        XCTAssertTrue(placements.map(\.label).contains(L10n.tr("北東")))
+        for index in placements.indices {
+            XCTAssertGreaterThanOrEqual(placements[index].x, Double(StarMapLayout.cardinalLabelSidePadding))
+            XCTAssertLessThanOrEqual(placements[index].x, size.width - Double(StarMapLayout.cardinalLabelSidePadding))
+            for otherIndex in placements.indices where otherIndex > index {
+                XCTAssertGreaterThanOrEqual(
+                    abs(placements[index].x - placements[otherIndex].x),
+                    StarMapLayout.cardinalLabelMinimumSpacing
+                )
+            }
+        }
+    }
+
+    func test_StarMapCanvasView_isSelectableForHitTest_excludesBelowHorizonAndTerrain() {
+        XCTAssertFalse(StarMapCanvasView.isSelectableForHitTest(altitude: -1, azimuth: 0, terrain: nil))
+        XCTAssertTrue(StarMapCanvasView.isSelectableForHitTest(altitude: 0.5, azimuth: 0, terrain: nil))
+
+        let mountains = TerrainProfile(horizonAngles: Array(repeating: 10, count: 72))
+        XCTAssertFalse(StarMapCanvasView.isSelectableForHitTest(altitude: 5, azimuth: 90, terrain: mountains))
+        XCTAssertTrue(StarMapCanvasView.isSelectableForHitTest(altitude: 15, azimuth: 90, terrain: mountains))
+
+        let lowHorizon = TerrainProfile(horizonAngles: Array(repeating: -3, count: 72))
+        XCTAssertTrue(StarMapCanvasView.isSelectableForHitTest(altitude: 0.5, azimuth: 90, terrain: lowHorizon))
+        XCTAssertFalse(StarMapCanvasView.isSelectableForHitTest(altitude: -1, azimuth: 90, terrain: lowHorizon))
+    }
+
+    func test_StarMapLayout_clampedCameraFOV_allowsNarrowCameraFieldOfView() {
+        XCTAssertEqual(StarMapLayout.clampedCameraFOV(20), 20, accuracy: 0.001)
+        XCTAssertEqual(StarMapLayout.clampedFOV(20), StarMapLayout.minFOV, accuracy: 0.001)
+    }
+
+    func test_StarMapComputation_milkyWayBandSegmentIndexPairs_closesLoopAndSkipsGaps() {
+        let fullBand = stride(from: 0.0, to: 360.0, by: 5.0).map {
+            MilkyWayBandPoint(az: $0, alt: 10, halfH: 5, li: $0)
+        }
+        let fullPairs = StarMapComputation.milkyWayBandSegmentIndexPairs(for: fullBand)
+        XCTAssertEqual(fullPairs.count, fullBand.count)
+        XCTAssertTrue(fullPairs.contains { $0.start == fullBand.count - 1 && $0.end == 0 })
+
+        // 地平線下で 20°〜340° が間引かれた場合: 340→355→0→15 だけがつながる。
+        let partialBand = fullBand.filter { $0.li < 20 || $0.li >= 340 }
+        let partialPairs = StarMapComputation.milkyWayBandSegmentIndexPairs(for: partialBand)
+        let connectedLongitudes = partialPairs.map { (partialBand[$0.start].li, partialBand[$0.end].li) }
+        XCTAssertFalse(connectedLongitudes.contains { $0.0 == 15 && $0.1 == 340 })
+        XCTAssertTrue(connectedLongitudes.contains { $0.0 == 355 && $0.1 == 0 })
+        XCTAssertEqual(partialPairs.count, partialBand.count - 1)
+    }
+
+    func test_StarMapCanvasView_moonLitPolygon_rendersCorrectPhaseShapes() {
+        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0), 0, accuracy: 1e-9)
+        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0.25), 0.5, accuracy: 1e-9)
+        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0.5), 1, accuracy: 1e-9)
+        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0.75), 0.5, accuracy: 1e-9)
+
+        let center = CGPoint(x: 100, y: 100)
+        let radius = 10.0
+        func area(_ points: [CGPoint]) -> Double {
+            guard points.count >= 3 else { return 0 }
+            var sum = 0.0
+            for index in points.indices {
+                let a = points[index]
+                let b = points[(index + 1) % points.count]
+                sum += Double(a.x * b.y - b.x * a.y)
+            }
+            return abs(sum) / 2
+        }
+        let discArea = Double.pi * radius * radius
+
+        XCTAssertTrue(StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0).isEmpty)
+
+        // 上弦: 右半分だけが光る
+        let firstQuarter = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.25, segments: 64)
+        XCTAssertTrue(firstQuarter.allSatisfy { $0.x >= center.x - 1e-6 })
+        XCTAssertEqual(area(firstQuarter), discArea / 2, accuracy: discArea * 0.01)
+
+        // 下弦: 左半分だけが光る
+        let lastQuarter = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.75, segments: 64)
+        XCTAssertTrue(lastQuarter.allSatisfy { $0.x <= center.x + 1e-6 })
+        XCTAssertEqual(area(lastQuarter), discArea / 2, accuracy: discArea * 0.01)
+
+        // 満ちていく十三夜: 右側の縁を含み、輝面比に応じた面積になる
+        let waxingGibbous = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.4, segments: 64)
+        XCTAssertTrue(waxingGibbous.contains { $0.x > center.x + radius - 1e-6 })
+        XCTAssertEqual(
+            area(waxingGibbous),
+            discArea * StarMapCanvasView.moonIlluminatedFraction(phase: 0.4),
+            accuracy: discArea * 0.01
+        )
+
+        // 満月: 円全体
+        let full = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.5, segments: 64)
+        XCTAssertEqual(area(full), discArea, accuracy: discArea * 0.01)
+    }
+
+    // MARK: - ジャイロ姿勢の平滑化
+
+    func test_StarMapMotionVectors_smoothed_doesNotSpinWhenCrossingZenith() {
+        func vectors(tiltDegrees: Double) -> StarMapMotionVectors {
+            // 北の地平線から東西軸まわりに持ち上げた姿勢（tilt > 90° で天頂を越える）
+            let radians = tiltDegrees * .pi / 180
+            return StarMapMotionVectors(
+                forward: (east: 0, north: cos(radians), up: sin(radians)),
+                screenUp: (east: 0, north: -sin(radians), up: cos(radians))
+            )
+        }
+        let previous = vectors(tiltDegrees: 89)
+        let next = vectors(tiltDegrees: 91)
+
+        // 個別の方位・ロールは天頂を越えると 180° 反転する
+        XCTAssertEqual(previous.pose.azimuth, 0, accuracy: 0.001)
+        XCTAssertEqual(next.pose.azimuth, 180, accuracy: 0.001)
+        XCTAssertEqual(abs(next.pose.roll), 180, accuracy: 0.001)
+
+        let smoothedPose = StarMapMotionVectors.smoothed(previous: previous, next: next).pose
+        let basis = GnomonicProjectionMath.cameraBasis(
+            centerAlt: smoothedPose.altitude,
+            centerAz: smoothedPose.azimuth,
+            roll: smoothedPose.roll
+        )
+
+        // 描画上のカメラ姿勢は前回からわずかに動くだけで、回転・跳躍しない
+        XCTAssertEqual(basis.forward.x, 0, accuracy: 0.001)
+        XCTAssertGreaterThan(basis.forward.z, 0.999)
+        XCTAssertEqual(basis.right.x, 1, accuracy: 0.001)
+        XCTAssertLessThan(basis.up.y, -0.999)
     }
 }

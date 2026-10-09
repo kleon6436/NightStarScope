@@ -8,6 +8,7 @@
 検査内容:
   1. 日本語を含むカタログのキーに en 翻訳があり、state が translated であること
   2. Swift の日本語文字列リテラルがカタログのキーとして登録されていること
+     (#Preview ブロックと #if DEBUG 内のプレビュー用データは対象外)
   3. en 訳の書式指定子が原文と同じ個数・同じ並びであること。並びが変わる場合は
      位置指定子 (%1$@ 形式) を使っていること
 
@@ -198,6 +199,75 @@ def key_candidates(literal: str) -> re.Pattern | None:
     return re.compile(f"^{pattern}$")
 
 
+PREVIEW_MACRO = re.compile(r"^\s*#Preview\b")
+IF_DEBUG = re.compile(r"^\s*#if\s+DEBUG\s*$")
+IF_DIRECTIVE = re.compile(r"^\s*#if\b")
+ELSE_DIRECTIVE = re.compile(r"^\s*#(?:else|elseif)\b")
+ENDIF_DIRECTIVE = re.compile(r"^\s*#endif\b")
+
+
+def brace_delta(code: str) -> int:
+    """文字列リテラルを除いたコード片の { と } の差を返す。"""
+    without_strings = STRING_LITERAL.sub('""', code)
+    return without_strings.count("{") - without_strings.count("}")
+
+
+class PreviewAndDebugFilter:
+    """#Preview { ... } ブロックと #if DEBUG ... #endif を走査対象から外す。
+
+    どちらも製品ビルドに含まれないプレビュー用のダミーデータ (地名など) を
+    持つため、カタログ登録漏れの誤検出になる。#if DEBUG の #else 側は製品
+    コードなので検査する。
+    """
+
+    def __init__(self) -> None:
+        # 各 #if の段で「この段の現在の分岐を飛ばすか」を持つ。
+        # 値は (is_debug_if, skipping)。
+        self.conditional_stack: list[tuple[bool, bool]] = []
+        self.preview_depth = 0
+        self.in_preview = False
+
+    def should_skip(self, code: str) -> bool:
+        """code (コメント除去済みの 1 行) を検査対象から外すかを返す。状態も更新する。"""
+        if self.in_preview:
+            self.preview_depth += brace_delta(code)
+            if self.preview_depth <= 0:
+                self.in_preview = False
+            return True
+
+        if IF_DEBUG.match(code):
+            self.conditional_stack.append((True, True))
+            return True
+        if IF_DIRECTIVE.match(code):
+            self.conditional_stack.append((False, False))
+            return self.skipping
+        if ELSE_DIRECTIVE.match(code):
+            if self.conditional_stack:
+                is_debug, _ = self.conditional_stack[-1]
+                # #if DEBUG の #else / #elseif 側は製品コード。
+                self.conditional_stack[-1] = (is_debug, False)
+            return True
+        if ENDIF_DIRECTIVE.match(code):
+            if self.conditional_stack:
+                self.conditional_stack.pop()
+            return True
+
+        if self.skipping:
+            return True
+
+        if PREVIEW_MACRO.match(code):
+            depth = brace_delta(code)
+            # 開き括弧が次の行にある書き方にも対応する。
+            self.in_preview = depth > 0 or "{" not in code
+            self.preview_depth = depth
+            return True
+        return False
+
+    @property
+    def skipping(self) -> bool:
+        return any(skipping for _, skipping in self.conditional_stack)
+
+
 def check_unregistered_literals(strings: dict) -> list[str]:
     problems = []
     keys = set(strings)
@@ -206,6 +276,7 @@ def check_unregistered_literals(strings: dict) -> list[str]:
         if relative in EXCLUDED_FILES:
             continue
         in_block_comment = False
+        preview_filter = PreviewAndDebugFilter()
         with open(path, encoding="utf-8") as f:
             for number, raw_line in enumerate(f, 1):
                 line = raw_line
@@ -222,6 +293,8 @@ def check_unregistered_literals(strings: dict) -> list[str]:
                         line = before
                         in_block_comment = True
                 code = strip_comment(line)
+                if preview_filter.should_skip(code):
+                    continue
                 if any(marker in code for marker in EXCLUDED_LINE_MARKERS):
                     continue
                 for match in STRING_LITERAL.finditer(code):

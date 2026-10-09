@@ -9,6 +9,7 @@ struct NightScopeCommands: Commands {
     @FocusedValue(\.refreshAction) private var refreshAction: (() -> Void)?
     @FocusedValue(\.focusSearchAction) private var focusSearchAction: (() -> Void)?
     @FocusedValue(\.currentLocationAction) private var currentLocationAction: (() -> Void)?
+    @FocusedValue(\.currentObservationDateProvider) private var currentObservationDateProvider: (() -> Date)?
     @Environment(\.openWindow) private var openWindow
 
     private var observationCalendar: Calendar {
@@ -60,7 +61,9 @@ struct NightScopeCommands: Commands {
             Divider()
 
             Button("今日に移動") {
-                selectedDate = observationCalendar.startOfDay(for: Date())
+                // アプリ全体の「今日」（観測日）に合わせ、深夜〜明け方は進行中の前夜へ移動する
+                selectedDate = currentObservationDateProvider?()
+                    ?? observationCalendar.startOfDay(for: Date())
             }
             .keyboardShortcut("t", modifiers: .command)
             .disabled(selectedDate == nil)

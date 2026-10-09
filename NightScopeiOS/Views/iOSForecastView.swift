@@ -12,6 +12,8 @@ struct iOSForecastRowModel {
     let hasWeatherLoadError: Bool
     let isSelected: Bool
     let accessibilityLabel: String
+    /// アプリ全体の「今夜」にあたる観測日。「今夜」「明夜」の判定に使う。
+    var currentObservationDate: Date? = nil
 
     /// 短縮日付や薄明開始時刻など、カード表示用の文言。
     var presentation: ForecastCardPresentation {
@@ -22,7 +24,8 @@ struct iOSForecastRowModel {
             isReliableWeather: isReliableWeather,
             hasPartialWeather: hasPartialWeather,
             isForecastOutOfRange: isForecastOutOfRange,
-            hasWeatherLoadError: hasWeatherLoadError
+            hasWeatherLoadError: hasWeatherLoadError,
+            currentObservationDate: currentObservationDate
         )
     }
 }
@@ -56,7 +59,8 @@ struct iOSForecastViewModel {
             isForecastOutOfRange: isForecastOutOfRange,
             hasWeatherLoadError: gridViewModel.weatherErrorMessage != nil,
             isSelected: gridViewModel.isDateSelected(night.date),
-            accessibilityLabel: gridViewModel.cardAccessibilityLabel(night: night, weather: weather, index: index)
+            accessibilityLabel: gridViewModel.cardAccessibilityLabel(night: night, weather: weather, index: index),
+            currentObservationDate: gridViewModel.currentObservationDate()
         )
     }
 
@@ -94,12 +98,21 @@ struct iOSForecastView: View {
                 VStack(alignment: .leading, spacing: Spacing.md) {
                     headerSection
                     contentByState
-                    MeteorShowerCalendarView(selectedDate: detailViewModel.selectedDate)
+                    MeteorShowerCalendarView(
+                        selectedDate: detailViewModel.selectedDate,
+                        timeZone: detailViewModel.selectedTimeZone,
+                        today: detailViewModel.currentObservationDate()
+                    )
                     if let location = detailViewModel.nightSummary?.location {
                         PlanetVisibilityView(
                             selectedDate: detailViewModel.selectedDate,
                             location: location,
-                            timeZone: detailViewModel.selectedTimeZone
+                            timeZone: detailViewModel.selectedTimeZone,
+                            isTonight: ObservationTimeZone.isDate(
+                                detailViewModel.selectedDate,
+                                inSameDayAs: detailViewModel.currentObservationDate(),
+                                timeZone: detailViewModel.selectedTimeZone
+                            )
                         )
                     }
                 }
@@ -201,7 +214,7 @@ struct iOSForecastView: View {
     private var bestNightPick: BestNightPick? {
         let candidates = gridViewModel.bestNightCandidates()
         guard candidates.filter({ $0.index != nil }).count >= IOSDesignTokens.Forecast.calloutMinimumNightCount,
-              let pick = BestNightPicker.pick(nights: candidates),
+              let pick = BestNightPicker.pick(nights: candidates, referenceDate: detailViewModel.currentDate()),
               pick.isWorthHighlighting else { return nil }
         return pick
     }
@@ -271,7 +284,8 @@ struct iOSForecastView: View {
                 isForecastOutOfRange: rowModel.isForecastOutOfRange,
                 hasWeatherLoadError: rowModel.hasWeatherLoadError,
                 isSelected: rowModel.isSelected,
-                showsHourlyStrip: rowModel.isSelected
+                showsHourlyStrip: rowModel.isSelected,
+                currentObservationDate: rowModel.currentObservationDate
             )
         }
         .buttonStyle(ForecastRowButtonStyle())

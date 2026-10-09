@@ -205,12 +205,25 @@ def resolve_falchi_input(tmpdir: Path) -> Path:
 
     print("  展開中...")
     with tarfile.open(tar_path, "r:gz") as tf:
-        # tar 内から TIF を探して展開
+        # tar 内から FALCHI_TIF_NAME (人工天空輝度 skyglow) を探して展開する。
+        # アーカイブには他の .tif も含まれ得るため、最初に見つかった .tif は使わない。
+        def normalized(name: str) -> str:
+            return name[2:] if name.startswith("./") else name
+
         tif_member = next(
-            (m for m in tf.getmembers() if m.name.endswith(".tif")), None
+            (
+                m for m in tf.getmembers()
+                if m.isfile() and (
+                    normalized(m.name) == FALCHI_TIF_NAME
+                    or normalized(m.name).endswith("/" + FALCHI_TIF_NAME)
+                )
+            ),
+            None,
         )
         if tif_member is None:
-            print("ERROR: tar.gz 内に .tif ファイルが見つかりません。", file=sys.stderr)
+            available = [m.name for m in tf.getmembers() if m.name.lower().endswith((".tif", ".tiff"))]
+            print(f"ERROR: tar.gz 内に {FALCHI_TIF_NAME} が見つかりません。", file=sys.stderr)
+            print(f"  含まれる TIF: {available or 'なし'}", file=sys.stderr)
             sys.exit(1)
         tf.extract(tif_member, path=tmpdir)
         tif_path = tmpdir / tif_member.name

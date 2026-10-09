@@ -197,12 +197,13 @@ private struct SettingsAboutSections: View {
             SettingsDataSource(
                 id: "star-catalog",
                 title: "星カタログ",
-                detail: "Yale Bright Star Catalogue (BSC5) / CDS VizieR",
-                license: "Public Domain",
+                detail: "HYG Database v4.1 / David Nash (astronexus)",
+                license: "CC BY-SA 4.0",
                 note: nil,
-                attribution: nil,
+                attribution: "Star data derived from the HYG Database v4.1 by David Nash (https://github.com/astronexus/HYG-Database), licensed under CC BY-SA 4.0. The bundled star list is a derivative work distributed under the same license.",
                 links: [
-                    SettingsDataSourceLink(title: "BSC5 (CDS VizieR)", destination: SettingsAboutLinks.bsc5Catalog),
+                    SettingsDataSourceLink(title: "HYG Database (GitHub)", destination: SettingsAboutLinks.hygDatabase),
+                    SettingsDataSourceLink(title: "CC BY-SA 4.0", destination: SettingsAboutLinks.ccBySa40),
                 ],
                 showsWeatherBadge: false
             ),
@@ -249,7 +250,8 @@ private enum SettingsAboutLinks {
     static let ccBy40 = URL(string: "https://creativecommons.org/licenses/by/4.0/")!
     static let copernicusLicense = URL(string: "https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM")!
     static let copernicusLicensePDF = URL(string: "https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/DEM/resources/license/License-COPDEM-30.pdf")!
-    static let bsc5Catalog = URL(string: "https://vizier.cds.unistra.fr/viz-bin/VizieR-3?-source=V/50")!
+    static let hygDatabase = URL(string: "https://github.com/astronexus/HYG-Database")!
+    static let ccBySa40 = URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!
     static let d3CelestialLicense = URL(string: "https://github.com/ofrohn/d3-celestial/blob/master/LICENSE")!
 }
 

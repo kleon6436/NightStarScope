@@ -264,6 +264,20 @@ final class MockLocationController: LocationProviding {
         locationUpdateID = UUID()
     }
 
+    /// 名前・タイムゾーン付き選択の呼び出し記録（座標は selectedCoordinateCalls にも記録する）。
+    private(set) var selectedCoordinateDetailCalls: [(name: String?, timeZoneIdentifier: String?)] = []
+
+    func selectCoordinate(_ coordinate: CLLocationCoordinate2D, name: String?, timeZoneIdentifier: String?) {
+        selectedCoordinateDetailCalls.append((name: name, timeZoneIdentifier: timeZoneIdentifier))
+        selectCoordinate(coordinate)
+        if let name {
+            locationName = name
+        }
+        if let timeZoneIdentifier, let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            selectedTimeZone = timeZone
+        }
+    }
+
     private var normalizedSearchQuery: String {
         searchQuery?.trimmingCharacters(in: .whitespacesAndNewlines) ?? searchState.query
     }
@@ -274,6 +288,7 @@ final class MockLightPollutionService: LightPollutionProviding {
     @Published var bortleClass: Double?
     @Published var isLoading = false
     @Published var fetchFailed = false
+    @Published var isOutOfCoverage = false
     /// 座標ごとに返す Bortle 値。キーは小数 4 桁の "lat,lon"。未登録の座標は既定値を返す。
     var bortleByCoordinate: [String: Double]
 
@@ -284,6 +299,7 @@ final class MockLightPollutionService: LightPollutionProviding {
     var bortleClassPublisher: Published<Double?>.Publisher { $bortleClass }
     var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
     var fetchFailedPublisher: Published<Bool>.Publisher { $fetchFailed }
+    var isOutOfCoveragePublisher: Published<Bool>.Publisher { $isOutOfCoverage }
 
     func fetch(latitude: Double, longitude: Double) async {
         isLoading = true

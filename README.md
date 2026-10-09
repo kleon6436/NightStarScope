@@ -55,7 +55,7 @@ NightScope は以下の外部データ/サービスを利用しています。
 | Apple WeatherKit | 天気予報取得 | Apple Inc. — https://developer.apple.com/weatherkit/ | Apple Weather Terms of Service | 実行時 API（ネットワーク必須） |
 | Falchi et al. 2016 – World Atlas of Artificial Night Sky Brightness | 光害マップ | Falchi, F. et al. (2016) / GFZ Data Services — https://doi.org/10.5880/GFZ.1.4.2016.001 | CC BY 4.0 | バンドルバイナリ（`bortle_map.bin`、`Tools/generate_bortle_map.py` で生成） |
 | Copernicus DEM GLO-30 | 地形・標高データ | Copernicus DEM (DLR/ESA) — https://dataspace.copernicus.eu | CC BY 4.0 | バンドルバイナリ（`elevation_global.bin.z`, `elevation_japan.bin.z`、`Tools/prepare_srtm.py` で生成） |
-| Yale Bright Star Catalogue (BSC5 / CDS V/50) | 星カタログ | Yale BSC5 / CDS VizieR — https://vizier.cds.unistra.fr/viz-bin/VizieR-3?-source=V/50 | Public Domain | バンドル JSON（`stars_fill.json`、`Tools/generate_stars.py` で生成） |
+| HYG Database v4.1 | 星カタログ | David Nash / astronexus — https://github.com/astronexus/HYG-Database | CC BY-SA 4.0 | バンドル JSON（`stars_fill.json`、`Tools/generate_stars.py` で生成） |
 | d3-celestial constellation data | 星座線・星座ラベル基準点 | Olaf Frohn / d3-celestial — https://github.com/ofrohn/d3-celestial | BSD 3-Clause | バンドル JSON（`constellations_iau.json`、`Tools/generate_constellations.py` で生成） |
 | Apple MapKit (MKReverseGeocodingRequest) | 逆ジオコーディング・地名取得 | Apple Inc. | Apple Developer Program 規約 | システムフレームワーク（ネットワーク不要） |
 
@@ -116,7 +116,7 @@ python3 Tools/prepare_srtm.py --input-dir ~/dem_tiles/ \
 | Apple WeatherKit | Apple Weather Terms of Service | Apple Developer Program への参加、画面ごとの帰属表示 |
 | Falchi et al. 2016 World Atlas | CC BY 4.0 | 著者名・出典・DOI・ライセンスの明示 |
 | Copernicus DEM GLO-30 | CC BY 4.0 | Copernicus / EU / ESA(DLR) 系の帰属表示 |
-| Yale BSC5 / CDS VizieR | Public Domain | 帰属表示を推奨 |
+| HYG Database v4.1 | CC BY-SA 4.0 | 著作者・出典・ライセンスの明示。派生データ（`stars_fill.json`）は同一ライセンスで配布 |
 | d3-celestial constellation data | BSD 3-Clause | 著作権表示・条件・免責の保持 |
 | Apple MapKit | Apple Developer Program 規約 | 規約の範囲内で利用 |
 

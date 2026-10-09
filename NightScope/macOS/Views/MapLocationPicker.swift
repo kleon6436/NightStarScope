@@ -61,8 +61,17 @@ struct MapKitViewRepresentable: NSViewRepresentable {
         mapView.addOverlay(LightPollutionTileOverlay(urlTemplate: nil), level: .aboveRoads)
         context.coordinator.observeBortleGridLoad(on: mapView)
         MapKitViewSharedLogic.setInitialRegionIfNeeded(on: mapView, pinCoordinate: pinCoordinate)
+        // ダブルクリック（地図のズーム）の 1 回目で観測地が動かないよう、
+        // 単クリックはダブルクリックが成立しなかったときだけ認識させる（delegate の shouldRequireFailureOf）。
+        let doubleClick = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleClick(_:)))
+        doubleClick.numberOfClicksRequired = 2
+        doubleClick.delegate = context.coordinator
+        mapView.addGestureRecognizer(doubleClick)
         let click = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        click.delegate = context.coordinator
         mapView.addGestureRecognizer(click)
+        context.coordinator.singleClickRecognizer = click
+        context.coordinator.doubleClickRecognizer = doubleClick
         return mapView
     }
 
@@ -83,9 +92,11 @@ struct MapKitViewRepresentable: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    class Coordinator: NSObject, MKMapViewDelegate {
+    class Coordinator: NSObject, MKMapViewDelegate, NSGestureRecognizerDelegate {
         var parent: MapKitViewRepresentable
         let state: MapKitCoordinatorState
+        weak var singleClickRecognizer: NSClickGestureRecognizer?
+        weak var doubleClickRecognizer: NSClickGestureRecognizer?
         private var gridLoadObserver: NSObjectProtocol?
         private weak var observedMapView: MKMapView?
 
@@ -116,6 +127,24 @@ struct MapKitViewRepresentable: NSViewRepresentable {
             if let gridLoadObserver {
                 NotificationCenter.default.removeObserver(gridLoadObserver)
             }
+        }
+
+        /// ダブルクリックは地図自身のズームに任せる。単クリックを失敗させるためだけに認識する。
+        @objc func handleDoubleClick(_ gr: NSClickGestureRecognizer) {}
+
+        func gestureRecognizer(
+            _ gestureRecognizer: NSGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: NSGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer === singleClickRecognizer && otherGestureRecognizer === doubleClickRecognizer
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: NSGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: NSGestureRecognizer
+        ) -> Bool {
+            // ダブルクリック検出用の認識器が地図自身のズーム操作を妨げないようにする
+            gestureRecognizer === doubleClickRecognizer || otherGestureRecognizer === doubleClickRecognizer
         }
 
         @objc func handleTap(_ gr: NSClickGestureRecognizer) {

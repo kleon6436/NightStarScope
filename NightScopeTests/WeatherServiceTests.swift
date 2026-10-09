@@ -151,6 +151,200 @@ final class WeatherServiceTests: XCTestCase {
         XCTAssertEqual(WeatherConditionMapper.wmoCode(for: .foggy), 45)
     }
 
+    func test_weatherConditionMapper_blizzard_mapsToHeavySnow() {
+        let code = WeatherConditionMapper.wmoCode(for: .blizzard)
+        XCTAssertEqual(code, 75)
+        XCTAssertGreaterThanOrEqual(code, WeatherConditionMapper.wmoCode(for: .snow), "吹雪は通常の雪より深刻に扱う")
+    }
+
+    func test_weatherCode68_sleetAndFreezingRain_hasLabelIconAndColor() {
+        XCTAssertEqual(WeatherConditionMapper.wmoCode(for: .sleet), 68)
+        XCTAssertEqual(WeatherConditionMapper.wmoCode(for: .freezingRain), 68)
+
+        let summary = DayWeatherSummary(date: Date(), nighttimeHours: [makeHourlyWeather(code: 68)])
+        XCTAssertEqual(summary.weatherLabel, L10n.tr("みぞれ・着氷性の雨"))
+        XCTAssertNotEqual(summary.weatherLabel, L10n.tr("不明"))
+        XCTAssertEqual(summary.weatherIconName, "cloud.sleet.fill")
+        XCTAssertNotEqual(WeatherPresentation.color(forWeatherCode: 68), .secondary)
+    }
+
+    // MARK: - キャッシュの追い出し
+
+    func test_weatherKitService_evictCache_removesOldestFetchFirst() {
+        let service = WeatherKitService()
+        let tz = tokyoTimeZone
+        let date = makeDateInTokyo(year: 2024, month: 6, day: 15)
+        let summaries = [service.dateKey(date, timeZone: tz): DayWeatherSummary(date: date, nighttimeHours: [])]
+        let base = Date()
+        func apply(latitude: Double, cachedAt: Date) {
+            service.applyFetchResult(
+                WeatherFetchResult(
+                    weatherByDate: summaries,
+                    errorMessage: nil,
+                    lastModifiedDate: nil,
+                    locationKey: String(format: "%.4f,%.4f|%@", latitude, 135.0, tz.identifier),
+                    timeZoneIdentifier: tz.identifier,
+                    cachedAt: cachedAt
+                )
+            )
+        }
+        // 取得時刻が最も古い場所を最後の方に入れ、辞書の順序では追い出し対象が決まらないようにする。
+        for index in 1...10 {
+            apply(latitude: Double(index), cachedAt: base.addingTimeInterval(Double(index)))
+        }
+        apply(latitude: 20, cachedAt: base.addingTimeInterval(-100))
+        apply(latitude: 30, cachedAt: base.addingTimeInterval(50))
+
+        // 上限 10 件を超えた 2 件のうち、最も古い 20 度と、次に古い 1 度が消える。
+        service.prepareForLocationChange(latitude: 20, longitude: 135, timeZone: tz)
+        XCTAssertTrue(service.weatherByDate.isEmpty, "取得時刻が最も古い場所が追い出されるべき")
+        service.prepareForLocationChange(latitude: 1, longitude: 135, timeZone: tz)
+        XCTAssertTrue(service.weatherByDate.isEmpty, "次に古い場所も追い出されるべき")
+        service.prepareForLocationChange(latitude: 2, longitude: 135, timeZone: tz)
+        XCTAssertFalse(service.weatherByDate.isEmpty, "新しい場所は残るべき")
+    }
+
+    // MARK: - キャッシュの鮮度
+
+    func test_fetchWeatherSnapshot_cacheHit_doesNotRenewCacheTimestamp() async {
+        let service = WeatherKitService()
+        let tz = tokyoTimeZone
+        let locationKey = String(format: "%.4f,%.4f|%@", 35.6762, 139.6503, tz.identifier)
+        let date = makeDateInTokyo(year: 2024, month: 6, day: 15)
+        service.applyFetchResult(
+            WeatherFetchResult(
+                weatherByDate: [service.dateKey(date, timeZone: tz): DayWeatherSummary(date: date, nighttimeHours: [])],
+                errorMessage: nil,
+                lastModifiedDate: nil,
+                locationKey: locationKey,
+                timeZoneIdentifier: tz.identifier
+            )
+        )
+
+        let first = await service.fetchWeatherSnapshot(latitude: 35.6762, longitude: 139.6503, timeZone: tz)
+        guard let firstCachedAt = first.cachedAt else {
+            XCTFail("キャッシュから返した結果には元の取得時刻が入るはず")
+            return
+        }
+        // キャッシュ由来の結果を反映しても、取得時刻（TTL の起点）は延ばさない
+        service.applyFetchResult(first)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        let second = await service.fetchWeatherSnapshot(latitude: 35.6762, longitude: 139.6503, timeZone: tz)
+
+        XCTAssertEqual(second.cachedAt, firstCachedAt)
+    }
+
+    // MARK: - 夜間グルーピング
+
+    /// 0 時が夏時間で飛ぶ日（America/Santiago 2026-09-06）の夜も落とさない。
+    func test_nightlySummaries_keepsNightWhoseMidnightIsSkippedByDST() {
+        let santiago = TimeZone(identifier: "America/Santiago")!
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: santiago)
+        let coordinate = CLLocationCoordinate2D(latitude: -33.45, longitude: -70.66)
+        let start = calendar.date(from: DateComponents(year: 2026, month: 9, day: 5, hour: 12))!
+        let hours = (0..<72).map { offset in
+            makeHourlyWeather(code: 0, date: start.addingTimeInterval(Double(offset) * 3600))
+        }
+
+        let summaries = WeatherKitService.nightlySummaries(from: hours, coordinate: coordinate, timeZone: santiago)
+
+        let skippedDay = calendar.startOfDay(for: calendar.date(from: DateComponents(year: 2026, month: 9, day: 6, hour: 12))!)
+        let key = WeatherKitService().dateKey(skippedDay, timeZone: santiago)
+        XCTAssertEqual(key, "2026-09-06")
+        guard let summary = summaries[key] else {
+            XCTFail("0 時が飛ぶ日の夜が落ちている: \(summaries.keys.sorted())")
+            return
+        }
+        XCTAssertEqual(summary.date, skippedDay)
+        // 後続の日も 0 時（その日の始まり）に揃っている
+        if let next = summaries["2026-09-07"] {
+            XCTAssertEqual(next.date, calendar.startOfDay(for: next.date))
+        }
+    }
+
+    /// 太陽が -6° まで沈まない夜（トロンハイム 63.4°N の夏至）は、太陽が地平線下の時間帯で天気を束ねる。
+    func test_nightlySummaries_whiteNightFallsBackToHoursWithSunBelowHorizon() throws {
+        let oslo = try XCTUnwrap(TimeZone(identifier: "Europe/Oslo"))
+        let coordinate = CLLocationCoordinate2D(latitude: 63.4305, longitude: 10.3951)
+        let summaries = nightlySummaries(around: (2026, 6, 21), coordinate: coordinate, timeZone: oslo)
+
+        let night = try XCTUnwrap(summaries["2026-06-21"], "\(summaries.keys.sorted())")
+        XCTAssertNil(MilkyWayCalculator.civilDarknessInterval(date: night.date, location: coordinate, timeZone: oslo))
+        let hours = night.nighttimeHours.map { ObservationTimeZone.gregorianCalendar(timeZone: oslo).component(.hour, from: $0.date) }
+        XCTAssertEqual(hours, [0, 1, 2, 3])
+        for hour in night.nighttimeHours {
+            XCTAssertLessThan(sunAltitude(at: hour.date, coordinate: coordinate), 0, "\(hour.date)")
+        }
+
+        // NightSummary 側も同じ基準で「天気あり」と判定する
+        let nightSummary = MilkyWayCalculator.calculateNightSummary(date: night.date, location: coordinate, timeZone: oslo)
+        XCTAssertEqual(nightSummary.totalDarkHours, 0)
+        XCTAssertTrue(nightSummary.hasReliableWeatherData(nighttimeHours: night.nighttimeHours))
+    }
+
+    /// -6° 未満の時間が 1 時間に満たず正時を含まない夜（60.5°N の夏至）も、地平線下の時間帯で天気を束ねる。
+    func test_nightlySummaries_shortCivilNightWithoutHourFallsBackToHorizonHours() throws {
+        let helsinki = try XCTUnwrap(TimeZone(identifier: "Europe/Helsinki"))
+        let coordinate = CLLocationCoordinate2D(latitude: 60.5, longitude: 25.0)
+        let summaries = nightlySummaries(around: (2026, 6, 21), coordinate: coordinate, timeZone: helsinki)
+
+        let night = try XCTUnwrap(summaries["2026-06-21"], "\(summaries.keys.sorted())")
+        // 市民薄明後の区間（約 01:07〜01:38）自体はあるが正時を含まない
+        XCTAssertNotNil(MilkyWayCalculator.civilDarknessInterval(date: night.date, location: coordinate, timeZone: helsinki))
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: helsinki)
+        XCTAssertEqual(night.nighttimeHours.map { calendar.component(.hour, from: $0.date) }, [23, 0, 1, 2, 3, 4])
+
+        let nightSummary = MilkyWayCalculator.calculateNightSummary(date: night.date, location: coordinate, timeZone: helsinki)
+        XCTAssertTrue(nightSummary.hasReliableWeatherData(nighttimeHours: night.nighttimeHours))
+    }
+
+    /// 通常の夜（東京）は従来どおり市民薄明後（太陽高度 < -6°）の正時だけを束ねる。
+    func test_nightlySummaries_regularNightUsesCivilDarknessOnly() throws {
+        let summaries = nightlySummaries(around: (2026, 6, 21), coordinate: tokyoLocation, timeZone: tokyoTimeZone)
+        let night = try XCTUnwrap(summaries["2026-06-21"])
+        XCTAssertFalse(night.nighttimeHours.isEmpty)
+        for hour in night.nighttimeHours {
+            XCTAssertLessThan(sunAltitude(at: hour.date, coordinate: tokyoLocation), -6, "\(hour.date)")
+        }
+    }
+
+    /// 指定日の前日 12:00 から 72 時間分の正時予報を束ねる。
+    private func nightlySummaries(
+        around day: (year: Int, month: Int, day: Int),
+        coordinate: CLLocationCoordinate2D,
+        timeZone: TimeZone
+    ) -> [String: DayWeatherSummary] {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let start = calendar.date(from: DateComponents(year: day.year, month: day.month, day: day.day - 1, hour: 12))!
+        let hours = (0..<72).map { offset in
+            makeHourlyWeather(code: 0, date: start.addingTimeInterval(Double(offset) * 3600))
+        }
+        return WeatherKitService.nightlySummaries(from: hours, coordinate: coordinate, timeZone: timeZone)
+    }
+
+    private func sunAltitude(at date: Date, coordinate: CLLocationCoordinate2D) -> Double {
+        let jd = MilkyWayCalculator.julianDate(from: date)
+        let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: coordinate.longitude)
+        let sun = MilkyWayCalculator.sunRaDec(jd: jd)
+        return MilkyWayCalculator.altitude(ra: sun.ra, dec: sun.dec, latitude: coordinate.latitude, lst: lst)
+    }
+
+    private func makeHourlyWeather(code: Int, date: Date = Date()) -> HourlyWeather {
+        HourlyWeather(
+            date: date,
+            temperatureCelsius: 10,
+            cloudCoverPercent: 0,
+            precipitationMM: 0,
+            windSpeedKmh: 0,
+            humidityPercent: 50,
+            dewpointCelsius: 0,
+            weatherCode: code,
+            visibilityMeters: nil,
+            windGustsKmh: nil,
+            windSpeedKmh500hpa: nil
+        )
+    }
+
     // MARK: - DayWeatherSummary.dewRiskLevel
 
     private func makeHourlyWeather(temperature: Double, dewpoint: Double) -> HourlyWeather {

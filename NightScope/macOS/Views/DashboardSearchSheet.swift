@@ -188,7 +188,13 @@ struct DashboardSearchSection: View {
     }
 
     private func handleSubmit() {
-        if let mapItem = searchController.state.results.first {
+        // 検索中の state.results は前回クエリの結果を持ち越しているため、登録には使わない。
+        // 今の入力に対する検索結果が出ているときだけ先頭を登録する。
+        let state = searchController.state
+        let currentQuery = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if state.phase == .results,
+           state.query == currentQuery,
+           let mapItem = state.results.first {
             _ = viewModel.registerAndSelect(mapItem)
         } else {
             viewModel.updateSearchText(viewModel.searchText)
