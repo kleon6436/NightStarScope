@@ -31,6 +31,10 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         static let maximumAge: TimeInterval = 60
         /// これより水平精度が悪い位置は採用しない（メートル）。
         static let maximumHorizontalAccuracy: CLLocationAccuracy = 1_000
+        /// タイムアウト時の代替として残す位置の最大経過時間（秒）。これより古い位置は現在地とみなさない。
+        static let fallbackMaximumAge: TimeInterval = 600
+        /// タイムアウト時の代替として残す位置の水平精度の上限（メートル）。
+        static let fallbackMaximumHorizontalAccuracy: CLLocationAccuracy = 5_000
     }
 
     /// CLLocation から取り出した Sendable な位置情報。
@@ -48,6 +52,13 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         /// 精度が有効（負値でない）かどうか。
         var hasValidAccuracy: Bool {
             horizontalAccuracy >= 0
+        }
+
+        /// タイムアウト時の代替として使える程度に新しく、精度も極端に悪くないかどうか。
+        func isUsableAsFallback(now: Date) -> Bool {
+            hasValidAccuracy
+                && horizontalAccuracy <= LocationFixPolicy.fallbackMaximumHorizontalAccuracy
+                && now.timeIntervalSince(timestamp) <= LocationFixPolicy.fallbackMaximumAge
         }
 
         /// 鮮度と精度の両方が基準を満たすかどうか。
@@ -489,7 +500,8 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
             guard !Task.isCancelled, let self else { return }
             if self.isLocating {
                 // 基準を満たす位置が届かなくても、受け取った位置があればそれを使う。
-                if let candidate = self.bestLocationFixCandidate {
+                // 候補を受け取った後に時間が経つため、採用の時点でも鮮度を確かめる。
+                if let candidate = self.bestLocationFixCandidate, candidate.isUsableAsFallback(now: Date()) {
                     self.acceptLocationFix(candidate)
                     return
                 }
@@ -652,8 +664,9 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
             acceptLocationFix(acceptable)
             return
         }
-        // 古い・精度不足の位置は待機を続けつつ、タイムアウト時の代替として最新の有効な位置を残す。
-        if let candidate = fixes.last(where: \.hasValidAccuracy),
+        // 精度不足の位置は待機を続けつつ、タイムアウト時の代替として最新の位置を残す。
+        // 古すぎる位置は現在地とみなせないため残さない。
+        if let candidate = fixes.last(where: { $0.isUsableAsFallback(now: now) }),
            bestLocationFixCandidate.map({ candidate.timestamp >= $0.timestamp }) ?? true {
             bestLocationFixCandidate = candidate
         }

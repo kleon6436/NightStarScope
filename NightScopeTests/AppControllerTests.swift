@@ -1126,6 +1126,50 @@ final class AppControllerTests: XCTestCase {
         XCTAssertEqual(appController.selectedDate, tokyoDate(12, 0))
     }
 
+    /// 東京の朝に「今日」を追ったままニューヨークへ移ると、暦日ではなく現地の観測日（まだ 8/12）を選ぶ。
+    func test_locationChange_whileTrackingCurrentNight_reanchorsToNewLocationObservationDate() async {
+        let locationController = makeTokyoLocationController()
+        let launchDate = tokyoDate(13, 7)
+        let appController = AppController(
+            locationController: locationController,
+            calculationService: MockNightCalculationService(),
+            now: { launchDate }
+        )
+        XCTAssertEqual(appController.selectedDate, tokyoDate(13, 0))
+
+        locationController.selectCoordinate(CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060))
+
+        let newYork = TimeZone(identifier: "America/New_York")!
+        let expected = ObservationTimeZone.gregorianCalendar(timeZone: newYork).date(
+            from: DateComponents(year: 2026, month: 8, day: 12)
+        )!
+        await waitUntil { appController.selectedDate == expected }
+        XCTAssertEqual(locationController.selectedTimeZone.identifier, newYork.identifier)
+        XCTAssertEqual(appController.selectedDate, expected)
+        XCTAssertEqual(appController.selectedDate, appController.currentObservationDate())
+    }
+
+    /// 今日以外の日を選んでいるときは、従来どおり暦日を保ったまま新しい地点へ移る。
+    func test_locationChange_whileViewingOtherDate_preservesCalendarDay() async {
+        let locationController = makeTokyoLocationController()
+        let launchDate = tokyoDate(13, 7)
+        let appController = AppController(
+            locationController: locationController,
+            calculationService: MockNightCalculationService(),
+            now: { launchDate }
+        )
+        appController.selectedDate = tokyoDate(15, 0)
+
+        locationController.selectCoordinate(CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060))
+
+        let newYork = TimeZone(identifier: "America/New_York")!
+        let expected = ObservationTimeZone.gregorianCalendar(timeZone: newYork).date(
+            from: DateComponents(year: 2026, month: 8, day: 15)
+        )!
+        await waitUntil { appController.selectedDate == expected }
+        XCTAssertEqual(appController.selectedDate, expected)
+    }
+
     func test_locationRefreshDisposition_appliesAll_whenSelectionStillMatches() {
         let appController = AppController(locationController: makeTokyoLocationController(), calculationService: MockNightCalculationService())
         let request = AppController.LocationRefreshRequest(

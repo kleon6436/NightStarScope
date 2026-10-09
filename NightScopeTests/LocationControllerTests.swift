@@ -1132,6 +1132,30 @@ final class LocationControllerTests: XCTestCase {
         XCTAssertEqual(sut.selectedLocation.latitude, 35.6762, accuracy: 0.000001)
     }
 
+    func test_LocationController_didUpdateLocations_tooOldFixFailsOnTimeout() async {
+        let sut = LocationController(
+            storage: InMemoryLocationStorage(),
+            searchService: MockLocationSearchService(result: .success([])),
+            locationNameResolver: MockLocationNameResolver(resolvedName: "現在地"),
+            locationRequestTimeout: .milliseconds(50)
+        )
+        let tooOld = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: 131.0),
+            altitude: 0,
+            horizontalAccuracy: 10,
+            verticalAccuracy: 10,
+            timestamp: Date().addingTimeInterval(-3_600)
+        )
+        sut.isLocating = true
+
+        sut.locationManager(CLLocationManager(), didUpdateLocations: [tooOld])
+        sut.startLocatingTimeout()
+        await waitUntil { !sut.isLocating }
+
+        XCTAssertEqual(sut.locationError, .failed, "10 分より古い位置は代替にしない")
+        XCTAssertEqual(sut.selectedLocation.latitude, 35.6762, accuracy: 0.000001)
+    }
+
     // MARK: - タイムゾーン推定
 
     func test_ApproximateTimeZoneResolver_australianRegion_usesStateTimeZones() {

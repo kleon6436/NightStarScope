@@ -109,9 +109,9 @@ final class AppController: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var dashboardCommandBridgeCancellable: AnyCancellable?
     private var dashboardSelectionDateHandler: ((Date) -> Void)?
-    private var isApplyingLocationRefresh = false
     private var hasStarted = false
     private var lastObservedTimeZone: TimeZone
+    private var lastObservedCoordinate: CLLocationCoordinate2D
     private var lastActiveReferenceDate: Date
     private var observationStateBatchDepth = 0
     /// 観測日判定に使う夜の境界のキャッシュ。画面描画から繰り返し呼ばれても日没・日の出の探索を繰り返さない。
@@ -160,6 +160,7 @@ final class AppController: ObservableObject {
             lightPollutionService: self.lightPollutionService
         )
         self.lastObservedTimeZone = self.locationController.selectedTimeZone
+        self.lastObservedCoordinate = self.locationController.selectedLocation
         // 起動直後の「今日」も観測日で選ぶ。深夜〜明け方の起動では進行中の前夜を選ぶ。
         // Stage 0 の例外として日没・日の出の探索（2 夜分）だけを行う。ファイル I/O は伴わない。
         let launchDate = now()
@@ -254,7 +255,14 @@ final class AppController: ObservableObject {
             recalculate()
         }
 
-        recalculateUpcoming(referenceDate: referenceDate)
+        // 30 分ごとの定期更新で毎回 9 夜分を計算し直さないよう、観測日・観測地が変わった場合か予報が空の場合だけ計算する。
+        let context = selectedLocationContext
+        let upcomingMatchesLocation = upcomingNights.first.map {
+            context.matches(coordinate: $0.location, timeZoneIdentifier: $0.timeZoneIdentifier)
+        } ?? false
+        if observationDateDidChange || !upcomingMatchesLocation {
+            recalculateUpcoming(referenceDate: referenceDate)
+        }
         if refreshExternalData && shouldAutomaticallyRefreshExternalData() {
             refreshExternalDataInBackground()
         }
@@ -631,12 +639,13 @@ final class AppController: ObservableObject {
         context: SelectedLocationContext,
         timeZone: TimeZone
     ) -> LocationRefreshRequest {
-        let normalizedDate = ObservationTimeZone.preservingCalendarDay(
-            selectedDate,
+        let normalizedDate = selectedDateAfterLocationChange(
             from: lastObservedTimeZone,
-            to: timeZone
+            to: timeZone,
+            newCoordinate: context.coordinate
         )
         lastObservedTimeZone = timeZone
+        lastObservedCoordinate = context.coordinate
         performObservationStateBatchUpdate {
             selectedDate = ObservationTimeZone.startOfDay(for: normalizedDate, timeZone: timeZone)
             prepareForLocationChange(using: context)
@@ -692,7 +701,7 @@ final class AppController: ObservableObject {
         externalDataPublisher
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .sink { [weak self] in
-                guard let self, !self.isApplyingLocationRefresh else { return }
+                guard let self else { return }
                 self.recomputeAllIndexes()
             }
             .store(in: &cancellables)
@@ -722,7 +731,6 @@ final class AppController: ObservableObject {
     ) {
         // 古い観測地のデータは何も反映しない。読み込み中フラグは取り直す側が下ろす。
         guard disposition != .discard else { return }
-        isApplyingLocationRefresh = true
         // キャッシュから返した天気は取り直していないため、自動更新の間引きは元の取得時刻を基準にする。
         // 現在時刻で上書きすると、地点を行き来するだけで再取得が永久に見送られる。
         lastExternalRefresh = (payload.weatherResult.cachedAt ?? now(), selectedLocationContext)
@@ -733,7 +741,6 @@ final class AppController: ObservableObject {
             upcomingIndexes = payload.upcomingIndexes
             isUpcomingLoading = false
         }
-        isApplyingLocationRefresh = false
 
         switch disposition {
         case .discard:
@@ -757,14 +764,34 @@ final class AppController: ObservableObject {
         }
     }
 
+    /// 観測地が変わったときの選択日を返す。
+    /// 旧地点の「今日」（観測日）を追っていた場合は新地点の観測日へ合わせ直し、それ以外は暦日を保つ。
+    /// 暦日のまま写すと、東京の朝にニューヨークへ移ると現地では翌日の夜が選ばれてしまう。
+    private func selectedDateAfterLocationChange(
+        from previousTimeZone: TimeZone,
+        to newTimeZone: TimeZone,
+        newCoordinate: CLLocationCoordinate2D
+    ) -> Date {
+        let referenceDate = now()
+        let previousObservationDate = observationDate(
+            for: referenceDate,
+            coordinate: lastObservedCoordinate,
+            timeZone: previousTimeZone
+        )
+        if ObservationTimeZone.isDate(selectedDate, inSameDayAs: previousObservationDate, timeZone: previousTimeZone) {
+            return observationDate(for: referenceDate, coordinate: newCoordinate, timeZone: newTimeZone)
+        }
+        return ObservationTimeZone.preservingCalendarDay(selectedDate, from: previousTimeZone, to: newTimeZone)
+    }
+
     private func handleSelectedTimeZoneChanged(to newTimeZone: TimeZone) {
         let previousTimeZone = lastObservedTimeZone
         lastObservedTimeZone = newTimeZone
 
-        let normalizedDate = ObservationTimeZone.preservingCalendarDay(
-            selectedDate,
+        let normalizedDate = selectedDateAfterLocationChange(
             from: previousTimeZone,
-            to: newTimeZone
+            to: newTimeZone,
+            newCoordinate: locationController.selectedLocation
         )
         guard normalizedDate != selectedDate else { return }
         selectedDate = normalizedDate

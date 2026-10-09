@@ -222,7 +222,10 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
 
     private func evictCacheIfNeeded() {
         guard weatherByDateByLocation.count > maxCachedLocations else { return }
-        let keysToEvict = weatherByDateByLocation.keys.filter { $0 != activeLocationKey }
+        // 取得時刻の古い順に追い出す。取得時刻がない（失敗のみ等）場所は最も古い扱いにする。
+        let keysToEvict = weatherByDateByLocation.keys
+            .filter { $0 != activeLocationKey }
+            .sorted { (cacheTimestamps[$0] ?? .distantPast) < (cacheTimestamps[$1] ?? .distantPast) }
         for key in keysToEvict.prefix(weatherByDateByLocation.count - maxCachedLocations) {
             weatherByDateByLocation.removeValue(forKey: key)
             cacheTimestamps.removeValue(forKey: key)

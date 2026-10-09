@@ -168,6 +168,42 @@ final class WeatherServiceTests: XCTestCase {
         XCTAssertNotEqual(WeatherPresentation.color(forWeatherCode: 68), .secondary)
     }
 
+    // MARK: - キャッシュの追い出し
+
+    func test_weatherKitService_evictCache_removesOldestFetchFirst() {
+        let service = WeatherKitService()
+        let tz = tokyoTimeZone
+        let date = makeDateInTokyo(year: 2024, month: 6, day: 15)
+        let summaries = [service.dateKey(date, timeZone: tz): DayWeatherSummary(date: date, nighttimeHours: [])]
+        let base = Date()
+        func apply(latitude: Double, cachedAt: Date) {
+            service.applyFetchResult(
+                WeatherFetchResult(
+                    weatherByDate: summaries,
+                    errorMessage: nil,
+                    lastModifiedDate: nil,
+                    locationKey: String(format: "%.4f,%.4f|%@", latitude, 135.0, tz.identifier),
+                    timeZoneIdentifier: tz.identifier,
+                    cachedAt: cachedAt
+                )
+            )
+        }
+        // 取得時刻が最も古い場所を最後の方に入れ、辞書の順序では追い出し対象が決まらないようにする。
+        for index in 1...10 {
+            apply(latitude: Double(index), cachedAt: base.addingTimeInterval(Double(index)))
+        }
+        apply(latitude: 20, cachedAt: base.addingTimeInterval(-100))
+        apply(latitude: 30, cachedAt: base.addingTimeInterval(50))
+
+        // 上限 10 件を超えた 2 件のうち、最も古い 20 度と、次に古い 1 度が消える。
+        service.prepareForLocationChange(latitude: 20, longitude: 135, timeZone: tz)
+        XCTAssertTrue(service.weatherByDate.isEmpty, "取得時刻が最も古い場所が追い出されるべき")
+        service.prepareForLocationChange(latitude: 1, longitude: 135, timeZone: tz)
+        XCTAssertTrue(service.weatherByDate.isEmpty, "次に古い場所も追い出されるべき")
+        service.prepareForLocationChange(latitude: 2, longitude: 135, timeZone: tz)
+        XCTAssertFalse(service.weatherByDate.isEmpty, "新しい場所は残るべき")
+    }
+
     // MARK: - キャッシュの鮮度
 
     func test_fetchWeatherSnapshot_cacheHit_doesNotRenewCacheTimestamp() async {
