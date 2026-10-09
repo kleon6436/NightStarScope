@@ -492,6 +492,12 @@ final class DashboardViewModelTests: XCTestCase {
                 cellsByID[cell.id] = cell
             }
         }
-        return ComparisonMatrix(locations: favorites, dates: dates, cellsByID: cellsByID)
+        // 列の暦日判定（bestLocationID など）が端末のタイムゾーンに依存しないよう固定する。
+        return ComparisonMatrix(
+            locations: favorites,
+            dates: dates,
+            cellsByID: cellsByID,
+            columnTimeZone: TestTimeZones.tokyo
+        )
     }
 }

@@ -999,7 +999,12 @@ final class AppControllerTests: XCTestCase {
     }
 
     func test_locationRefreshDisposition_discards_whenLocationChanged() {
-        let appController = AppController(calculationService: MockNightCalculationService())
+        // 既定の UserDefaults 保存先を使うと、書き換えた座標（名前なし）が以後のテストの LocationController に復元され、
+        // 起動時の逆ジオコーディング（実ネットワーク）が走ってしまうため、メモリ上の保存先を使う。
+        let appController = AppController(
+            locationController: makeTokyoLocationController(),
+            calculationService: MockNightCalculationService()
+        )
         let request = AppController.LocationRefreshRequest(
             selectedDate: appController.selectedDate,
             coordinate: appController.locationController.selectedLocation,
@@ -1201,6 +1206,13 @@ final class AppControllerTests: XCTestCase {
         )
         let appController = AppController(
             locationController: locationController,
+            // 同梱の光害グリッドを読み込むと場所変更処理の完了待ちが長くなるため、小さなグリッドを注入する
+            lightPollutionService: LightPollutionService(
+                gridData: makeTwoByTwoLightPollutionGrid(
+                    northWestBrightness: 0.0172,
+                    northEastBrightness: 0.172
+                )
+            ),
             calculationService: MockNightCalculationService()
         )
         appController.selectedDate = ObservationTimeZone.gregorianCalendar(timeZone: losAngeles).date(

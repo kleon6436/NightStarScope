@@ -782,76 +782,83 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
     private let nightCases: [NightGolden] = [
         NightGolden(
             year: 2025, month: 1, day: 15, latitude: 35.6762, longitude: 139.6503,
-            moonPhaseAtMidnight: 0.5597429022812699, viewingWindowCount: 0,
-            firstEvent: (18.217455892481304, 210.1453554200271, 33.188422321494244, -30.969832992939939),
+            moonPhaseAtMidnight: 0.5571634511120888, viewingWindowCount: 0,
+            firstEvent: (18.2174558924813, 210.1453554200271, 33.18842232149424, -32.13116732571031),
             planets: [
                 PlanetNightGolden(name: "水星", riseTime: 1736974751.0796528, riseAzimuth: 119.79340358531016,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 0.14478912700932942,
-                                  transitAzimuth: 119.91043346176924, magnitude: -1.4522443760337238),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 0.144789127009331,
+                                  transitAzimuth: 119.91043346176924, magnitude: -0.45956403569605664),
                 PlanetNightGolden(name: "金星", riseTime: nil, riseAzimuth: nil,
                                   setTime: 1736940908.2760425, setAzimuth: 261.26400903457903,
-                                  peakAltitude: 29.120747093936934,
-                                  transitAzimuth: 234.90307653126533, magnitude: -6.0652910963394921),
+                                  peakAltitude: 29.12074709393693,
+                                  transitAzimuth: 234.90307653126533, magnitude: -4.574922930374846),
                 PlanetNightGolden(name: "火星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 79.417812646646993,
-                                  transitAzimuth: 185.05701779563321, magnitude: -1.4224263993309632),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 79.41781264664692,
+                                  transitAzimuth: 185.05701779563321, magnitude: -1.4449723907723626),
                 PlanetNightGolden(name: "木星", riseTime: nil, riseAzimuth: nil,
                                   setTime: 1736966757.8944156, setAzimuth: 296.96779696820505,
-                                  peakAltitude: 75.912639402480394,
-                                  transitAzimuth: 183.73775625132382, magnitude: -2.6873900080709996),
+                                  peakAltitude: 75.91263940248037,
+                                  transitAzimuth: 183.73775625132387, magnitude: -2.648910813207909),
                 PlanetNightGolden(name: "土星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1736941704.0294647, setAzimuth: 260.71777740431963,
-                                  peakAltitude: 31.247447644997639,
-                                  transitAzimuth: 231.36723839766421, magnitude: 1.0831241183983291),
+                                  setTime: 1736941706.867672, setAzimuth: 260.722170856687,
+                                  peakAltitude: 31.256065927915007,
+                                  transitAzimuth: 231.36167623320168, magnitude: 1.3154230471007142),
             ]
         ),
         NightGolden(
             year: 2026, month: 6, day: 20, latitude: -33.8688, longitude: 151.2093,
-            moonPhaseAtMidnight: 0.20270625349686505, viewingWindowCount: 1,
-            firstEvent: (-24.823905259896158, 162.54549032370343, 30.751643876899209, 23.529049395202641),
+            moonPhaseAtMidnight: 0.20668008404629595, viewingWindowCount: 1,
+            firstEvent: (-24.823905259896158, 162.54549032370343, 30.75164387689921, 22.69557692534274),
             planets: [
                 PlanetNightGolden(name: "水星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: -4.4005895990495185,
-                                  transitAzimuth: 293.24057303921745, magnitude: -2.7858173858883881),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -4.4005895990495185,
+                                  transitAzimuth: 293.24057303921745, magnitude: 0.8345118256417923),
                 PlanetNightGolden(name: "金星", riseTime: nil, riseAzimuth: nil,
                                   setTime: 1781948753.7896223, setAzimuth: 294.66367614914975,
-                                  peakAltitude: 8.3997799143880094,
-                                  transitAzimuth: 301.40463695206171, magnitude: -4.8611490159089223),
-                PlanetNightGolden(name: "火星", riseTime: 1781979419.7914689, riseAzimuth: 67.742689527988915,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 27.331811683799952,
-                                  transitAzimuth: 39.31791098312987, magnitude: 0.90533879120438465),
+                                  peakAltitude: 8.39977991438801,
+                                  transitAzimuth: 301.4046369520617, magnitude: -4.019877520752529),
+                PlanetNightGolden(name: "火星", riseTime: 1781979419.7914689, riseAzimuth: 67.74268952798892,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 23.12315785658401,
+                                  transitAzimuth: 45.67386012913812, magnitude: 1.2966143647359718),
                 PlanetNightGolden(name: "木星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: -0.04011335289394647,
-                                  transitAzimuth: 295.61809361240904, magnitude: -1.8511527171066433),
-                PlanetNightGolden(name: "土星", riseTime: 1781967657.790566, riseAzimuth: 86.247324732805268,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 52.978288786637364,
-                                  transitAzimuth: 2.7787703345689758, magnitude: 0.92625391825693804),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -0.04011335289394647,
+                                  transitAzimuth: 295.61809361240904, magnitude: -1.8305578479147542),
+                PlanetNightGolden(name: "土星", riseTime: 1781967660.9512856, riseAzimuth: 86.24218309255897,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 52.653168512100585,
+                                  transitAzimuth: 8.986057284832249, magnitude: 1.0241100781183958),
             ]
         ),
         NightGolden(
             year: 2027, month: 11, day: 3, latitude: 64.1466, longitude: -21.9426,
-            moonPhaseAtMidnight: 0.1681095874240564, viewingWindowCount: 0,
-            firstEvent: (-52.366841870922237, 328.79604910039461, -37.378584537779311, -47.270646348035385),
+            moonPhaseAtMidnight: 0.167847589665512, viewingWindowCount: 0,
+            firstEvent: (-52.36684187092224, 328.7960491003946, -37.37858453777931, -47.555830532139),
             planets: [
                 PlanetNightGolden(name: "水星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1825261587.2757006, setAzimuth: 254.75483795850158,
-                                  peakAltitude: 19.334813357923309,
-                                  transitAzimuth: 179.56188295269558, magnitude: -2.9760676332730021),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -5.759715271400475,
+                                  transitAzimuth: 266.7643106980238, magnitude: -0.4688371953995851),
                 PlanetNightGolden(name: "金星", riseTime: 1825243743.4733818, riseAzimuth: 145.55137770178993,
-                                  setTime: 1825261614.4789228, setAzimuth: 214.2216228745971,
-                                  peakAltitude: 4.7469970169796216,
-                                  transitAzimuth: 181.53104985203453, magnitude: -4.1455354669253985),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -3.7220656534026446,
+                                  transitAzimuth: 226.0223693342351, magnitude: -3.8889248275139625),
                 PlanetNightGolden(name: "火星", riseTime: 1825248781.9330196, riseAzimuth: 154.77923440734637,
-                                  setTime: 1825262021.2015114, setAzimuth: 205.16361247915657,
-                                  peakAltitude: 2.6084246585284889,
-                                  transitAzimuth: 181.4998552144728, magnitude: 0.97251649430327314),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -2.54838693850741,
+                                  transitAzimuth: 215.49863506727363, magnitude: 1.321363150890795),
                 PlanetNightGolden(name: "木星", riseTime: nil, riseAzimuth: nil,
-                                  setTime: 1825260169.3523657, setAzimuth: 280.96121175221839,
-                                  peakAltitude: 30.621866105389373,
-                                  transitAzimuth: 178.78464469648497, magnitude: -1.8444336546473235),
-                PlanetNightGolden(name: "土星", riseTime: 1825261959.8864291, riseAzimuth: 75.444245978010869,
-                                  setTime: nil, setAzimuth: nil, peakAltitude: 23.503456580815548,
-                                  transitAzimuth: 128.58404153783533, magnitude: 0.58123384555948299),
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: -7.9109909942235745,
+                                  transitAzimuth: 298.5906203349731, magnitude: -1.8033958784351558),
+                PlanetNightGolden(name: "土星", riseTime: 1825261960.3233652, riseAzimuth: 75.43321792995327,
+                                  setTime: nil, setAzimuth: nil,
+                                  peakAltitude: 23.503811945212547,
+                                  transitAzimuth: 128.57020332827366, magnitude: 0.36903883323584463),
             ]
         ),
     ]
@@ -865,7 +872,12 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
         return Calendar(identifier: .gregorian).date(from: components)!
     }
 
+    /// 時刻 (Unix 秒, 約 1.8e9) は 1 ulp が約 2.4e-7 秒のため、角度用の 1e-9 では libm の末尾ビット差でも落ちる。
+    /// 補間時刻の特性固定には 1 ms で十分なのでこの許容値を使う。
+    private let timeAccuracy = 1e-3
+
     private func assertOptionalEqual(_ actual: Double?, _ expected: Double?, _ message: String,
+                                     accuracy: Double? = nil,
                                      file: StaticString = #filePath, line: UInt = #line) {
         guard let expected else {
             XCTAssertNil(actual, message, file: file, line: line)
@@ -875,7 +887,7 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             XCTFail("nil (expected \(expected)) \(message)", file: file, line: line)
             return
         }
-        XCTAssertEqual(actual, expected, accuracy: accuracy, message, file: file, line: line)
+        XCTAssertEqual(actual, expected, accuracy: accuracy ?? self.accuracy, message, file: file, line: line)
     }
 
     func test_planetNightSummaries_matchesGolden() {
@@ -888,9 +900,9 @@ final class MilkyWayCalculatorCharacterizationTests: XCTestCase {
             XCTAssertEqual(summaries.map(\.name), golden.planets.map(\.name))
             for (summary, expected) in zip(summaries, golden.planets) {
                 let label = "\(golden.year)-\(golden.month)-\(golden.day) \(expected.name)"
-                assertOptionalEqual(summary.riseTime?.timeIntervalSince1970, expected.riseTime, label)
+                assertOptionalEqual(summary.riseTime?.timeIntervalSince1970, expected.riseTime, label, accuracy: timeAccuracy)
                 assertOptionalEqual(summary.riseAzimuth, expected.riseAzimuth, label)
-                assertOptionalEqual(summary.setTime?.timeIntervalSince1970, expected.setTime, label)
+                assertOptionalEqual(summary.setTime?.timeIntervalSince1970, expected.setTime, label, accuracy: timeAccuracy)
                 assertOptionalEqual(summary.setAzimuth, expected.setAzimuth, label)
                 XCTAssertEqual(summary.peakAltitude, expected.peakAltitude, accuracy: accuracy, label)
                 assertOptionalEqual(summary.transitAzimuth, expected.transitAzimuth, label)

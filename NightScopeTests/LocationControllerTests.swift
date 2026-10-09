@@ -813,8 +813,10 @@ final class LocationControllerTests: XCTestCase {
         let searchService = MockLocationSearchService(result: .success([]))
         let resolver = MockLocationNameResolver(resolvedName: "現在地")
         let sut = LocationController(storage: storage, searchService: searchService, locationNameResolver: resolver)
+        // 既定地点（東京 35.6762, 139.6503）と異なる座標にし、取得中でなければ位置は採用されないため取得中にする。
         let older = CLLocation(latitude: 35.6580, longitude: 139.7016)
-        let latest = CLLocation(latitude: 35.6762, longitude: 139.6503)
+        let latest = CLLocation(latitude: 34.6937, longitude: 135.5023)
+        sut.isLocating = true
 
         sut.locationManager(CLLocationManager(), didUpdateLocations: [older, latest])
 
