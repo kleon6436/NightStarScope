@@ -140,6 +140,13 @@ enum MilkyWayCalculator {
         return events
     }
 
+    /// 観測夜 `observationDate`（観測地 TZ の 0 時）の月相を評価する「翌 0 時」を返す。
+    /// 月齢カレンダーも同じ時刻で評価し、NightSummary と値をそろえる。
+    static func nightMidnight(for observationDate: Date, calendar: Calendar) -> Date {
+        calendar.date(byAdding: .day, value: 1, to: observationDate)
+            ?? observationDate.addingTimeInterval(Constants.secondsPerDay)
+    }
+
     // 指定した日付のナイトサマリーを計算
     static func calculateNightSummary(
         date: Date,
@@ -152,11 +159,7 @@ enum MilkyWayCalculator {
         let windows = findViewingWindows(events: events)
 
         // 深夜0時の月の位相
-        let midnight = calendar.date(
-            byAdding: .day,
-            value: 1,
-            to: observationDate
-        ) ?? observationDate.addingTimeInterval(Constants.secondsPerDay)
+        let midnight = nightMidnight(for: observationDate, calendar: calendar)
         let moonAtMidnight = moonRaDec(jd: julianDate(from: midnight))
 
         return NightSummary(

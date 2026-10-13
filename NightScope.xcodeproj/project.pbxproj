@@ -43,6 +43,7 @@
 		6D4A1F7B2E9C4100A1B2C3D5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6D4A1F7B2E9C4100A1B2C3D3 /* PrivacyInfo.xcprivacy */; };
 		6D8978B603E8F74BD3DF79C9 /* DarkTimeCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F06 /* DarkTimeCardViewModel.swift */; };
 		6ECB4F746F4502FCE2C97515 /* DarkTimeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F20 /* DarkTimeCard.swift */; };
+		6F1825B8B1E081DB63C361E3 /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE36B4A54775DA36A0C53FAB /* LunarCalendar.swift */; };
 		6FC7FC5F38B1C25572A8CC78 /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F02 /* SidebarViewModel.swift */; };
 		7084008268A492409EA18561 /* MilkyWayCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F03 /* MilkyWayCalculator.swift */; };
 		726077AD15C19C005AB769DB /* AstroModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F01 /* AstroModels.swift */; };
@@ -67,6 +68,7 @@
 		A1B2C3D4E5F60718293A4B02 /* GeoStateValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B0F /* GeoStateValidator.swift */; };
 		A2A2D85F57CA69E8B6B666EB /* ViewingWindowsSectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F07 /* ViewingWindowsSectionViewModel.swift */; };
 		A430B9EB86AC287C057548A9 /* MoonPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 646339DC8525BEBE9BC93536 /* MoonPhase.swift */; };
+		A8CB05290B24E1D7D0885858 /* LunarCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27762DA07070448CBD21750F /* LunarCalendarTests.swift */; };
 		AA0000000000000000001B01 /* NightScopeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F01 /* NightScopeApp.swift */; };
 		AA0000000000000000001B03 /* MilkyWayCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F03 /* MilkyWayCalculator.swift */; };
 		AA0000000000000000001B05 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000001F05 /* Assets.xcassets */; };
@@ -211,6 +213,7 @@
 		D1A100000000000000000005 /* StarMapDisplaySettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A100000000000000000004 /* StarMapDisplaySettingsSection.swift */; };
 		D1A100000000000000000006 /* StarMapDisplaySettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A100000000000000000004 /* StarMapDisplaySettingsSection.swift */; };
 		D75EF08B6B443B5D2CE817E5 /* NightScopeiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E10951ADCBC5CEF800EE18 /* NightScopeiOSApp.swift */; };
+		D9E4BFA7D8043F949103A4D3 /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE36B4A54775DA36A0C53FAB /* LunarCalendar.swift */; };
 		DDB100000000000000002001 /* DashboardCommandBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001001 /* DashboardCommandBridge.swift */; };
 		DDB100000000000000002002 /* DashboardCommandBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001001 /* DashboardCommandBridge.swift */; };
 		DDB100000000000000002003 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001002 /* DashboardViewModel.swift */; };
@@ -297,6 +300,7 @@
 		19061EF9979D0D74C3E3B5C2 /* MacScrollWheelZoomModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacScrollWheelZoomModifier.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSStarMapSupport.swift; sourceTree = "<group>"; };
 		273AFE7A6097D1B3EF523D16 /* AppIcons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppIcons.swift; sourceTree = "<group>"; };
+		27762DA07070448CBD21750F /* LunarCalendarTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LunarCalendarTests.swift; sourceTree = "<group>"; };
 		2844F23FF6044140250E5CA9 /* StarMapTimeSliderScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarMapTimeSliderScheduler.swift; sourceTree = "<group>"; };
 		2C4FF1AF217AF56546E11BB3 /* iOSLocationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLocationView.swift; sourceTree = "<group>"; };
 		2FA0C4060B1252A05AA86C03 /* FavoriteLocationStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FavoriteLocationStore.swift; sourceTree = "<group>"; };
@@ -414,6 +418,7 @@
 		BB0000000000000000006F01 /* elevation_japan.bin.z */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = elevation_japan.bin.z; sourceTree = "<group>"; };
 		BB0000000000000000006F02 /* elevation_global.bin.z */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = elevation_global.bin.z; sourceTree = "<group>"; };
 		BB0000000000000000007F01 /* constellations_iau.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = constellations_iau.json; sourceTree = "<group>"; };
+		BE36B4A54775DA36A0C53FAB /* LunarCalendar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LunarCalendar.swift; sourceTree = "<group>"; };
 		BS00000000000000000000F1 /* BortleScale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BortleScale.swift; sourceTree = "<group>"; };
 		CC0000000000000000001A01 /* iOSCompassCalibrationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSCompassCalibrationView.swift; sourceTree = "<group>"; };
 		D0E51B35725701CA2DB51488 /* iOSMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSMapView.swift; sourceTree = "<group>"; };
@@ -627,6 +632,7 @@
 				6F6403836D9709EDC6051393 /* WeatherPresentation.swift */,
 				AA000000000000000000TP01 /* TonightPresentation.swift */,
 				646339DC8525BEBE9BC93536 /* MoonPhase.swift */,
+				BE36B4A54775DA36A0C53FAB /* LunarCalendar.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -720,6 +726,7 @@
 				IC0000000000000000001003 /* FavoriteSyncReconcilerTests.swift */,
 				IC0000000000000000001005 /* FavoriteSyncImportSelectionTests.swift */,
 				95CC347BB1D0E062491DB420 /* MoonPhaseTests.swift */,
+				27762DA07070448CBD21750F /* LunarCalendarTests.swift */,
 			);
 			path = NightScopeTests;
 			sourceTree = "<group>";
@@ -1053,6 +1060,7 @@
 				C5F54DB292A2F4530825BF28 /* AppFocusedValues.swift in Sources */,
 				518E4DCAC7901B7B21AB70AF /* PlatformAdaptive.swift in Sources */,
 				A430B9EB86AC287C057548A9 /* MoonPhase.swift in Sources */,
+				D9E4BFA7D8043F949103A4D3 /* LunarCalendar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1170,6 +1178,7 @@
 				4AD3654937530A1F221A60D3 /* PlatformAdaptive.swift in Sources */,
 				996860BB4AD413DF7FCD5BC5 /* MacScrollWheelZoomModifier.swift in Sources */,
 				0C78C4F369EF22701385D5C2 /* MoonPhase.swift in Sources */,
+				6F1825B8B1E081DB63C361E3 /* LunarCalendar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1205,6 +1214,7 @@
 				IC0000000000000000002004 /* FavoriteSyncReconcilerTests.swift in Sources */,
 				IC0000000000000000002007 /* FavoriteSyncImportSelectionTests.swift in Sources */,
 				2200EE4799CF4D206E03335B /* MoonPhaseTests.swift in Sources */,
+				A8CB05290B24E1D7D0885858 /* LunarCalendarTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
