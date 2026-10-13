@@ -7,6 +7,17 @@
     " " : {
 
     },
+    "%@の夜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Night of %@"
+          }
+        }
+      }
+    },
     "-180°" : {
 
     },
@@ -17,6 +28,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Failed to search for \"%1$@\". %2$@"
+          }
+        }
+      }
+    },
+    "この夜の空模様を見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View this night’s sky"
+          }
+        }
+      }
+    },
+    "暗い夜（月明かりほぼなし）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark night (little moonlight)"
+          }
+        }
+      }
+    },
+    "月明かりほぼなし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Little moonlight"
+          }
+        }
+      }
+    },
+    "月明かりやや明るい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some moonlight"
+          }
+        }
+      }
+    },
+    "月明かり強い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bright moonlight"
+          }
+        }
+      }
+    },
+    "輝面比 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Illumination %@"
           }
         }
       }

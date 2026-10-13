@@ -19,27 +19,44 @@ final class LunarCalendarViewModel: ObservableObject {
     /// - Parameters:
     ///   - currentObservationDate: 「今日」とみなす観測夜を返す。
     ///   - onOpenNight: 「この夜の空模様を見る」で選んだ夜を受け取る。
-    init(
+    convenience init(
         location: any LocationProviding,
         currentObservationDate: @escaping () -> Date,
         onOpenNight: @escaping (Date) -> Void
     ) {
+        self.init(
+            latitude: location.selectedLocation.latitude,
+            timeZone: location.selectedTimeZone,
+            latitudePublisher: location.selectedLocationPublisher.map(\.latitude).eraseToAnyPublisher(),
+            timeZonePublisher: location.selectedTimeZonePublisher,
+            currentObservationDate: currentObservationDate,
+            onOpenNight: onOpenNight
+        )
+    }
+
+    init(
+        latitude: Double,
+        timeZone: TimeZone,
+        latitudePublisher: AnyPublisher<Double, Never> = Empty().eraseToAnyPublisher(),
+        timeZonePublisher: AnyPublisher<TimeZone, Never> = Empty().eraseToAnyPublisher(),
+        currentObservationDate: @escaping () -> Date,
+        onOpenNight: @escaping (Date) -> Void = { _ in }
+    ) {
         self.currentObservationDate = currentObservationDate
         self.onOpenNight = onOpenNight
-        let timeZone = location.selectedTimeZone
         let today = ObservationTimeZone.startOfDay(for: currentObservationDate(), timeZone: timeZone)
         self.timeZone = timeZone
         self.displayMonth = today
         self.selectedNight = today
-        self.isSouthernHemisphere = location.selectedLocation.latitude < 0
+        self.isSouthernHemisphere = latitude < 0
         recompute()
 
-        location.selectedLocationPublisher
-            .map { $0.latitude < 0 }
+        latitudePublisher
+            .map { $0 < 0 }
             .removeDuplicates()
             .sink { [weak self] in self?.isSouthernHemisphere = $0 }
             .store(in: &cancellables)
-        location.selectedTimeZonePublisher
+        timeZonePublisher
             .removeDuplicates()
             .sink { [weak self] in self?.updateTimeZone($0) }
             .store(in: &cancellables)

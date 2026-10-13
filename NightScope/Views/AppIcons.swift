@@ -22,6 +22,13 @@ enum AppIcons {
         static let moonPhaseWaningGibbous   = "moonphase.waning.gibbous"
         static let moonPhaseLastQuarter     = "moonphase.last.quarter"
         static let moonPhaseWaningCrescent  = "moonphase.waning.crescent"
+        // 月齢カレンダー
+        static let darkNight        = "star.fill"
+        static let moonAge          = "moon"
+        static let illumination     = "circle.lefthalf.filled"
+        static let moonlightLow     = "moon"
+        static let moonlightModerate = "moon.haze"
+        static let moonlightHigh    = "sun.max"
     }
     enum Weather {
         static let cloud              = "cloud"
