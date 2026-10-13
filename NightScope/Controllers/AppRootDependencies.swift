@@ -11,6 +11,7 @@ struct AppRootDependencies {
     let sidebarViewModel: SidebarViewModel
     let detailViewModel: DetailViewModel
     let starMapViewModel: StarMapViewModel
+    let lunarCalendarViewModel: LunarCalendarViewModel
     let comparisonController: ComparisonController
     let dashboardCommandBridge: DashboardCommandBridge
     let favoriteTonightScoreProvider: FavoriteTonightScoreProvider
@@ -43,6 +44,16 @@ struct AppRootDependencies {
             observationModePreference: observationModePreference
         )
         self.starMapViewModel = StarMapViewModel(appController: appController)
+        let detailViewModel = self.detailViewModel
+        self.lunarCalendarViewModel = LunarCalendarViewModel(
+            location: appController.locationController,
+            currentObservationDate: { [weak detailViewModel] in
+                detailViewModel?.currentObservationDate() ?? Date()
+            },
+            onOpenNight: { [weak detailViewModel] night in
+                detailViewModel?.selectedDate = night
+            }
+        )
         self.comparisonController = comparisonController ?? ComparisonController(
             favoriteStore: appController.favoriteStore,
             weatherService: appController.weatherService,
@@ -77,6 +88,7 @@ final class AppRootStore: ObservableObject {
     let sidebarViewModel: SidebarViewModel
     let detailViewModel: DetailViewModel
     let starMapViewModel: StarMapViewModel
+    let lunarCalendarViewModel: LunarCalendarViewModel
     let comparisonController: ComparisonController
     let dashboardCommandBridge: DashboardCommandBridge
     let favoriteSyncReconciler: FavoriteSyncReconciler
@@ -90,6 +102,7 @@ final class AppRootStore: ObservableObject {
         self.sidebarViewModel = dependencies.sidebarViewModel
         self.detailViewModel = dependencies.detailViewModel
         self.starMapViewModel = dependencies.starMapViewModel
+        self.lunarCalendarViewModel = dependencies.lunarCalendarViewModel
         self.comparisonController = dependencies.comparisonController
         self.dashboardCommandBridge = dependencies.dashboardCommandBridge
         self.favoriteSyncReconciler = dependencies.favoriteSyncReconciler
