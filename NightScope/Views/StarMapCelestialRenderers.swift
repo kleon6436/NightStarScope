@@ -81,7 +81,7 @@ extension StarMapCanvasView {
         // 欠け際の暗部（地球照程度にうっすら見せる）
         ctx.fill(Circle().path(in: rect), with: .color(Color(white: 0.35).opacity(0.35)))
 
-        let litPolygon = Self.moonLitPolygon(
+        let litPolygon = MoonPhase.litPolygon(
             center: point,
             radius: radius,
             phase: phase,
@@ -98,15 +98,10 @@ extension StarMapCanvasView {
         }
 
         let glowR = radius * 1.8
-        let glowOpacity = 0.06 * max(0.2, Self.moonIlluminatedFraction(phase: phase))
+        let glowOpacity = 0.06 * max(0.2, MoonPhase.illumination(phase: phase))
         ctx.fill(Circle().path(in: CGRect(x: point.x - glowR, y: point.y - glowR,
                                            width: glowR * 2, height: glowR * 2)),
                  with: .color(.white.opacity(glowOpacity)))
-    }
-
-    /// 月相（0=新月, 0.25=上弦, 0.5=満月, 0.75=下弦）から輝面比 (0〜1) を返す。
-    nonisolated static func moonIlluminatedFraction(phase: Double) -> Double {
-        (1 - cos(2 * .pi * phase)) / 2
     }
 
     /// 月の輝面が画面上で向く角度 (rad, 画面座標: +x から +y（下）方向へ測る) を返す。
@@ -143,63 +138,6 @@ extension StarMapCanvasView {
             return atan2(dy, dx)
         }
         return nil
-    }
-
-    /// 月の輝面を表す多角形（画面座標）を返す。
-    /// `brightLimbScreenAngle`（rad, 画面座標で +x から +y 方向へ測る）を渡すと輝面の縁の中点がその向きになる。
-    /// nil の場合は北半球の見え方に合わせ、満ちていく月（phase < 0.5）は右側、欠けていく月は左側が光る。
-    /// 欠け際（ターミネーター）は楕円弧で表し、輝面方向の半径は radius × cos(2π·phase)。
-    nonisolated static func moonLitPolygon(
-        center: CGPoint,
-        radius: Double,
-        phase: Double,
-        brightLimbScreenAngle: Double? = nil,
-        segments: Int = 24
-    ) -> [CGPoint] {
-        let normalizedPhase = phase - floor(phase)
-        let fraction = moonIlluminatedFraction(phase: normalizedPhase)
-        guard fraction > 0.005, segments > 1 else { return [] }
-
-        // 光っている側: 向きの指定があれば +x 側に作って回転する。
-        // 指定がなければ満ちていく月は右 (+1)、欠けていく月は左 (-1)
-        let litSide: Double
-        if brightLimbScreenAngle != nil {
-            litSide = 1
-        } else {
-            litSide = normalizedPhase < 0.5 ? 1 : -1
-        }
-        // ターミネーターの x 方向の比率。新月で +1（縁と一致）、上弦/下弦で 0、満月で -1。
-        let terminatorScale = cos(2 * .pi * normalizedPhase)
-
-        var points: [CGPoint] = []
-        points.reserveCapacity((segments + 1) * 2)
-        // 光っている側の縁（上 → 下）
-        for step in 0...segments {
-            let theta = -Double.pi / 2 + Double.pi * Double(step) / Double(segments)
-            points.append(CGPoint(
-                x: center.x + litSide * radius * cos(theta),
-                y: center.y + radius * sin(theta)
-            ))
-        }
-        // ターミネーター（下 → 上）
-        for step in stride(from: segments, through: 0, by: -1) {
-            let theta = -Double.pi / 2 + Double.pi * Double(step) / Double(segments)
-            points.append(CGPoint(
-                x: center.x + litSide * terminatorScale * radius * cos(theta),
-                y: center.y + radius * sin(theta)
-            ))
-        }
-        guard let brightLimbScreenAngle else { return points }
-        let cosAngle = cos(brightLimbScreenAngle)
-        let sinAngle = sin(brightLimbScreenAngle)
-        return points.map { point in
-            let dx = Double(point.x - center.x)
-            let dy = Double(point.y - center.y)
-            return CGPoint(
-                x: center.x + dx * cosAngle - dy * sinAngle,
-                y: center.y + dx * sinAngle + dy * cosAngle
-            )
-        }
     }
 
     func drawGalacticCenter(ctx: GraphicsContext, at point: CGPoint) {

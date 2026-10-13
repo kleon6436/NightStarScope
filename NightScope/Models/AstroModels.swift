@@ -103,43 +103,13 @@ struct NightSummary {
         viewingWindows.reduce(0) { $0 + $1.duration } / 3600
     }
 
-    var moonPhaseName: String {
-        switch moonPhaseAtMidnight {
-        case 0..<0.04, 0.96...1: return L10n.tr("新月")
-        case 0.04..<0.12: return L10n.tr("繊月")
-        case 0.12..<0.22: return L10n.tr("三日月")
-        case 0.22..<0.30: return L10n.tr("上弦の月")
-        case 0.30..<0.46: return L10n.tr("十日月")
-        case 0.46..<0.54: return L10n.tr("満月")
-        case 0.54..<0.70: return L10n.tr("十六夜")
-        case 0.70..<0.80: return L10n.tr("下弦の月")
-        case 0.80..<0.96: return L10n.tr("有明月")
-        default: return ""
-        }
-    }
+    var moonPhaseName: String { MoonPhase.name(phase: moonPhaseAtMidnight) }
 
-    var moonPhaseIcon: String {
-        switch moonPhaseAtMidnight {
-        case 0..<0.04, 0.96...1: return AppIcons.Astronomy.moonPhaseNew
-        case 0.04..<0.12: return AppIcons.Astronomy.moonPhaseWaxingCrescent
-        case 0.12..<0.22: return AppIcons.Astronomy.moonPhaseWaxingCrescent
-        case 0.22..<0.30: return AppIcons.Astronomy.moonPhaseFirstQuarter
-        case 0.30..<0.46: return AppIcons.Astronomy.moonPhaseWaxingGibbous
-        case 0.46..<0.54: return AppIcons.Astronomy.moonPhaseFull
-        case 0.54..<0.70: return AppIcons.Astronomy.moonPhaseWaningGibbous
-        case 0.70..<0.80: return AppIcons.Astronomy.moonPhaseLastQuarter
-        case 0.80..<0.96: return AppIcons.Astronomy.moonPhaseWaningCrescent
-        default: return AppIcons.Astronomy.moonPhaseWaningCrescent
-        }
-    }
+    var moonPhaseIcon: String { MoonPhase.icon(phase: moonPhaseAtMidnight) }
 
-    var isMoonFavorable: Bool {
-        moonPhaseAtMidnight < 0.25 || moonPhaseAtMidnight > 0.75
-    }
+    var isMoonFavorable: Bool { MoonPhase.isFavorable(phase: moonPhaseAtMidnight) }
 
-    var moonIllumination: Double {
-        (1.0 - cos(moonPhaseAtMidnight * 2.0 * .pi)) / 2.0
-    }
+    var moonIllumination: Double { MoonPhase.illumination(phase: moonPhaseAtMidnight) }
 
     var totalDarkHours: Double {
         let count = events.filter { $0.isDark }.count

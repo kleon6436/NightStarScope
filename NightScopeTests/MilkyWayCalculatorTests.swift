@@ -1081,19 +1081,19 @@ final class MoonBrightLimbTests: XCTestCase {
             )
         }
         // 上弦（半月）: 指定なしは右側が光る
-        let legacy = centroid(StarMapCanvasView.moonLitPolygon(center: center, radius: 10, phase: 0.25))
+        let legacy = centroid(MoonPhase.litPolygon(center: center, radius: 10, phase: 0.25))
         XCTAssertGreaterThan(legacy.x, center.x + 2)
         XCTAssertEqual(legacy.y, center.y, accuracy: 1e-6)
 
         // 輝面を下（+y）へ向ける
-        let down = centroid(StarMapCanvasView.moonLitPolygon(
+        let down = centroid(MoonPhase.litPolygon(
             center: center, radius: 10, phase: 0.25, brightLimbScreenAngle: Double.pi / 2
         ))
         XCTAssertGreaterThan(down.y, center.y + 2)
         XCTAssertEqual(down.x, center.x, accuracy: 1e-6)
 
         // 下弦でも向きの指定が優先される（左右反転しない）
-        let waningUp = centroid(StarMapCanvasView.moonLitPolygon(
+        let waningUp = centroid(MoonPhase.litPolygon(
             center: center, radius: 10, phase: 0.75, brightLimbScreenAngle: -Double.pi / 2
         ))
         XCTAssertLessThan(waningUp.y, center.y - 2)

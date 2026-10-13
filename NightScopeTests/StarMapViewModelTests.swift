@@ -1984,11 +1984,11 @@ final class StarMapViewModelTests: XCTestCase {
         XCTAssertEqual(partialPairs.count, partialBand.count - 1)
     }
 
-    func test_StarMapCanvasView_moonLitPolygon_rendersCorrectPhaseShapes() {
-        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0), 0, accuracy: 1e-9)
-        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0.25), 0.5, accuracy: 1e-9)
-        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0.5), 1, accuracy: 1e-9)
-        XCTAssertEqual(StarMapCanvasView.moonIlluminatedFraction(phase: 0.75), 0.5, accuracy: 1e-9)
+    func test_MoonPhase_litPolygon_rendersCorrectPhaseShapes() {
+        XCTAssertEqual(MoonPhase.illumination(phase: 0), 0, accuracy: 1e-9)
+        XCTAssertEqual(MoonPhase.illumination(phase: 0.25), 0.5, accuracy: 1e-9)
+        XCTAssertEqual(MoonPhase.illumination(phase: 0.5), 1, accuracy: 1e-9)
+        XCTAssertEqual(MoonPhase.illumination(phase: 0.75), 0.5, accuracy: 1e-9)
 
         let center = CGPoint(x: 100, y: 100)
         let radius = 10.0
@@ -2004,29 +2004,29 @@ final class StarMapViewModelTests: XCTestCase {
         }
         let discArea = Double.pi * radius * radius
 
-        XCTAssertTrue(StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0).isEmpty)
+        XCTAssertTrue(MoonPhase.litPolygon(center: center, radius: radius, phase: 0).isEmpty)
 
         // 上弦: 右半分だけが光る
-        let firstQuarter = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.25, segments: 64)
+        let firstQuarter = MoonPhase.litPolygon(center: center, radius: radius, phase: 0.25, segments: 64)
         XCTAssertTrue(firstQuarter.allSatisfy { $0.x >= center.x - 1e-6 })
         XCTAssertEqual(area(firstQuarter), discArea / 2, accuracy: discArea * 0.01)
 
         // 下弦: 左半分だけが光る
-        let lastQuarter = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.75, segments: 64)
+        let lastQuarter = MoonPhase.litPolygon(center: center, radius: radius, phase: 0.75, segments: 64)
         XCTAssertTrue(lastQuarter.allSatisfy { $0.x <= center.x + 1e-6 })
         XCTAssertEqual(area(lastQuarter), discArea / 2, accuracy: discArea * 0.01)
 
         // 満ちていく十三夜: 右側の縁を含み、輝面比に応じた面積になる
-        let waxingGibbous = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.4, segments: 64)
+        let waxingGibbous = MoonPhase.litPolygon(center: center, radius: radius, phase: 0.4, segments: 64)
         XCTAssertTrue(waxingGibbous.contains { $0.x > center.x + radius - 1e-6 })
         XCTAssertEqual(
             area(waxingGibbous),
-            discArea * StarMapCanvasView.moonIlluminatedFraction(phase: 0.4),
+            discArea * MoonPhase.illumination(phase: 0.4),
             accuracy: discArea * 0.01
         )
 
         // 満月: 円全体
-        let full = StarMapCanvasView.moonLitPolygon(center: center, radius: radius, phase: 0.5, segments: 64)
+        let full = MoonPhase.litPolygon(center: center, radius: radius, phase: 0.5, segments: 64)
         XCTAssertEqual(area(full), discArea, accuracy: discArea * 0.01)
     }
 

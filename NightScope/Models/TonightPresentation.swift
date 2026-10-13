@@ -82,21 +82,14 @@ struct NightVerdictPresentation {
     /// 月に触れる価値があるのは「明るすぎる」か「条件が良い夜に月がほぼない」ときだけ。
     private static func moonClause(summary: NightSummary, tier: StarGazingIndex.Tier?) -> String? {
         let illumination = summary.moonIllumination
-        if illumination >= Constants.brightMoonIllumination {
+        if illumination >= MoonPhase.brightIlluminationThreshold {
             return L10n.tr("明るい月明かりあり")
         }
         let isFavorableTier = tier == .excellent || tier == .good
-        if illumination < Constants.darkMoonIllumination, isFavorableTier {
+        if illumination < MoonPhase.darkIlluminationThreshold, isFavorableTier {
             return L10n.tr("月明かりはほぼなし")
         }
         return nil
-    }
-
-    private enum Constants {
-        /// 根拠: illumination 0.6 以上は上弦〜満月域で、淡い天体の観測に明確な影響が出る。
-        static let brightMoonIllumination = 0.6
-        /// 根拠: illumination 0.15 未満は新月前後で、月明かりの影響が実用上無視できる。
-        static let darkMoonIllumination = 0.15
     }
 }
 
