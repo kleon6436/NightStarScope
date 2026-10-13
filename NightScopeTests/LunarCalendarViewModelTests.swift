@@ -98,6 +98,16 @@ final class LunarCalendarViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedDay?.date, today)
     }
 
+    func test_shiftMonth_carriesSelectionToSameDayOrMonthEnd() {
+        let (viewModel, _) = makeViewModel(today: localDate(2026, 10, 13, in: tokyo))
+        viewModel.select(localDate(2026, 10, 31, in: tokyo))
+        viewModel.shiftMonth(by: 1)
+        XCTAssertEqual(viewModel.selectedNight, localDate(2026, 11, 30, in: tokyo))
+        XCTAssertNotNil(viewModel.selectedDay)
+        viewModel.shiftMonth(by: 1)
+        XCTAssertEqual(viewModel.selectedNight, localDate(2026, 12, 30, in: tokyo))
+    }
+
     // MARK: - AC10
 
     func test_openNight_passesSelectedNightToHandler() {

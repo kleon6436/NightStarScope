@@ -86,6 +86,12 @@ final class LunarCalendarViewModel: ObservableObject {
         guard let month = shiftedMonth(by: value) else { return }
         displayMonth = month
         recompute()
+        // 詳細パネルが消えないよう、選択も新しい月の同じ日（なければ月末）へ移す。
+        let dayOfMonth = calendar.component(.day, from: selectedNight)
+        let monthDays = days.compactMap { $0 }
+        if let night = monthDays.first(where: { calendar.component(.day, from: $0.date) == dayOfMonth }) ?? monthDays.last {
+            selectedNight = night.date
+        }
     }
 
     func goToToday() {

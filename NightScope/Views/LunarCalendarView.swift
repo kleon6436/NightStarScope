@@ -80,9 +80,13 @@ private struct LunarCalendarHeader: View {
             .disabled(!viewModel.canShiftForward)
             .accessibilityLabel(L10n.tr("次の月"))
 
-            Button(L10n.tr("今日"), action: viewModel.goToToday)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Button(action: viewModel.goToToday) {
+                Text(L10n.tr("今日"))
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minWidth: LunarCalendarStyle.navigationButtonSize, minHeight: LunarCalendarStyle.navigationButtonSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
         }
     }
 }
@@ -122,9 +126,9 @@ private struct LunarCalendarGrid: View {
     @ObservedObject var viewModel: LunarCalendarViewModel
 
     private var weekdayLabels: [CalendarView.WeekdayHeaderItem] {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        return CalendarView.makeWeekdayHeaderItems(from: formatter.veryShortStandaloneWeekdaySymbols)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = .autoupdatingCurrent
+        return CalendarView.makeWeekdayHeaderItems(from: calendar.veryShortStandaloneWeekdaySymbols)
     }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: Spacing.xxs), count: 7)
@@ -189,13 +193,14 @@ struct LunarCalendarDayCell: View {
                         .font(.caption.weight(isToday ? .bold : .regular))
                     if day.isDarkNight {
                         Image(systemName: AppIcons.Astronomy.darkNight)
-                            .font(.system(size: LunarCalendarStyle.badgeSize))
+                            .font(.caption2)
+                            .imageScale(.small)
                             .foregroundStyle(Color.indigo)
                     }
                 }
                 MoonPhaseGlyph(phase: day.phase, isSouthernHemisphere: isSouthernHemisphere, size: LunarCalendarStyle.glyphSize)
                 if showsMoonAge {
-                    Text(String(format: "%.1f", day.moonAge))
+                    Text(day.moonAge.formatted(.number.precision(.fractionLength(1))))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(Color.secondary)
                 }
@@ -299,7 +304,7 @@ struct LunarNightDetailPanel: View {
                     Text(L10n.format("%@の夜", DateFormatters.yearMonthDayWeekdayString(from: day.date, timeZone: timeZone)))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text(MoonPhase.name(phase: day.phase))
+                    Text(day.principalEvent?.kind.name ?? MoonPhase.name(phase: day.phase))
                         .font(.title2.weight(.semibold))
                     if let event = day.principalEvent {
                         Label(
@@ -359,7 +364,6 @@ enum LunarCalendarStyle {
     static let cellMinHeight: CGFloat = 64
     static let glyphSize: CGFloat = 22
     static let detailGlyphSize: CGFloat = 64
-    static let badgeSize: CGFloat = 8
     static let eventMinimumWidth: CGFloat = 150
 }
 

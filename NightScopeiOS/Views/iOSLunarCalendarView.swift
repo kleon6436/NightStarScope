@@ -30,6 +30,7 @@ struct iOSLunarCalendarView: View {
                 .padding(.horizontal, Spacing.sm)
                 .padding(.vertical, Spacing.sm)
             }
+            .dynamicTypeSize(...LunarCalendarStyle.maximumTypeSize)
             .adaptiveToolbarBackground()
         }
     }

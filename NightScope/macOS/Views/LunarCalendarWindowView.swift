@@ -38,6 +38,9 @@ struct LunarCalendarWindowView: View {
         viewModel.openNight(night)
         // WindowGroup への openWindow は毎回新しいウィンドウを作るため、既存の主ウィンドウがあれば前面に出すだけにする。
         if let mainWindow = NSApp.windows.first(where: { Self.isMainWindow(identifier: $0.identifier?.rawValue) }) {
+            if mainWindow.isMiniaturized {
+                mainWindow.deminiaturize(nil)
+            }
             mainWindow.makeKeyAndOrderFront(nil)
         } else {
             openWindow(id: Self.mainWindowID)

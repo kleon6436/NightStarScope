@@ -5,9 +5,13 @@ struct MoonPhaseCard: View {
     let summary: NightSummary
     var style: SummaryCardStyle = .regular
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 月齢は朔の探索を伴うため、描画のたびに計算し直さないよう生成時に 1 回だけ求める。
+    private let moonAgeDays: Double
 
-    private var moonAgeDays: Double {
-        summary.moonAge
+    init(summary: NightSummary, style: SummaryCardStyle = .regular) {
+        self.summary = summary
+        self.style = style
+        self.moonAgeDays = summary.moonAge
     }
 
     private var moonRecommendationText: String {
