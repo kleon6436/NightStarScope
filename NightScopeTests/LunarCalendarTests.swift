@@ -212,4 +212,16 @@ final class LunarCalendarTests: XCTestCase {
     func test_supportedYears() {
         XCTAssertEqual(LunarCalendar.supportedYears, 1900...2100)
     }
+
+    // MARK: - NightSummary との月齢の一致（既存画面の統一）
+
+    func test_nightSummaryMoonAge_matchesLunarCalendar() {
+        let location = CLLocationCoordinate2D(latitude: 35.68, longitude: 139.76)
+        let days = LunarCalendar.month(containing: localDate(2026, 10, 15, in: tokyo), timeZone: tokyo)
+        for day in days {
+            let summary = MilkyWayCalculator.calculateNightSummary(date: day.date, location: location, timeZone: tokyo)
+            XCTAssertEqual(summary.moonAge, day.moonAge, accuracy: 1.0 / 1440, "\(day.date)")
+            XCTAssertEqual(summary.moonlightLevel, day.moonlightLevel)
+        }
+    }
 }

@@ -143,6 +143,19 @@ enum LunarCalendar {
         }
     }
 
+    /// 時刻 `date` における月齢（直前の新月からの経過日数）。
+    static func moonAge(at date: Date) -> Double {
+        let lastNewMoon = phaseEvents(
+            from: date.addingTimeInterval(-Double(newMoonLookbackDays) * secondsPerDay),
+            to: date.addingTimeInterval(1)
+        )
+        .last { $0.kind == .new }
+        guard let lastNewMoon else {
+            return elongationDegrees(at: date) / 360 * meanSynodicMonthDays
+        }
+        return date.timeIntervalSince(lastNewMoon.date) / secondsPerDay
+    }
+
     /// `value - target` を -180..<180 に正規化した差（度）。
     private static func signedDifference(_ value: Double, _ target: Double) -> Double {
         let difference = (value - target).truncatingRemainder(dividingBy: 360)
@@ -163,5 +176,17 @@ enum LunarCalendar {
             }
         }
         return lower.addingTimeInterval(upper.timeIntervalSince(lower) / 2)
+    }
+}
+
+extension NightSummary {
+    /// 月齢カレンダーと同じ定義の月齢（翌 0 時時点での、直前の新月からの経過日数）。
+    var moonAge: Double {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        return LunarCalendar.moonAge(at: MilkyWayCalculator.nightMidnight(for: date, calendar: calendar))
+    }
+
+    var moonlightLevel: MoonPhase.MoonlightLevel {
+        MoonPhase.moonlightLevel(illumination: moonIllumination)
     }
 }

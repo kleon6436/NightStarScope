@@ -107,8 +107,6 @@ struct NightSummary {
 
     var moonPhaseIcon: String { MoonPhase.icon(phase: moonPhaseAtMidnight) }
 
-    var isMoonFavorable: Bool { MoonPhase.isFavorable(phase: moonPhaseAtMidnight) }
-
     var moonIllumination: Double { MoonPhase.illumination(phase: moonPhaseAtMidnight) }
 
     var totalDarkHours: Double {

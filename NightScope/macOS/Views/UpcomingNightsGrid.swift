@@ -204,8 +204,8 @@ struct UpcomingNightsGrid: View {
                 .foregroundStyle(Color.indigo)
                 .accessibilityHidden(true)
             Text(night.moonPhaseName)
-            if !night.isMoonFavorable {
-                Text("月明かりに注意")
+            if night.moonlightLevel == .high {
+                Text(night.moonlightLevel.label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

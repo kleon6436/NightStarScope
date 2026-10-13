@@ -7,11 +7,11 @@ struct MoonPhaseCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var moonAgeDays: Double {
-        summary.moonPhaseAtMidnight * 29.53
+        summary.moonAge
     }
 
     private var moonRecommendationText: String {
-        summary.isMoonFavorable ? L10n.tr("撮影に適しています") : L10n.tr("月明かりに注意")
+        summary.moonlightLevel.label
     }
 
     var body: some View {

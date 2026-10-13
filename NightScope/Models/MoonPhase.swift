@@ -49,10 +49,6 @@ enum MoonPhase {
         }
     }
 
-    static func isFavorable(phase: Double) -> Bool {
-        phase < 0.25 || phase > 0.75
-    }
-
     /// 輝面比 (0〜1)。
     static func illumination(phase: Double) -> Double {
         (1 - cos(2 * .pi * phase)) / 2

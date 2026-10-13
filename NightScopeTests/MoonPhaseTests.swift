@@ -50,13 +50,6 @@ final class MoonPhaseTests: XCTestCase {
         XCTAssertEqual(MoonPhase.illumination(phase: 0.75), 0.5, accuracy: 1e-12)
     }
 
-    func test_isFavorable_boundaries() {
-        XCTAssertTrue(MoonPhase.isFavorable(phase: 0.2499))
-        XCTAssertFalse(MoonPhase.isFavorable(phase: 0.25))
-        XCTAssertFalse(MoonPhase.isFavorable(phase: 0.75))
-        XCTAssertTrue(MoonPhase.isFavorable(phase: 0.7501))
-    }
-
     func test_moonlightLevel_switchesAtThresholds() {
         XCTAssertEqual(MoonPhase.moonlightLevel(illumination: 0.1499), .low)
         XCTAssertEqual(MoonPhase.moonlightLevel(illumination: 0.15), .moderate)
