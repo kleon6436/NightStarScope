@@ -97,6 +97,11 @@ struct NightScopeCommands: Commands {
                 openWindow(id: "dashboard")
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
+
+            Button(L10n.tr("月齢カレンダー")) {
+                openWindow(id: LunarCalendarWindowView.windowID)
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
         }
     }
 }
@@ -137,7 +142,7 @@ struct NightScopeApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: LunarCalendarWindowView.mainWindowID) {
             ContentView(
                 dependencies: rootDependencies
             )
@@ -154,6 +159,13 @@ struct NightScopeApp: App {
                 .environmentObject(weatherAttributionService)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
+
+        Window(L10n.tr("月齢カレンダー"), id: LunarCalendarWindowView.windowID) {
+            LunarCalendarWindowView(viewModel: rootDependencies.lunarCalendarViewModel)
+        }
+        // メニュー項目は NightScopeCommands で 1 つだけ（⌘⇧M）置き、自動で追加される項目は出さない。
+        .commandsRemoved()
+        .defaultLaunchBehavior(.suppressed)
 
         Settings {
             SettingsView(

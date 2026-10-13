@@ -54,6 +54,17 @@
         }
       }
     },
+    "月の満ち欠けと月明かりの少ない夜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon phases and nights with little moonlight"
+          }
+        }
+      }
+    },
     "月明かりほぼなし" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -83,6 +94,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bright moonlight"
+          }
+        }
+      }
+    },
+    "月齢カレンダー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon Phase Calendar"
           }
         }
       }

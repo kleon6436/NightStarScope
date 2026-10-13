@@ -190,22 +190,22 @@ struct LunarCalendarDayCell: View {
                     if day.isDarkNight {
                         Image(systemName: AppIcons.Astronomy.darkNight)
                             .font(.system(size: LunarCalendarStyle.badgeSize))
-                            .foregroundStyle(isSelected ? Color.white : Color.indigo)
+                            .foregroundStyle(Color.indigo)
                     }
                 }
                 MoonPhaseGlyph(phase: day.phase, isSouthernHemisphere: isSouthernHemisphere, size: LunarCalendarStyle.glyphSize)
                 if showsMoonAge {
                     Text(String(format: "%.1f", day.moonAge))
                         .font(.caption2.monospacedDigit())
-                        .foregroundStyle(isSelected ? Color.white.opacity(0.85) : Color.secondary)
+                        .foregroundStyle(Color.secondary)
                 }
                 if let event = day.principalEvent {
                     Image(systemName: event.kind.icon)
                         .font(.caption2)
-                        .foregroundStyle(isSelected ? Color.white : Color.yellow)
+                        .foregroundStyle(Color.yellow)
                 }
             }
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(Color.primary)
             .frame(maxWidth: .infinity, minHeight: LunarCalendarStyle.cellMinHeight)
             .padding(.vertical, Spacing.xxs)
             .background(background)
@@ -227,7 +227,8 @@ struct LunarCalendarDayCell: View {
     private var background: some View {
         let shape = RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
         if isSelected {
-            shape.fill(Color.accentColor)
+            // 月の輝面が埋もれないよう、選択中も淡い塗りにとどめる。
+            shape.fill(Color.accentColor.opacity(0.3))
         } else if day.isDarkNight {
             shape.fill(Color.indigo.opacity(0.18))
         } else {
@@ -323,14 +324,6 @@ struct LunarNightDetailPanel: View {
                 } icon: {
                     Image(systemName: day.moonlightLevel.icon)
                         .foregroundStyle(day.moonlightLevel.tint)
-                }
-                if day.isDarkNight {
-                    Label {
-                        Text(L10n.tr("暗い夜（月明かりほぼなし）"))
-                    } icon: {
-                        Image(systemName: AppIcons.Astronomy.darkNight)
-                            .foregroundStyle(.indigo)
-                    }
                 }
             }
             .font(.body.monospacedDigit())

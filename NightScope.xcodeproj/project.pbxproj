@@ -18,6 +18,7 @@
 		14313BC5353B03D3618DC25C /* MoonPhaseGlyphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4AD2FDBD9FAD9D627E3D58C /* MoonPhaseGlyphTests.swift */; };
 		14E29A763046C8DBB1100A01 /* ObservationMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A11 /* ObservationMode.swift */; };
 		14E29A763046C8DBB1100A02 /* StarGazingIndexMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E29A763046C8DBB1100A12 /* StarGazingIndexMode.swift */; };
+		1A147307786947F1F470328F /* iOSLunarCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C64042587EF8F43FAB9134 /* iOSLunarCalendarView.swift */; };
 		1A2B3C4D5E6F708192A3B4C5 /* iOSStarMapSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */; };
 		2200EE4799CF4D206E03335B /* MoonPhaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CC347BB1D0E062491DB420 /* MoonPhaseTests.swift */; };
 		29624CDBDF973E033D5A20FC /* iOSMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E51B35725701CA2DB51488 /* iOSMapView.swift */; };
@@ -161,6 +162,7 @@
 		AEF100000000000000000022 /* WeatherKitServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000002 /* WeatherKitServiceSupport.swift */; };
 		B180E3FFB6E5E72D560A7E78 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
 		B66ECDD7AD401F013891BF8E /* StarGazingIndexCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F04 /* StarGazingIndexCardViewModel.swift */; };
+		B855D7D67504AB2744B5BBD7 /* LunarCalendarWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691FCEFB689259A20336694F /* LunarCalendarWindowView.swift */; };
 		B8EC0EB2971B109AA4BF3F43 /* SearchResultViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93053B7368EAC3C217DC7600 /* SearchResultViews.swift */; };
 		BB0000000000000000002B21 /* StarCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000002F21 /* StarCatalog.swift */; };
 		BB0000000000000000002B22 /* StarMapCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000002F22 /* StarMapCanvasView.swift */; };
@@ -319,6 +321,7 @@
 		4E94117CA626166369DF4559 /* LunarCalendarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LunarCalendarView.swift; sourceTree = "<group>"; };
 		4F5261CADE1879D741D7A7C8 /* StarMapTerrainCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StarMapTerrainCoordinator.swift; sourceTree = "<group>"; };
 		646339DC8525BEBE9BC93536 /* MoonPhase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MoonPhase.swift; sourceTree = "<group>"; };
+		691FCEFB689259A20336694F /* LunarCalendarWindowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LunarCalendarWindowView.swift; sourceTree = "<group>"; };
 		6C1674E72F8E7B7500AF040A /* ObservationTimeZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationTimeZone.swift; sourceTree = "<group>"; };
 		6C18B76F2F791309007949F3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6CD4ED0E2F83B99000ECC17B /* MapTileOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapTileOverlay.swift; sourceTree = "<group>"; };
@@ -435,6 +438,7 @@
 		D0E51B35725701CA2DB51488 /* iOSMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSMapView.swift; sourceTree = "<group>"; };
 		D1A100000000000000000001 /* StarMapDisplaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapDisplaySettings.swift; sourceTree = "<group>"; };
 		D1A100000000000000000004 /* StarMapDisplaySettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapDisplaySettingsSection.swift; sourceTree = "<group>"; };
+		D4C64042587EF8F43FAB9134 /* iOSLunarCalendarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLunarCalendarView.swift; sourceTree = "<group>"; };
 		DDB100000000000000001001 /* DashboardCommandBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScope/Controllers/DashboardCommandBridge.swift; sourceTree = "<group>"; };
 		DDB100000000000000001002 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		DDB100000000000000001003 /* MapSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapSnapshotCache.swift; sourceTree = "<group>"; };
@@ -542,6 +546,7 @@
 				AA0000000000000000002F13 /* ObservationModeMenu.swift */,
 				49D29ECC147ED54DD9F02540 /* LayoutMacOS.swift */,
 				19061EF9979D0D74C3E3B5C2 /* MacScrollWheelZoomModifier.swift */,
+				691FCEFB689259A20336694F /* LunarCalendarWindowView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -570,6 +575,7 @@
 				2C4FF1AF217AF56546E11BB3 /* iOSLocationView.swift */,
 				BB0000000000000000004F01 /* iOSStarMapView.swift */,
 				1A2B3C4D5E6F708192A3B4C4 /* iOSStarMapSupport.swift */,
+				D4C64042587EF8F43FAB9134 /* iOSLunarCalendarView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1082,6 +1088,7 @@
 				DC00D69BD06D6AA96770CA4D /* LunarCalendarViewModel.swift in Sources */,
 				140C823AA97693A3DF321614 /* MoonPhaseGlyph.swift in Sources */,
 				E65117532970A290717BCDDF /* LunarCalendarView.swift in Sources */,
+				1A147307786947F1F470328F /* iOSLunarCalendarView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1203,6 +1210,7 @@
 				7AEAB616B7720F410D153DA6 /* LunarCalendarViewModel.swift in Sources */,
 				A2B55250F16B504828FD6DDB /* MoonPhaseGlyph.swift in Sources */,
 				C7462350E1588CA470261E2E /* LunarCalendarView.swift in Sources */,
+				B855D7D67504AB2744B5BBD7 /* LunarCalendarWindowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

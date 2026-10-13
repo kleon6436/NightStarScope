@@ -26,4 +26,15 @@ final class ViewHelperTests: XCTestCase {
         XCTAssertTrue(SearchResultsLayout.needsScroll(resultCount: 3, visibleRowCapacity: 2.5))
         XCTAssertTrue(SearchResultsLayout.needsScroll(resultCount: 4, visibleRowCapacity: 3.38))
     }
+
+    // MARK: - LunarCalendarWindowView.isMainWindow
+
+    func test_isMainWindow_matchesOnlyMainWindowGroupIdentifiers() {
+        XCTAssertTrue(LunarCalendarWindowView.isMainWindow(identifier: "main"))
+        XCTAssertTrue(LunarCalendarWindowView.isMainWindow(identifier: "main-AppWindow-1"))
+        XCTAssertFalse(LunarCalendarWindowView.isMainWindow(identifier: "dashboard-AppWindow-1"))
+        XCTAssertFalse(LunarCalendarWindowView.isMainWindow(identifier: "lunarCalendar"))
+        XCTAssertFalse(LunarCalendarWindowView.isMainWindow(identifier: "mainframe"))
+        XCTAssertFalse(LunarCalendarWindowView.isMainWindow(identifier: nil))
+    }
 }

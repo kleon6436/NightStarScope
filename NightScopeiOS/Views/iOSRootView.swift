@@ -48,6 +48,12 @@ struct iOSRootView: View {
                     Label("星空", systemImage: "sparkles")
                 }
                 .tag(3)
+
+            iOSLunarCalendarView(viewModel: rootStore.lunarCalendarViewModel, selectedTab: $selectedTab)
+                .tabItem {
+                    Label("月齢", systemImage: AppIcons.Astronomy.moonPhaseWaxingCrescent)
+                }
+                .tag(4)
         }
         .onAppear {
             handleActiveSceneIfNeeded()
