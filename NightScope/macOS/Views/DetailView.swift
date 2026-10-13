@@ -5,6 +5,7 @@ struct DetailView: View {
     @ObservedObject var viewModel: DetailViewModel
     @ObservedObject var observationModePreference: ObservationModePreference
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openWindow) private var openWindow
 
     @StateObject private var starGazingIndexCardViewModel: StarGazingIndexCardViewModel
     @StateObject private var nightWeatherCardViewModel: NightWeatherCardViewModel
@@ -154,6 +155,7 @@ struct DetailView: View {
         }
         ToolbarItemGroup(placement: .primaryAction) {
             starMapButton
+            lunarCalendarButton
             ObservationModeMenu(observationModePreference: observationModePreference)
         }
     }
@@ -168,6 +170,17 @@ struct DetailView: View {
         .disabled(viewModel.isCalculating)
         .help(L10n.tr("星空マップを表示"))
         .accessibilityHint(L10n.tr("選択した日付の星空マップを開きます"))
+    }
+
+    private var lunarCalendarButton: some View {
+        Button {
+            openWindow(id: LunarCalendarWindowView.windowID)
+        } label: {
+            Label("月齢カレンダー", systemImage: AppIcons.Astronomy.moonPhaseWaxingCrescent)
+        }
+        .glassButtonStyle()
+        .help(L10n.tr("月齢カレンダーを表示"))
+        .accessibilityHint(L10n.tr("月の満ち欠けを月ごとに表示するウィンドウを開きます"))
     }
 
     // MARK: - Location Title Bar

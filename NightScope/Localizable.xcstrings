@@ -65,6 +65,17 @@
         }
       }
     },
+    "月の満ち欠けを月ごとに表示するウィンドウを開きます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens a window showing the moon phases for each month"
+          }
+        }
+      }
+    },
     "月明かりほぼなし" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -105,6 +116,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Moon Phase Calendar"
+          }
+        }
+      }
+    },
+    "月齢カレンダーを表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Moon Phase Calendar"
           }
         }
       }
