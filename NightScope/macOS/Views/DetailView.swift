@@ -154,6 +154,8 @@ struct DetailView: View {
             ToolbarSpacer(.fixed, placement: .primaryAction)
         }
         ToolbarItemGroup(placement: .primaryAction) {
+            refreshButton
+            dashboardButton
             starMapButton
             lunarCalendarButton
             ObservationModeMenu(observationModePreference: observationModePreference)
@@ -181,6 +183,27 @@ struct DetailView: View {
         .glassButtonStyle()
         .help(L10n.tr("月齢カレンダーを表示"))
         .accessibilityHint(L10n.tr("月の満ち欠けを月ごとに表示するウィンドウを開きます"))
+    }
+
+    private var refreshButton: some View {
+        Button {
+            viewModel.refreshExternalDataInBackground()
+        } label: {
+            Label("データを更新", systemImage: "arrow.clockwise")
+        }
+        .glassButtonStyle()
+        .disabled(viewModel.isWeatherLoading)
+        .help(L10n.tr("データを更新"))
+    }
+
+    private var dashboardButton: some View {
+        Button {
+            openWindow(id: "dashboard")
+        } label: {
+            Label(L10n.tr("複数地点ダッシュボード"), systemImage: "square.grid.2x2")
+        }
+        .glassButtonStyle()
+        .help(L10n.tr("複数地点ダッシュボード"))
     }
 
     // MARK: - Location Title Bar
