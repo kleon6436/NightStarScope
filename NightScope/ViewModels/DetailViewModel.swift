@@ -228,6 +228,11 @@ final class DetailViewModel: ObservableObject {
         await appController.recalculateUpcomingAndWait()
     }
 
+    /// 天気と光害データの再取得をバックグラウンドで開始する。
+    func refreshExternalDataInBackground() {
+        appController.refreshExternalDataInBackground()
+    }
+
     /// バックグラウンドで天気再取得を行う。
     func retryWeatherInBackground() {
         Task {
