@@ -557,7 +557,7 @@ private struct MacStarMapSheet: View {
                 statusChip(
                     systemImage: "moon.fill",
                     text: L10n.format("月 %.0f°", viewModel.moonAltitude),
-                    tint: .white.opacity(0.8)
+                    tint: .primary.opacity(0.8)
                 )
             }
 
@@ -588,7 +588,7 @@ private struct MacStarMapSheet: View {
         if let radiant = viewModel.meteorShowerRadiants.first {
             return (
                 L10n.format("%@活動中", radiant.shower.localizedName),
-                StarMapPalette.meteorAccent
+                StarMapPalette.meteorAccentOnSurface
             )
         }
         if let next = viewModel.nextMeteorShower {

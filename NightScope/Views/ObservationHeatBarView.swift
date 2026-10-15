@@ -33,10 +33,11 @@ struct ObservationHeatBarView: View {
                     .clipShape(Capsule())
 
                     Capsule()
-                        .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+                        .strokeBorder(.primary.opacity(0.2), lineWidth: 0.5)
 
+                    // macOS ではウィンドウ背景、iOS では暗い星図の上に載るため、配色に追従させる。
                     Capsule()
-                        .fill(.white.opacity(0.9))
+                        .fill(.primary.opacity(0.9))
                         .frame(width: 3, height: proxy.size.height + 4)
                         .offset(x: min(max(indicatorX - 1.5, 0), max(proxy.size.width - 3, 0)))
                         .shadow(color: .black.opacity(0.25), radius: 1)

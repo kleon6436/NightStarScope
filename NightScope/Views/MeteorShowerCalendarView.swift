@@ -417,10 +417,10 @@ private struct ShowerTimelineRow: View {
         let rect = CGRect(x: x - pr, y: midY - pr, width: pr * 2, height: pr * 2)
         ctx.fill(Path(ellipseIn: rect), with: .color(shower.intensity.color))
 
-        // 極大日のアウトライン
+        // 極大日のアウトライン（ライトモードの白背景でも見えるよう配色に追従させる）
         ctx.stroke(
             Path(ellipseIn: rect),
-            with: .color(.white.opacity(0.6)),
+            with: .color(.primary.opacity(0.6)),
             lineWidth: 0.8
         )
     }
