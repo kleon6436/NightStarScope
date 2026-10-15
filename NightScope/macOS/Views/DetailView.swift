@@ -150,14 +150,28 @@ struct DetailView: View {
         ToolbarItem(placement: .principal) {
             locationTitleBar
         }
+        // Liquid Glass（macOS 26）ではツールバー項目にシステムがガラス背景を付け、
+        // 同じ ToolbarItemGroup の項目を 1 枚のガラスにまとめる。
+        // ボタン個別にガラススタイルを当てると二重のガラスになるため付けず、
+        // 役割ごとにグループを分けて ToolbarSpacer で区切る。
+        if #available(macOS 26, *) {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            refreshButton
+        }
         if #available(macOS 26, *) {
             ToolbarSpacer(.fixed, placement: .primaryAction)
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            refreshButton
-            dashboardButton
             starMapButton
             lunarCalendarButton
+            dashboardButton
+        }
+        if #available(macOS 26, *) {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+        }
+        ToolbarItem(placement: .primaryAction) {
             ObservationModeMenu(observationModePreference: observationModePreference)
         }
     }
@@ -168,7 +182,6 @@ struct DetailView: View {
         } label: {
             Label("星空マップ", systemImage: AppIcons.Astronomy.sparkles)
         }
-        .glassButtonStyle()
         .disabled(viewModel.isCalculating)
         .help(L10n.tr("星空マップを表示"))
         .accessibilityHint(L10n.tr("選択した日付の星空マップを開きます"))
@@ -180,7 +193,6 @@ struct DetailView: View {
         } label: {
             Label("月齢カレンダー", systemImage: AppIcons.Astronomy.moonPhaseWaxingCrescent)
         }
-        .glassButtonStyle()
         .help(L10n.tr("月齢カレンダーを表示"))
         .accessibilityHint(L10n.tr("月の満ち欠けを月ごとに表示するウィンドウを開きます"))
     }
@@ -191,7 +203,6 @@ struct DetailView: View {
         } label: {
             Label("データを更新", systemImage: "arrow.clockwise")
         }
-        .glassButtonStyle()
         .disabled(viewModel.isWeatherLoading)
         .help(L10n.tr("データを更新"))
     }
@@ -202,7 +213,6 @@ struct DetailView: View {
         } label: {
             Label(L10n.tr("複数地点ダッシュボード"), systemImage: "square.grid.2x2")
         }
-        .glassButtonStyle()
         .help(L10n.tr("複数地点ダッシュボード"))
     }
 
