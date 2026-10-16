@@ -45,7 +45,14 @@ enum StarMapPalette {
     static let canvasBackground = Color(red: 0.02, green: 0.04, blue: 0.12)
     static let groundFill = Color(red: 0.06, green: 0.04, blue: 0.02)
     static let meteorAccent = Color(red: 0.4, green: 1.0, blue: 0.7)
-    static let terrainAvailable = Color(red: 0.4, green: 1.0, blue: 0.7)
+    /// 星図の外（通常のウィンドウ背景）に置く文字用。ライトモードでは白地で読めるよう濃くする。
+    static let meteorAccentOnSurface = Color.adaptive(light: surfaceAccentLight, dark: meteorAccent)
+    /// 地形データ取得済みの表示色。星図の外の文字に使うため、ライトモードでは濃くする。
+    static let terrainAvailable = Color.adaptive(
+        light: surfaceAccentLight,
+        dark: Color(red: 0.4, green: 1.0, blue: 0.7)
+    )
+    private static let surfaceAccentLight = Color(red: 0.0, green: 0.48, blue: 0.33)
 
     // MARK: - Dynamic Sky Color
 
