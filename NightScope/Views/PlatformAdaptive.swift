@@ -8,11 +8,25 @@ extension Color {
     static var platformWindowBackground: Color { Color(nsColor: .windowBackgroundColor) }
     /// カードなど一段上のサーフェス色（macOS: controlBackgroundColor / iOS: secondarySystemBackground）。
     static var platformSecondaryBackground: Color { Color(nsColor: .controlBackgroundColor) }
+
+    /// ライト / ダークで値を切り替える色。
+    static func adaptive(light: Color, dark: Color) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(dark) : NSColor(light)
+        })
+    }
     #else
     /// ウィンドウ全体の背景色（macOS: windowBackgroundColor / iOS: systemBackground）。
     static var platformWindowBackground: Color { Color(uiColor: .systemBackground) }
     /// カードなど一段上のサーフェス色（macOS: controlBackgroundColor / iOS: secondarySystemBackground）。
     static var platformSecondaryBackground: Color { Color(uiColor: .secondarySystemBackground) }
+
+    /// ライト / ダークで値を切り替える色。
+    static func adaptive(light: Color, dark: Color) -> Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
+        })
+    }
     #endif
 }
 

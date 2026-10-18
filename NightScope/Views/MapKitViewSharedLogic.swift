@@ -379,8 +379,9 @@ final class MapKitCoordinatorState {
         }
         if overlay is ViewingDirectionOverlay {
             let renderer = MKPolygonRenderer(overlay: overlay)
-            renderer.fillColor = .white.withAlphaComponent(0.15)
-            renderer.strokeColor = .white.withAlphaComponent(0.5)
+            // 白はライトモードの標準地図に溶けるため、どちらの外観でも見える青系で描く。
+            renderer.fillColor = .systemBlue.withAlphaComponent(0.18)
+            renderer.strokeColor = .systemBlue.withAlphaComponent(0.7)
             renderer.lineWidth = 1.0
             return renderer
         }

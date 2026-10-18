@@ -50,6 +50,8 @@ struct iOSStarMapView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
             }
+            // 星図は常に暗い背景（夜空またはカメラ映像）の上に描くため、操作パネルもダーク配色に固定する。
+            .environment(\.colorScheme, .dark)
             .toolbarBackground(.hidden, for: .navigationBar)
         }
         .onAppear {

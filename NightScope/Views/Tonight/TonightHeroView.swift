@@ -33,6 +33,8 @@ struct TonightHeroView: View {
                 .lineLimit(textLineLimit)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // 背景は常に暗い空なので、評価チップの Tier 色などもダーク用の値で解決させる。
+        .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
     }
