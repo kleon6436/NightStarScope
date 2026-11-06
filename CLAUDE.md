@@ -34,7 +34,7 @@ Single test class: append `-only-testing NightScopeTests/<TestClassName>` to the
 
 ### Core Data Flow
 
-`AppController` is the central state coordinator. It owns all services and publishes `ObservationState` snapshots to the view layer.
+`AppController` is the central state coordinator. It owns the core services below and publishes `ObservationState` snapshots to the view layer.
 
 ```
 AppController
@@ -42,10 +42,11 @@ AppController
 ├── WeatherKitService        (Apple WeatherKit, protocol: WeatherProviding)
 ├── LightPollutionService    (reads bortle_map.bin, protocol: LightPollutionProviding)
 ├── NightCalculationService  (wraps MilkyWayCalculator async, protocol: NightCalculating)
-└── FavoriteLocationStore    (UserDefaults / iCloud KVStore)
+├── any FavoriteLocationStoring  (FavoriteLocationStore: UserDefaults / iCloudFavoriteLocationStore: iCloud KVStore, picked by FavoritesComposition)
+└── FavoriteSyncReconciler   (differences between iCloud and local favorites)
 ```
 
-`AppRootDependencies` assembles all ViewModels from `AppController` and injects them at app startup via `AppRootStore`.
+`AppRootDependencies` assembles the root ViewModels (sidebar, detail, star map, lunar calendar) from `AppController` and injects them at app startup via `AppRootStore`. Card and grid ViewModels are created by their views.
 
 ### Calculation Pipeline
 
@@ -60,16 +61,19 @@ Key services are protocol-backed for testability:
 - `NightCalculating` — `calculateNightSummary` / `calculateUpcomingNights`
 - `LightPollutionProviding` — `bortleClass` publisher
 - `LocationProviding` — full location state interface used by ViewModels
-- `FavoriteLocationStoring` — CRUD for saved locations
+- `FavoriteLocationStoring` — `loadAll` / `save` of the whole saved-location list, plus `locationsPublisher`
 
 Test doubles (`MockLocationController`, `MockLightPollutionService`, etc.) live in `NightScopeTests/ViewModelTestSupport.swift`.
 
 ### StarMap ViewModel Split
 
-`StarMapViewModel` delegates to three focused files:
+`StarMapViewModel` delegates to focused files in `NightScope/ViewModels/`:
 - `StarMapComputation.swift` — sky position math
 - `StarMapDateLogic.swift` — date/time handling
 - `StarMapPresentation.swift` — display state
+- `StarMapObservationTimeline.swift` — observation condition timeline
+- `StarMapTerrainCoordinator.swift` — terrain fetching
+- `StarMapTimeSliderScheduler.swift` — time slider scheduling
 
 ### iOS Target
 
@@ -91,16 +95,16 @@ If elevation binaries are absent, `TerrainService` returns nil and the app runs 
 
 ## Key Conventions
 
-- All controllers and ViewModels are `@MainActor`. Services that do async I/O use `Task` internally and publish results back on the main actor.
+- `*Controller` classes and class-based ViewModels are `@MainActor`; struct ViewModels (`DarkTimeCardViewModel`, `ViewingWindowsSectionViewModel`) are plain values. `WeatherKitService` and `LightPollutionService` are `@MainActor` and publish results; `TerrainService` is an `actor` and `NightCalculationService` a `Sendable` class, and both return results to async callers.
 - `ObservationState` is a value-type snapshot published from `AppController` to avoid multiple `@Published` subscriptions in views.
 - Batch state mutations use `performObservationStateBatchUpdate {}` to emit one `ObservationState` change instead of many.
 - `DashboardCommandBridge` is a Combine-based bridge for the macOS Dashboard window to push selections into the main window.
 - Location changes cancel in-flight calculation tasks and restart them atomically via `scheduleLocationChangeHandling()`.
-- iCloud sync for favorites is opt-in (`iCloudSyncEnabled` UserDefaults key); one-time migration from local store runs on first enable.
+- iCloud sync for favorites is opt-in (`iCloudSyncEnabled` UserDefaults key). There is no automatic migration: the iCloud KV store is the source of truth, and `FavoriteSyncReconciler` handles differences from the local list.
 
 ## Development Notes
 
 - Before changes likely to exceed 200 lines, plan first and propose to the user.
 - WeatherKit requires an active Apple Developer Program membership; tests must pass `CODE_SIGNING_ALLOWED=NO`.
-- Attribution for CC BY 4.0 data sources is displayed in Settings → Data Sources & Credits and via `WeatherAttributionBadge`.
+- Attribution for the bundled data sources is displayed in Settings → Data Sources & Credits. `WeatherAttributionBadge` shows the Apple Weather mark and legal link required on screens that display WeatherKit data.
 - Verify API license terms before adding or modifying external data sources.
