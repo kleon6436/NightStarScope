@@ -378,6 +378,17 @@ actor MockNightCalculationService: NightCalculating {
         upcomingResponses.append((summaries, delayMilliseconds * 1_000_000))
     }
 
+    /// 地点ごとの応答。複数地点を並列に計算する経路では呼び出し順が決まらないため、順番待ちの応答より優先する。
+    private var upcomingResponsesByLocation: [String: [NightSummary]] = [:]
+
+    func setUpcomingNights(_ summaries: [NightSummary], latitude: Double, longitude: Double) {
+        upcomingResponsesByLocation[Self.locationKey(latitude: latitude, longitude: longitude)] = summaries
+    }
+
+    private static func locationKey(latitude: Double, longitude: Double) -> String {
+        String(format: "%.4f,%.4f", latitude, longitude)
+    }
+
     func calculateNightSummary(
         date: Date,
         location: CLLocationCoordinate2D,
@@ -401,6 +412,11 @@ actor MockNightCalculationService: NightCalculating {
         days: Int
     ) async -> [NightSummary] {
         upcomingCallCount += 1
+        if let summaries = upcomingResponsesByLocation[
+            Self.locationKey(latitude: location.latitude, longitude: location.longitude)
+        ] {
+            return summaries
+        }
         guard !upcomingResponses.isEmpty else {
             return []
         }

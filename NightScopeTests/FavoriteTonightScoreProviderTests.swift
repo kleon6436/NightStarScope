@@ -74,9 +74,13 @@ final class FavoriteTonightScoreProviderTests: XCTestCase {
         let weatherService = MockTonightWeatherService()
         weatherService.register(favorite: succeeding, dates: [baseDate])
         let calculationService = MockNightCalculationService()
-        // 1 件目は夜間サマリーが得られず失敗扱いになる。
-        await calculationService.enqueueUpcomingNights([])
-        await calculationService.enqueueUpcomingNights([makeNightSummary(date: baseDate, withWindow: true)])
+        // Failing は夜間サマリーが得られず失敗扱いになる。地点は並列に計算されるため、応答は地点で指定する。
+        await calculationService.setUpcomingNights([], latitude: 35.0, longitude: 135.0)
+        await calculationService.setUpcomingNights(
+            [makeNightSummary(date: baseDate, withWindow: true)],
+            latitude: 36.0,
+            longitude: 136.0
+        )
 
         let provider = FavoriteTonightScoreProvider(
             weatherService: weatherService,
