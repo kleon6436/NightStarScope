@@ -75,6 +75,8 @@ struct StarMapCanvasView: View {
     var horizonOverlayStyle: HorizonOverlayStyle = .default
     var fovOverride: Double? = nil
     var rollOverride: Double? = nil
+    /// シンチレーションの位相を固定する（描画結果を再現可能にするスナップショット用）。
+    var scintillationTimeOverride: Double? = nil
 
     /// クリック/タップで天体を選択したときに呼ばれるコールバック (macOS で使用)
     var onStarSelected: ((StarPosition) -> Void)? = nil
@@ -235,23 +237,28 @@ struct StarMapCanvasView: View {
         viewModel.isNight && !reduceMotion
     }
 
+    /// 星図は 2 枚の Canvas に分けて描く。
+    /// - 下層: 空・地面・星座線・天の川・暗い星。視点や表示内容が変わったときだけ描き直す。
+    /// - 上層: 明るい星（シンチレーションで明滅する）とそれより手前に描くもの。夜間は TimelineView で 4fps 更新する。
+    /// 明滅のためだけに 1 万個超の星と天の川を毎回描き直さないようにするための分割で、重なり順は 1 枚で描いていたときと同じ。
     private func canvas(size: CGSize) -> some View {
-        TimelineView(.animation(minimumInterval: 0.25, paused: !scintillationEnabled)) { timeline in
+        ZStack {
             Canvas { ctx, sz in
-                let cx = sz.width / 2
-                let cy = sz.height / 2
-                let (centerAlt, centerAz) = effectiveGnomonicCenter(size: sz)
-                let roll = effectiveGnomonicRoll()
-                let fov = effectiveGnomonicFOV()
-                let scintillationTime = scintillationEnabled
-                    ? timeline.date.timeIntervalSinceReferenceDate : 0
                 let signposter = PerformanceSignposts.signposter
                 let signpostState = signposter.beginInterval("StarMapCanvasDraw", id: signposter.makeSignpostID())
-                drawGnomonicProjection(ctx: ctx, cx: cx, cy: cy, size: sz,
-                                       centerAlt: centerAlt, centerAz: centerAz,
-                                       roll: roll, fov: fov,
-                                       scintillationTime: scintillationTime)
+                drawStaticSkyLayer(ctx: ctx, size: sz, projection: gnomonicProjection(size: sz))
                 signposter.endInterval("StarMapCanvasDraw", signpostState)
+            }
+            TimelineView(.animation(minimumInterval: 0.25, paused: !scintillationEnabled)) { timeline in
+                Canvas { ctx, sz in
+                    let scintillationTime = scintillationTimeOverride
+                        ?? (scintillationEnabled ? timeline.date.timeIntervalSinceReferenceDate : 0)
+                    let signposter = PerformanceSignposts.signposter
+                    let signpostState = signposter.beginInterval("StarMapTwinkleDraw", id: signposter.makeSignpostID())
+                    drawForegroundLayer(ctx: ctx, size: sz, projection: gnomonicProjection(size: sz),
+                                        scintillationTime: scintillationTime)
+                    signposter.endInterval("StarMapTwinkleDraw", signpostState)
+                }
             }
         }
     }
@@ -302,18 +309,20 @@ struct StarMapCanvasView: View {
     }
 
 
-    private func drawGnomonicProjection(ctx: GraphicsContext,
-                                        cx: Double, cy: Double, size: CGSize,
-                                        centerAlt: Double, centerAz: Double, roll: Double, fov: Double,
-                                        scintillationTime: Double = 0) {
-        let projection = GnomonicProjectionContext(
+    /// 両方の Canvas で同じ投影を使うため、ジェスチャー中のライブ視点を含めてここで組み立てる。
+    private func gnomonicProjection(size: CGSize) -> GnomonicProjectionContext {
+        let (centerAlt, centerAz) = effectiveGnomonicCenter(size: size)
+        return GnomonicProjectionContext(
             size: size,
             centerAlt: centerAlt,
             centerAz: centerAz,
-            rollDegrees: roll,
-            fov: fov
+            rollDegrees: effectiveGnomonicRoll(),
+            fov: effectiveGnomonicFOV()
         )
+    }
 
+    /// 下層: 空・地面・星座線・天の川・暗い星（明滅しないもの）。
+    private func drawStaticSkyLayer(ctx: GraphicsContext, size: CGSize, projection: GnomonicProjectionContext) {
         // 動的空色の塗りつぶし
         if drawsDynamicSky {
             let skyColor = StarMapPalette.skyColor(
@@ -337,13 +346,14 @@ struct StarMapCanvasView: View {
                 let a1 = max(line.startAlt, -5) * .pi / 180
                 let a2 = max(line.endAlt,   -5) * .pi / 180
                 if let p1 = projection.project(altitudeRadians: a1, azimuthRadians: line.startAz * .pi / 180),
-                   let p2 = projection.project(altitudeRadians: a2, azimuthRadians: line.endAz * .pi / 180) {
+                   let p2 = projection.project(altitudeRadians: a2, azimuthRadians: line.endAz * .pi / 180),
+                   !Self.isSegmentOutsideCanvas(p1, p2, canvasSize: size, margin: 2) {
                     constPath.move(to: p1)
                     constPath.addLine(to: p2)
                 }
             }
             ctx.stroke(constPath,
-                       with: .color(Color(red: 0.4, green: 0.6, blue: 0.9).opacity(0.35)),
+                       with: .color(Self.constellationLineColor),
                        lineWidth: 1)
         }
 
@@ -357,26 +367,48 @@ struct StarMapCanvasView: View {
             )
         }
 
-        // 恒星
-        let moonBright = StarMapPalette.moonBrightness(
+        // 暗い恒星（明るい星は上層で描く）
+        drawFaintStarsBatched(
+            ctx: ctx,
+            stars: viewModel.starPositions,
+            isDark: viewModel.isNight,
+            moonBrightness: currentMoonBrightness,
+            canvasSize: size
+        ) { alt, az in
+            projection.project(altitudeRadians: alt, azimuthRadians: az)
+        }
+    }
+
+    private var currentMoonBrightness: Double {
+        StarMapPalette.moonBrightness(
             moonAltitude: viewModel.moonAltitude,
             moonPhase: viewModel.moonPhase
         )
-        for pos in viewModel.starPositions {
-            // 地平線近くの暗い星をスキップ
-            if pos.altitude < 5 && pos.star.magnitude > 6.0 { continue }
+    }
+
+    /// 上層: 明るい恒星（シンチレーション）と、それより手前に描くラベル・月・惑星・地形など。
+    private func drawForegroundLayer(ctx: GraphicsContext, size: CGSize,
+                                     projection: GnomonicProjectionContext,
+                                     scintillationTime: Double) {
+        // 明るい恒星
+        let moonBright = currentMoonBrightness
+        let isDark = viewModel.isNight
+        for pos in viewModel.starPositions where pos.star.magnitude < StarMapStarStyle.glowMagnitudeLimit {
             let alt = pos.altitude * .pi / 180
             let az  = pos.azimuth  * .pi / 180
-            if let pt = projection.project(altitudeRadians: alt, azimuthRadians: az) {
-                drawStar(ctx: ctx, at: pt, magnitude: pos.star.magnitude,
-                         isDark: viewModel.isNight, precomputedColor: pos.precomputedColor,
-                         altitude: pos.altitude,
-                         moonBrightness: moonBright,
-                         scintillationTime: scintillationTime,
-                         starRA: pos.star.ra)
-                if pos.star.magnitude < 1.5, !pos.star.localizedName.isEmpty {
-                    drawStarLabel(ctx: ctx, at: pt, name: pos.star.localizedName)
-                }
+            guard let pt = projection.project(altitudeRadians: alt, azimuthRadians: az) else { continue }
+            let hasLabel = pos.star.magnitude < StarMapStarStyle.labelMagnitudeLimit && !pos.star.name.isEmpty
+            let extent = StarMapStarStyle.drawExtent(magnitude: pos.star.magnitude)
+                + (hasLabel ? StarMapStarStyle.labelCullingMargin : 0)
+            guard StarMapStarStyle.isPotentiallyVisible(pt, extent: extent, canvasSize: size) else { continue }
+            drawStar(ctx: ctx, at: pt, magnitude: pos.star.magnitude,
+                     isDark: isDark, precomputedColor: pos.precomputedColor,
+                     altitude: pos.altitude,
+                     moonBrightness: moonBright,
+                     scintillationTime: scintillationTime,
+                     starRA: pos.star.ra)
+            if hasLabel {
+                drawStarLabel(ctx: ctx, at: pt, name: pos.star.localizedName)
             }
         }
 
@@ -401,7 +433,7 @@ struct StarMapCanvasView: View {
                 ctx.draw(
                     Text(placement.name)
                         .font(.system(size: 11))
-                        .foregroundColor(Color(red: 0.6, green: 0.8, blue: 1.0).opacity(0.52)),
+                        .foregroundColor(Self.constellationLabelColor),
                     at: placement.origin,
                     anchor: .topLeading
                 )
@@ -473,14 +505,24 @@ struct StarMapCanvasView: View {
                 project: { alt, az in
                     projection.project(altitudeRadians: alt, azimuthRadians: az)
                 },
-                centerAz: centerAz,
-                fov: fov,
+                centerAz: effectiveGnomonicCenter(size: size).az,
+                fov: effectiveGnomonicFOV(),
                 size: size,
                 terrain: terrain
             )
         }
 
-        drawCrosshair(ctx: ctx, cx: cx, cy: cy)
+        drawCrosshair(ctx: ctx, cx: projection.cx, cy: projection.cy)
+    }
+
+    /// 線分の両端がキャンバス（`margin` だけ外側へ広げた矩形）の同じ辺の外側にあり、線分全体が見えないか。
+    /// 画面をまたぐ線分を落とさないよう、片側に寄っている場合だけ true を返す。
+    nonisolated static func isSegmentOutsideCanvas(_ p1: CGPoint, _ p2: CGPoint,
+                                                   canvasSize: CGSize, margin: Double) -> Bool {
+        (p1.x < -margin && p2.x < -margin)
+            || (p1.x > canvasSize.width + margin && p2.x > canvasSize.width + margin)
+            || (p1.y < -margin && p2.y < -margin)
+            || (p1.y > canvasSize.height + margin && p2.y > canvasSize.height + margin)
     }
 
     // MARK: - Gnomonic Ground / Horizon / Cardinals

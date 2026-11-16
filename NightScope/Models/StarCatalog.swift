@@ -15,7 +15,7 @@ struct Star: Sendable {
 
     var localizedName: String {
         guard !name.isEmpty else { return "" }
-        return L10n.tr(name)
+        return StarCatalog.localizedNamedStarNames[name] ?? L10n.tr(name)
     }
 }
 
@@ -28,6 +28,13 @@ struct Star: Sendable {
 /// 表示用の恒星カタログを組み立てる。
 enum StarCatalog {
     static let stars: [Star] = namedStars + fillStars
+
+    /// 名前付き星の翻訳済み名。星図は毎フレーム明るい星のラベルを描くため、翻訳引きを起動時の 1 回にする
+    /// （NSLocalizedString の結果はプロセス中に変わらない）。
+    static let localizedNamedStarNames: [String: String] = Dictionary(
+        namedStars.map { ($0.name, L10n.tr($0.name)) },
+        uniquingKeysWith: { first, _ in first }
+    )
 
     /// 星カタログの読み込みをバックグラウンドで完了させ、その結果を返す。
     static func preloadedStars() async -> [Star] {

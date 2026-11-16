@@ -25,6 +25,10 @@ enum StarMapComputation {
         StarCatalog.stars.map { starColorForBV($0.colorIndex) }
     }()
 
+    private static let cachedStarColorBuckets: [Int] = {
+        StarCatalog.stars.map { StarMapStarStyle.colorBucket(forBV: $0.colorIndex) }
+    }()
+
     static func compute(
         latitude: Double,
         longitude: Double,
@@ -60,7 +64,8 @@ enum StarMapComputation {
                     star: star,
                     altitude: altitude,
                     azimuth: azimuth,
-                    precomputedColor: cachedStarColors[index]
+                    precomputedColor: cachedStarColors[index],
+                    colorBucket: cachedStarColorBuckets[index]
                 )
             )
         }
@@ -92,10 +97,14 @@ enum StarMapComputation {
             }
         }
 
-        let constellationLabels: [ConstellationLabelAltAz] = ConstellationData.constellations.compactMap { entry in
+        let constellationNames = ConstellationData.localizedNames()
+        let constellationLabels: [ConstellationLabelAltAz] = zip(
+            ConstellationData.constellations,
+            constellationNames
+        ).compactMap { entry, name in
             let (altitude, azimuth) = observer.altAz(ra: entry.centerRA, dec: entry.centerDec)
             guard altitude > -5 else { return nil }
-            return ConstellationLabelAltAz(alt: altitude, az: azimuth, name: entry.localizedName)
+            return ConstellationLabelAltAz(alt: altitude, az: azimuth, name: name)
         }
 
         let meteorRadiants = activeMeteorShowers.map { shower in

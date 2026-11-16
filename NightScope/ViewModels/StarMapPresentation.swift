@@ -41,6 +41,8 @@ struct StarPosition {
     let altitude: Double
     let azimuth: Double
     let precomputedColor: Color
+    /// 暗い星をまとめて描くときの色バケット（`StarMapStarStyle.colorBucket(forBV:)`）。
+    let colorBucket: Int
 }
 
 /// 銀河面の帯を描くためのサンプル点。

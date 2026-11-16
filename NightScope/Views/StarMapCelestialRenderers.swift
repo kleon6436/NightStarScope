@@ -3,6 +3,21 @@ import SwiftUI
 extension StarMapCanvasView {
     // MARK: - Drawing primitives
 
+    // 毎フレーム生成しないよう、描画で使う固定色を保持する。
+    static let constellationLineColor = Color(red: 0.4, green: 0.6, blue: 0.9).opacity(0.35)
+    static let constellationLabelColor = Color(red: 0.6, green: 0.8, blue: 1.0).opacity(0.52)
+    private static let starLabelColor = Color.white.opacity(0.65)
+    private static let crosshairColor = Color.white.opacity(0.5)
+    private static let moonShadowColor = Color(white: 0.35).opacity(0.35)
+    private static let moonLitColor = Color.white.opacity(0.9)
+    private static let galacticCenterHaloColor = Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.25)
+    private static let galacticCenterCoreColor = Color(red: 0.8, green: 0.6, blue: 1.0).opacity(0.85)
+    private static let mercuryColor = Color(red: 0.75, green: 0.72, blue: 0.68)
+    private static let venusColor = Color(red: 1.00, green: 0.95, blue: 0.80)
+    private static let marsColor = Color(red: 1.00, green: 0.45, blue: 0.25)
+    private static let jupiterColor = Color(red: 1.00, green: 0.90, blue: 0.70)
+    private static let saturnColor = Color(red: 0.95, green: 0.85, blue: 0.60)
+
     func drawStar(ctx: GraphicsContext, at point: CGPoint,
                   magnitude: Double, isDark: Bool, precomputedColor: Color,
                   altitude: Double = 90,
@@ -10,29 +25,23 @@ extension StarMapCanvasView {
                   scintillationTime: Double = 0,
                   starRA: Double = 0) {
         let color = precomputedColor
-        let radius = max(0.8, 5 - (magnitude + 1.5) * (4 / 4.5))
-        let opacity = isDark ? 1.0 : max(0.1, 0.3 - magnitude * 0.05)
-        let brightness = magnitude < 0 ? 1.0 : max(0.6, 1.0 - magnitude * 0.12)
-        // 大気消光: 仰角 15° 以下で徐々に減光
-        let extinction = altitude < 15 ? max(0, altitude / 15.0) : 1.0
-        // 月光減衰: 月が明るいとき暗い星を減光
-        let moonDimming = StarMapPalette.moonDimmingFactor(
-            moonBrightness: moonBrightness, starMagnitude: magnitude
-        )
+        let radius = StarMapStarStyle.radius(magnitude: magnitude)
         // シンチレーション: 明るい星の微小な明滅
         let scintillation = StarMapPalette.scintillation(
             starRA: starRA, magnitude: magnitude, altitude: altitude,
             isDark: isDark, time: scintillationTime
         )
 
-        let finalOpacity = opacity * brightness * extinction * moonDimming * scintillation
+        let finalOpacity = StarMapStarStyle.coreOpacity(
+            magnitude: magnitude, isDark: isDark, altitude: altitude, moonBrightness: moonBrightness
+        ) * scintillation
 
         let rect = CGRect(x: point.x - radius, y: point.y - radius,
                           width: radius * 2, height: radius * 2)
         ctx.fill(Circle().path(in: rect),
                  with: .color(color.opacity(finalOpacity)))
 
-        if magnitude < 2.0 {
+        if magnitude < StarMapStarStyle.glowMagnitudeLimit {
             let glowR = radius * 3.0
             let glowRect = CGRect(x: point.x - glowR, y: point.y - glowR,
                                   width: glowR * 2, height: glowR * 2)
@@ -40,7 +49,7 @@ extension StarMapCanvasView {
                      with: .color(color.opacity(0.12 * (isDark ? 1 : 0.3) * scintillation)))
         }
 
-        if magnitude < 0.5 {
+        if magnitude < StarMapStarStyle.outerGlowMagnitudeLimit {
             let outerGlowR = radius * 5.0
             let outerRect = CGRect(x: point.x - outerGlowR, y: point.y - outerGlowR,
                                    width: outerGlowR * 2, height: outerGlowR * 2)
@@ -49,11 +58,49 @@ extension StarMapCanvasView {
         }
     }
 
+    /// グローを持たない暗い星を、色・不透明度のバケットごとに 1 つの Path へまとめて塗る。
+    /// 1 万個超の星を個別に fill すると描画コストの大半を占めるため。
+    /// 量子化の誤差は不透明度 1/128・色各チャネル約 0.008 以内。
+    func drawFaintStarsBatched(ctx: GraphicsContext,
+                               stars: [StarPosition],
+                               isDark: Bool,
+                               moonBrightness: Double,
+                               canvasSize: CGSize,
+                               project: (_ altitudeRadians: Double, _ azimuthRadians: Double) -> CGPoint?) {
+        var batches: [Int: Path] = [:]
+        for pos in stars {
+            let magnitude = pos.star.magnitude
+            guard magnitude >= StarMapStarStyle.glowMagnitudeLimit else { continue }
+            // 地平線近くの暗い星をスキップ
+            if pos.altitude < 5 && magnitude > 6.0 { continue }
+            let opacityLevel = StarMapStarStyle.quantizedOpacityLevel(
+                StarMapStarStyle.coreOpacity(
+                    magnitude: magnitude, isDark: isDark, altitude: pos.altitude, moonBrightness: moonBrightness
+                )
+            )
+            guard opacityLevel > 0,
+                  let point = project(pos.altitude * .pi / 180, pos.azimuth * .pi / 180) else { continue }
+            let radius = StarMapStarStyle.radius(magnitude: magnitude)
+            guard StarMapStarStyle.isPotentiallyVisible(point, extent: radius, canvasSize: canvasSize) else {
+                continue
+            }
+            let key = StarMapStarStyle.batchKey(colorBucket: pos.colorBucket, opacityLevel: opacityLevel)
+            StarMapStarStyle.addBatchedDisc(to: &batches[key, default: Path()], center: point, radius: radius)
+        }
+        // 辞書の列挙順は実行ごとに変わるため、重なりの描画順を固定する。
+        for key in batches.keys.sorted() {
+            guard let path = batches[key] else { continue }
+            let components = StarMapStarStyle.components(ofBatchKey: key)
+            let color = StarMapStarStyle.bucketColors[components.colorBucket]
+            ctx.fill(path, with: .color(color.opacity(StarMapStarStyle.opacity(forLevel: components.opacityLevel))))
+        }
+    }
+
     func drawStarLabel(ctx: GraphicsContext, at point: CGPoint, name: String) {
         ctx.draw(
             Text(name)
                 .font(.system(size: 10))
-                .foregroundColor(.white.opacity(0.65)),
+                .foregroundColor(Self.starLabelColor),
             at: CGPoint(x: point.x + 7, y: point.y + 5))
     }
 
@@ -64,12 +111,12 @@ extension StarMapCanvasView {
         path.addLine(to: CGPoint(x: cx + r, y: cy))
         path.move(to: CGPoint(x: cx, y: cy - r))
         path.addLine(to: CGPoint(x: cx, y: cy + r))
-        ctx.stroke(path, with: .color(.white.opacity(0.5)), lineWidth: 1)
+        ctx.stroke(path, with: .color(Self.crosshairColor), lineWidth: 1)
         let circleR: Double = 5
         ctx.stroke(
             Circle().path(in: CGRect(x: cx - circleR, y: cy - circleR,
                                      width: circleR * 2, height: circleR * 2)),
-            with: .color(.white.opacity(0.5)), lineWidth: 1)
+            with: .color(Self.crosshairColor), lineWidth: 1)
     }
 
     /// 月を描く。`brightLimbScreenAngle`（画面座標で輝面が向く角度, rad）が nil の場合は
@@ -79,7 +126,7 @@ extension StarMapCanvasView {
         let rect = CGRect(x: point.x - radius, y: point.y - radius,
                           width: radius * 2, height: radius * 2)
         // 欠け際の暗部（地球照程度にうっすら見せる）
-        ctx.fill(Circle().path(in: rect), with: .color(Color(white: 0.35).opacity(0.35)))
+        ctx.fill(Circle().path(in: rect), with: .color(Self.moonShadowColor))
 
         let litPolygon = MoonPhase.litPolygon(
             center: point,
@@ -94,7 +141,7 @@ extension StarMapCanvasView {
                 litPath.addLine(to: vertex)
             }
             litPath.closeSubpath()
-            ctx.fill(litPath, with: .color(.white.opacity(0.9)))
+            ctx.fill(litPath, with: .color(Self.moonLitColor))
         }
 
         let glowR = radius * 1.8
@@ -145,21 +192,21 @@ extension StarMapCanvasView {
         ctx.fill(
             Ellipse().path(in: CGRect(x: point.x - r*2, y: point.y - r,
                                        width: r*4, height: r*2)),
-            with: .color(Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.25)))
+            with: .color(Self.galacticCenterHaloColor))
         ctx.fill(
             Circle().path(in: CGRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6)),
-            with: .color(Color(red: 0.8, green: 0.6, blue: 1.0).opacity(0.85)))
+            with: .color(Self.galacticCenterCoreColor))
     }
 
     // MARK: Planet
 
     func planetColor(name: String) -> Color {
         switch name {
-        case "水星": return Color(red: 0.75, green: 0.72, blue: 0.68)
-        case "金星": return Color(red: 1.00, green: 0.95, blue: 0.80)
-        case "火星": return Color(red: 1.00, green: 0.45, blue: 0.25)
-        case "木星": return Color(red: 1.00, green: 0.90, blue: 0.70)
-        case "土星": return Color(red: 0.95, green: 0.85, blue: 0.60)
+        case "水星": return Self.mercuryColor
+        case "金星": return Self.venusColor
+        case "火星": return Self.marsColor
+        case "木星": return Self.jupiterColor
+        case "土星": return Self.saturnColor
         default:     return .white
         }
     }
@@ -241,67 +288,71 @@ extension StarMapCanvasView {
             (0.6, 1.00),   // コア — 狭く明るい
         ]
 
-        // 天の川レイヤーをサブコンテキストに描画し、ブラーで柔らかくする
+        // 天の川をひとつのレイヤーに描き、そのレイヤーに 1 回だけブラーをかける。
+        // （コンテキストに積んだフィルタは描画命令ごとに適用されるため、スラブを直接塗るとスラブ数だけブラーが走る）
         var milkyWayCtx = ctx
         milkyWayCtx.addFilter(.blur(radius: 6))
 
         // 銀経 355° → 0°（銀河中心隣接）の区間も含め、銀経で隣接する点同士だけをつなぐ。
         let segmentPairs = StarMapComputation.milkyWayBandSegmentIndexPairs(for: bandPoints)
 
-        for layer in layers {
-            for pair in segmentPairs {
-                let bp0 = bandPoints[pair.start]
-                let bp1 = bandPoints[pair.end]
+        milkyWayCtx.drawLayer { layerCtx in
+            for layer in layers {
+                for pair in segmentPairs {
+                    let bp0 = bandPoints[pair.start]
+                    let bp1 = bandPoints[pair.end]
 
-                // ラップアラウンドの不連続をスキップ
-                let azDiff = atan2(
-                    sin((bp0.az - bp1.az) * .pi / 180),
-                    cos((bp0.az - bp1.az) * .pi / 180)
-                ) * 180 / .pi
-                guard abs(azDiff) < 40 else { continue }
+                    // ラップアラウンドの不連続をスキップ
+                    let azDiff = atan2(
+                        sin((bp0.az - bp1.az) * .pi / 180),
+                        cos((bp0.az - bp1.az) * .pi / 180)
+                    ) * 180 / .pi
+                    guard abs(azDiff) < 40 else { continue }
 
-                let a0 = bp0.alt * .pi / 180
-                let z0 = bp0.az * .pi / 180
-                let h0 = bp0.halfH * .pi / 180 * layer.widthScale
-                let a1 = bp1.alt * .pi / 180
-                let z1 = bp1.az * .pi / 180
-                let h1 = bp1.halfH * .pi / 180 * layer.widthScale
+                    let a0 = bp0.alt * .pi / 180
+                    let z0 = bp0.az * .pi / 180
+                    let h0 = bp0.halfH * .pi / 180 * layer.widthScale
+                    let a1 = bp1.alt * .pi / 180
+                    let z1 = bp1.az * .pi / 180
+                    let h1 = bp1.halfH * .pi / 180 * layer.widthScale
 
-                guard let p0Top = project(a0 + h0, z0),
-                      let p0Bot = project(a0 - h0, z0),
-                      let p1Top = project(a1 + h1, z1),
-                      let p1Bot = project(a1 - h1, z1) else { continue }
+                    guard let p0Top = project(a0 + h0, z0),
+                          let p0Bot = project(a0 - h0, z0),
+                          let p1Top = project(a1 + h1, z1),
+                          let p1Bot = project(a1 - h1, z1) else { continue }
 
-                // スクリーン上の大きなジャンプをスキップ（投影の不連続対策）
-                let maxJump: Double = 800
-                guard abs(p0Top.x - p1Top.x) < maxJump,
-                      abs(p0Top.y - p1Top.y) < maxJump,
-                      abs(p0Bot.x - p1Bot.x) < maxJump,
-                      abs(p0Bot.y - p1Bot.y) < maxJump else { continue }
+                    // スクリーン上の大きなジャンプをスキップ（投影の不連続対策）
+                    let maxJump: Double = 800
+                    guard abs(p0Top.x - p1Top.x) < maxJump,
+                          abs(p0Top.y - p1Top.y) < maxJump,
+                          abs(p0Bot.x - p1Bot.x) < maxJump,
+                          abs(p0Bot.y - p1Bot.y) < maxJump else { continue }
 
-                var slab = Path()
-                slab.move(to: p0Top)
-                slab.addLine(to: p1Top)
-                slab.addLine(to: p1Bot)
-                slab.addLine(to: p0Bot)
-                slab.closeSubpath()
+                    var slab = Path()
+                    slab.move(to: p0Top)
+                    slab.addLine(to: p1Top)
+                    slab.addLine(to: p1Bot)
+                    slab.addLine(to: p0Bot)
+                    slab.closeSubpath()
 
-                // 銀河中心（銀経 0°/360°）からの角距離で輝度を計算
-                let lDeg = bp0.li <= 180 ? bp0.li : 360 - bp0.li
-                let tCenter = 1.0 - lDeg / 180.0  // 1.0 = 銀河中心, 0.0 = 反銀心
+                    // 銀河中心（銀経 0°/360°）からの角距離で輝度を計算
+                    let lDeg = bp0.li <= 180 ? bp0.li : 360 - bp0.li
+                    let tCenter = 1.0 - lDeg / 180.0  // 1.0 = 銀河中心, 0.0 = 反銀心
 
-                // 銀河中心付近: 暖色（淡いアンバー/ゴールド）
-                // 反銀心付近: 冷色（淡いブルー）
-                let red   = 0.55 + 0.30 * tCenter
-                let green = 0.55 + 0.15 * tCenter
-                let blue  = 0.85 - 0.35 * tCenter
-                let slabColor = Color(red: red, green: green, blue: blue)
+                    // 銀河中心付近: 暖色（淡いアンバー/ゴールド）
+                    // 反銀心付近: 冷色（淡いブルー）
+                    let red   = 0.55 + 0.30 * tCenter
+                    let green = 0.55 + 0.15 * tCenter
+                    let blue  = 0.85 - 0.35 * tCenter
+                    let slabColor = Color(red: red, green: green, blue: blue)
 
-                // 銀河中心方向を明るくし、反銀心は暗くする
-                let brightnessBoost = 0.6 + 0.4 * tCenter
-                let baseOpacity = 0.08 * layer.opacityScale * brightnessBoost
+                    // 銀河中心方向を明るくし、反銀心は暗くする
+                    let brightnessBoost = 0.6 + 0.4 * tCenter
+                    let baseOpacity = 0.08 * layer.opacityScale * brightnessBoost
 
-                milkyWayCtx.fill(slab, with: .color(slabColor.opacity(baseOpacity)))
+                    // 重なったスラブの半透明の重ね合わせを保つため、スラブは 1 枚ずつ塗る。
+                    layerCtx.fill(slab, with: .color(slabColor.opacity(baseOpacity)))
+                }
             }
         }
     }

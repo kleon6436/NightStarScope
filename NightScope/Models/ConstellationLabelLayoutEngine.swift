@@ -1,4 +1,5 @@
 import CoreGraphics
+import os
 #if os(macOS)
 import AppKit
 private typealias PlatformFont = NSFont
@@ -67,7 +68,25 @@ struct ConstellationLabelLayoutEngine {
         return accepted
     }
 
+    private struct LabelSizeKey: Hashable {
+        let text: String
+        let fontSize: Double
+    }
+
+    /// 星座名の種類は有限で、視点が動くたびに同じ文字列を測り直すため、計測結果を保持する。
+    private static let labelSizeCache = OSAllocatedUnfairLock<[LabelSizeKey: CGSize]>(initialState: [:])
+
     static func estimateLabelSize(text: String, fontSize: Double = 11) -> CGSize {
+        let key = LabelSizeKey(text: text, fontSize: fontSize)
+        if let cached = labelSizeCache.withLock({ $0[key] }) {
+            return cached
+        }
+        let size = measureLabelSize(text: text, fontSize: fontSize)
+        labelSizeCache.withLock { $0[key] = size }
+        return size
+    }
+
+    private static func measureLabelSize(text: String, fontSize: Double) -> CGSize {
         let measured = NSString(string: text).size(
             withAttributes: [.font: PlatformFont.systemFont(ofSize: fontSize)]
         )

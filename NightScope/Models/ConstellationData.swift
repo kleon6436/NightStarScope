@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import os
 
 // MARK: - Data Types
 
@@ -89,6 +90,27 @@ enum ConstellationData {
     )
 
     static let constellations: [ConstellationEntry] = loadConstellations()
+
+    private static let localizedNamesCache = OSAllocatedUnfairLock<(language: String?, names: [String])?>(
+        initialState: nil
+    )
+
+    /// `constellations` と同じ順の表示名。星図の再計算ごとに 88 星座ぶんの翻訳引きをしないよう、
+    /// 表示言語が変わらない限り前回の結果を返す。
+    static func localizedNames() -> [String] {
+        let language = Locale.preferredLanguages.first
+        if let cached = localizedNamesCache.withLock({ $0 }), cached.language == language {
+            return cached.names
+        }
+        let names = constellations.map { entry in
+            entry.resolvedDisplayName(
+                localizedJapaneseName: L10n.tr(entry.japaneseName),
+                preferredLanguage: language
+            )
+        }
+        localizedNamesCache.withLock { $0 = (language, names) }
+        return names
+    }
 
     /// constellations_iau.json をデコードして星座一覧を組み立てる。
     private static func loadConstellations() -> [ConstellationEntry] {

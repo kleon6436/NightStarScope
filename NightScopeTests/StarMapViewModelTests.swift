@@ -2,6 +2,8 @@ import XCTest
 import Combine
 import CoreLocation
 import MapKit
+import SwiftUI
+import ImageIO
 @testable import NightScope
 
 @MainActor
@@ -2036,5 +2038,233 @@ final class StarMapViewModelTests: XCTestCase {
         XCTAssertGreaterThan(basis.forward.z, 0.999)
         XCTAssertEqual(basis.right.x, 1, accuracy: 0.001)
         XCTAssertLessThan(basis.up.y, -0.999)
+    }
+
+    // MARK: - Star rendering helpers
+
+    func test_StarMapStarStyle_quantizedOpacity_staysWithinHalfStep() {
+        XCTAssertEqual(StarMapStarStyle.quantizedOpacityLevel(0), 0)
+        XCTAssertEqual(StarMapStarStyle.quantizedOpacityLevel(1), StarMapStarStyle.opacityLevelCount)
+        XCTAssertEqual(StarMapStarStyle.quantizedOpacityLevel(-0.5), 0)
+        XCTAssertEqual(StarMapStarStyle.quantizedOpacityLevel(1.5), StarMapStarStyle.opacityLevelCount)
+        let halfStep = 0.5 / Double(StarMapStarStyle.opacityLevelCount)
+        for step in 0...1_000 {
+            let opacity = Double(step) / 1_000
+            let level = StarMapStarStyle.quantizedOpacityLevel(opacity)
+            XCTAssertEqual(StarMapStarStyle.opacity(forLevel: level), opacity, accuracy: halfStep + 1e-12)
+        }
+        // 1/32 以下の刻み（見た目で区別できない範囲）であること
+        XCTAssertLessThanOrEqual(1 / Double(StarMapStarStyle.opacityLevelCount), 1.0 / 32)
+    }
+
+    func test_StarMapStarStyle_colorBucket_representativeColorMatchesOriginal() {
+        let environment = EnvironmentValues()
+        func components(_ color: Color) -> [Float] {
+            let resolved = color.resolve(in: environment)
+            return [resolved.red, resolved.green, resolved.blue]
+        }
+        XCTAssertEqual(StarMapStarStyle.colorBucket(forBV: nil), StarMapStarStyle.whiteColorBucket)
+        XCTAssertEqual(StarMapStarStyle.colorBucket(forBV: .nan), StarMapStarStyle.whiteColorBucket)
+        XCTAssertEqual(StarMapStarStyle.colorBucket(forBV: -5), 0)
+        XCTAssertEqual(StarMapStarStyle.colorBucket(forBV: 5), StarMapStarStyle.colorBucketCount - 1)
+        XCTAssertEqual(
+            StarMapStarStyle.bucketColors.count,
+            StarMapStarStyle.colorBucketCount + 1
+        )
+        var maxDifference: Float = 0
+        for step in 0...600 {
+            let bv = -0.6 + Double(step) * 0.005
+            let bucket = StarMapStarStyle.colorBucket(forBV: bv)
+            let original = components(starColorForBV(bv))
+            let quantized = components(StarMapStarStyle.bucketColors[bucket])
+            for channel in 0..<3 {
+                maxDifference = max(maxDifference, abs(original[channel] - quantized[channel]))
+            }
+        }
+        XCTAssertLessThan(maxDifference, 0.01)
+        XCTAssertEqual(
+            components(StarMapStarStyle.bucketColors[StarMapStarStyle.whiteColorBucket]),
+            components(.white)
+        )
+    }
+
+    func test_StarMapStarStyle_batchKey_roundTrips() {
+        for colorBucket in [0, 1, 64, StarMapStarStyle.whiteColorBucket] {
+            for level in [0, 1, 31, StarMapStarStyle.opacityLevelCount] {
+                let key = StarMapStarStyle.batchKey(colorBucket: colorBucket, opacityLevel: level)
+                let components = StarMapStarStyle.components(ofBatchKey: key)
+                XCTAssertEqual(components.colorBucket, colorBucket)
+                XCTAssertEqual(components.opacityLevel, level)
+            }
+        }
+    }
+
+    func test_StarMapStarStyle_batchedDisc_hasSameAreaAsCircle() {
+        let radius = 1.7
+        var path = Path()
+        StarMapStarStyle.addBatchedDisc(to: &path, center: CGPoint(x: 10, y: 20), radius: radius)
+        let vertices = StarMapStarStyle.batchedDiscUnitVertices.map {
+            CGPoint(x: 10 + $0.x * radius, y: 20 + $0.y * radius)
+        }
+        var doubledArea = 0.0
+        for index in vertices.indices {
+            let a = vertices[index]
+            let b = vertices[(index + 1) % vertices.count]
+            doubledArea += a.x * b.y - b.x * a.y
+        }
+        XCTAssertEqual(abs(doubledArea) / 2, Double.pi * radius * radius, accuracy: 1e-9)
+        XCTAssertEqual(path.boundingRect.midX, 10, accuracy: 1e-9)
+        XCTAssertEqual(path.boundingRect.midY, 20, accuracy: 1e-9)
+    }
+
+    func test_StarMapStarStyle_coreOpacity_matchesOriginalFormula() {
+        // 夜・高仰角・月なし: 等級による明るさだけ
+        XCTAssertEqual(
+            StarMapStarStyle.coreOpacity(magnitude: 5, isDark: true, altitude: 45, moonBrightness: 0),
+            0.6,
+            accuracy: 1e-12
+        )
+        // 昼間・低仰角では大気消光がかかる
+        XCTAssertEqual(
+            StarMapStarStyle.coreOpacity(magnitude: 2, isDark: false, altitude: 7.5, moonBrightness: 0),
+            0.2 * 0.76 * 0.5,
+            accuracy: 1e-12
+        )
+        XCTAssertEqual(
+            StarMapStarStyle.coreOpacity(magnitude: 4, isDark: true, altitude: -1, moonBrightness: 0),
+            0
+        )
+    }
+
+    func test_StarMapStarStyle_drawExtent_includesGlow() {
+        let radius = StarMapStarStyle.radius(magnitude: 0)
+        XCTAssertEqual(StarMapStarStyle.drawExtent(magnitude: 0), radius * 5, accuracy: 1e-12)
+        XCTAssertEqual(StarMapStarStyle.drawExtent(magnitude: 1), StarMapStarStyle.radius(magnitude: 1) * 3,
+                       accuracy: 1e-12)
+        XCTAssertEqual(StarMapStarStyle.drawExtent(magnitude: 5), StarMapStarStyle.radius(magnitude: 5),
+                       accuracy: 1e-12)
+    }
+
+    func test_StarMapStarStyle_isPotentiallyVisible_usesExtentOutsideCanvas() {
+        let size = CGSize(width: 100, height: 80)
+        XCTAssertTrue(StarMapStarStyle.isPotentiallyVisible(CGPoint(x: 50, y: 40), extent: 1, canvasSize: size))
+        // 中心が画面外でもグローが画面にかかる
+        XCTAssertTrue(StarMapStarStyle.isPotentiallyVisible(CGPoint(x: -9, y: 40), extent: 10, canvasSize: size))
+        XCTAssertTrue(StarMapStarStyle.isPotentiallyVisible(CGPoint(x: 50, y: 89), extent: 10, canvasSize: size))
+        XCTAssertFalse(StarMapStarStyle.isPotentiallyVisible(CGPoint(x: -11, y: 40), extent: 10, canvasSize: size))
+        XCTAssertFalse(StarMapStarStyle.isPotentiallyVisible(CGPoint(x: 111, y: 40), extent: 10, canvasSize: size))
+        XCTAssertFalse(StarMapStarStyle.isPotentiallyVisible(CGPoint(x: 50, y: -11), extent: 10, canvasSize: size))
+        XCTAssertFalse(StarMapStarStyle.isPotentiallyVisible(CGPoint(x: 50, y: 91), extent: 10, canvasSize: size))
+    }
+
+    func test_StarMapCanvasView_isSegmentOutsideCanvas_keepsSegmentsCrossingView() {
+        let size = CGSize(width: 100, height: 80)
+        // 両端が同じ側の外
+        XCTAssertTrue(StarMapCanvasView.isSegmentOutsideCanvas(
+            CGPoint(x: -50, y: 10), CGPoint(x: -5, y: 70), canvasSize: size, margin: 2
+        ))
+        XCTAssertTrue(StarMapCanvasView.isSegmentOutsideCanvas(
+            CGPoint(x: 10, y: 200), CGPoint(x: 90, y: 85), canvasSize: size, margin: 2
+        ))
+        // 両端とも画面外だが画面を横切る
+        XCTAssertFalse(StarMapCanvasView.isSegmentOutsideCanvas(
+            CGPoint(x: -50, y: 40), CGPoint(x: 150, y: 40), canvasSize: size, margin: 2
+        ))
+        XCTAssertFalse(StarMapCanvasView.isSegmentOutsideCanvas(
+            CGPoint(x: -50, y: -10), CGPoint(x: 50, y: 200), canvasSize: size, margin: 2
+        ))
+        // 片端が画面内
+        XCTAssertFalse(StarMapCanvasView.isSegmentOutsideCanvas(
+            CGPoint(x: 50, y: 40), CGPoint(x: 500, y: 40), canvasSize: size, margin: 2
+        ))
+    }
+
+    func test_ConstellationData_localizedNames_matchesPerEntryLocalizedName() {
+        let names = ConstellationData.localizedNames()
+        XCTAssertEqual(names, ConstellationData.constellations.map(\.localizedName))
+        // 2 回目はキャッシュから同じ結果を返す
+        XCTAssertEqual(ConstellationData.localizedNames(), names)
+    }
+
+    func test_ConstellationLabelLayoutEngine_estimateLabelSize_isStableAcrossCalls() {
+        let first = ConstellationLabelLayoutEngine.estimateLabelSize(text: "Andromeda", fontSize: 11)
+        let second = ConstellationLabelLayoutEngine.estimateLabelSize(text: "Andromeda", fontSize: 11)
+        let larger = ConstellationLabelLayoutEngine.estimateLabelSize(text: "Andromeda", fontSize: 22)
+        XCTAssertEqual(first, second)
+        XCTAssertGreaterThan(larger.width, first.width)
+    }
+
+    func test_Star_localizedName_usesCachedTranslation() {
+        let named = StarCatalog.stars.filter { !$0.name.isEmpty }
+        XCTAssertFalse(named.isEmpty)
+        for star in named {
+            XCTAssertEqual(star.localizedName, L10n.tr(star.name))
+        }
+    }
+
+    // MARK: - Canvas rendering snapshot
+
+    /// 固定スナップショットで星図 Canvas を描画し PNG に書き出す（描画最適化の前後比較用）。
+    /// 出力先は環境変数 `STARMAP_RENDER_DIR`（xcodebuild では `TEST_RUNNER_STARMAP_RENDER_DIR`）、未指定なら一時ディレクトリ。
+    func test_StarMapCanvasView_rendersFixedSnapshot() async throws {
+        let utc = TimeZone(identifier: "UTC") ?? .current
+        var components = DateComponents()
+        components.year = 2026
+        components.month = 8
+        components.day = 15
+        components.hour = 12
+        let date = try XCTUnwrap(ObservationTimeZone.gregorianCalendar(timeZone: utc).date(from: components))
+        let julianDate = MilkyWayCalculator.julianDate(from: date)
+        let localSiderealTime = MilkyWayCalculator.localSiderealTime(jd: julianDate, longitude: 139.6503)
+        let snapshot = StarMapComputation.compute(
+            latitude: 35.6762,
+            longitude: 139.6503,
+            julianDate: julianDate,
+            localSiderealTime: localSiderealTime,
+            activeMeteorShowers: [],
+            starDisplayDensity: .maximum
+        )
+        let settings = StarMapDisplaySettings(density: .maximum)
+        let viewModel = StarMapViewModel(
+            appController: makeTokyoAppController(),
+            settingsDependency: StarMapSettingsDependency(
+                currentSettings: { settings },
+                changes: Empty().eraseToAnyPublisher()
+            ),
+            terrainDependency: StarMapTerrainDependency(fetchProfile: { _, _ in nil }),
+            computationDependency: StarMapComputationDependency(computeSnapshot: { _, _, _, _, _, _ in snapshot })
+        )
+        viewModel.activatePresentationIfNeeded()
+        await waitUntil { !viewModel.starPositions.isEmpty }
+        viewModel.updateCanvasSize(CGSize(width: 900, height: 600))
+        viewModel.applyInitialPoseIfNeeded()
+
+        // 見た目比較用の PNG は STARMAP_RENDER_DIR 指定時だけ書き出す（通常のテスト実行では描画成功のみ確認）。
+        let outputDirectory = ProcessInfo.processInfo.environment["STARMAP_RENDER_DIR"].map {
+            URL(fileURLWithPath: $0, isDirectory: true)
+        }
+        let poses: [(name: String, azimuth: Double, altitude: Double, fov: Double)] = [
+            ("south", 160, 30, 90),
+            ("zenith", 20, 70, 110)
+        ]
+        for pose in poses {
+            viewModel.viewAzimuth = pose.azimuth
+            viewModel.viewAltitude = pose.altitude
+            viewModel.fov = pose.fov
+            var canvasView = StarMapCanvasView(viewModel: viewModel, showsCardinalOverlay: false)
+            canvasView.scintillationTimeOverride = 1_000
+            let content = canvasView.frame(width: 900, height: 600)
+            let renderer = ImageRenderer(content: content)
+            renderer.scale = 2
+            let image: CGImage = try XCTUnwrap(renderer.cgImage)
+            XCTAssertEqual(image.width, 1800)
+            guard let outputDirectory else { continue }
+            let url = outputDirectory.appendingPathComponent("starmap_\(pose.name).png")
+            let destination = try XCTUnwrap(
+                CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)
+            )
+            CGImageDestinationAddImage(destination, image, nil)
+            XCTAssertTrue(CGImageDestinationFinalize(destination))
+        }
     }
 }
