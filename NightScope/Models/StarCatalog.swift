@@ -70,7 +70,7 @@ enum StarCatalog {
     }
 
     // MARK: - Named Stars (121 星, 日本語名付き)
-    private static let namedStars: [Star] = [
+    static let namedStars: [Star] = [
 
         // MARK: -1.5 ~ 0.0
         Star(name: "シリウス",           ra: 101.287, dec: -16.716, magnitude: -1.46, colorIndex:  0.01),

@@ -191,6 +191,43 @@ final class PerformanceBaselineTests: XCTestCase {
         }
     }
 
+    // MARK: - Star catalog decode
+
+    /// stars_fill.json (25,650 行) のデコード・Star 変換・名前付き星との重複除外。
+    /// `StarCatalog.stars` の静的キャッシュを通さず、同じ処理を毎回やり直す。
+    func test_perf_starCatalogDecode() throws {
+        guard let url = Bundle.main.url(forResource: "stars_fill", withExtension: "json") else {
+            throw XCTSkip("stars_fill.json がホストアプリに同梱されていないためスキップ")
+        }
+        let data = try Data(contentsOf: url)
+        let clock = ContinuousClock()
+        var decodeTimes: [Duration] = []
+        var convertTimes: [Duration] = []
+        var dedupeTimes: [Duration] = []
+        var fillCount = 0
+        measure(metrics: [XCTClockMetric()], options: options) {
+            let t0 = clock.now
+            guard let entries = try? JSONDecoder().decode([[Double]].self, from: data) else {
+                XCTFail("stars_fill.json をデコードできませんでした")
+                return
+            }
+            let t1 = clock.now
+            let fill = StarCatalog.makeFillStars(from: entries)
+            let t2 = clock.now
+            fillCount = StarCatalog.removingDuplicates(of: StarCatalog.namedStars, from: fill).count
+            let t3 = clock.now
+            decodeTimes.append(t1 - t0)
+            convertTimes.append(t2 - t1)
+            dedupeTimes.append(t3 - t2)
+        }
+        XCTAssertGreaterThan(fillCount, 0)
+        func median(_ values: [Duration]) -> Duration { values.sorted()[values.count / 2] }
+        print(
+            "[perf] starCatalogDecode median: decode \(median(decodeTimes)), "
+                + "makeFillStars \(median(convertTimes)), dedupe \(median(dedupeTimes)), rows \(fillCount)"
+        )
+    }
+
     // MARK: - Terrain grid decode
 
     /// 全球標高グリッド (3600×7200 Int16 ≈ 52MB) の ELVZ 展開。初回の星図表示時に 1 度だけ走る。

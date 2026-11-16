@@ -117,6 +117,7 @@
 		AA000000000000000000TB01 /* MilkyWayCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */; };
 		PF0000000000000000000012 /* PerformanceBaselineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF0000000000000000000011 /* PerformanceBaselineTests.swift */; };
 		PF0000000000000000000014 /* TerrainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF0000000000000000000013 /* TerrainServiceTests.swift */; };
+		PF0000000000000000000016 /* LightPollutionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF0000000000000000000015 /* LightPollutionServiceTests.swift */; };
 		AA000000000000000000TB02 /* StarGazingIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF02 /* StarGazingIndexTests.swift */; };
 		AA000000000000000000TB03 /* WeatherServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF03 /* WeatherServiceTests.swift */; };
 		AA000000000000000000TB04 /* AppControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF04 /* AppControllerTests.swift */; };
@@ -388,6 +389,7 @@
 		AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculatorTests.swift; sourceTree = "<group>"; };
 		PF0000000000000000000011 /* PerformanceBaselineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceBaselineTests.swift; sourceTree = "<group>"; };
 		PF0000000000000000000013 /* TerrainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrainServiceTests.swift; sourceTree = "<group>"; };
+		PF0000000000000000000015 /* LightPollutionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightPollutionServiceTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF02 /* StarGazingIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarGazingIndexTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF03 /* WeatherServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherServiceTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF04 /* AppControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppControllerTests.swift; sourceTree = "<group>"; };
@@ -729,6 +731,7 @@
 				AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */,
 				PF0000000000000000000011 /* PerformanceBaselineTests.swift */,
 				PF0000000000000000000013 /* TerrainServiceTests.swift */,
+				PF0000000000000000000015 /* LightPollutionServiceTests.swift */,
 				AA000000000000000000TF20 /* PlanetVisibilitySummaryTests.swift */,
 				AA000000000000000000TF02 /* StarGazingIndexTests.swift */,
 				AA000000000000000000TF03 /* WeatherServiceTests.swift */,
@@ -1229,6 +1232,7 @@
 				AA000000000000000000TB01 /* MilkyWayCalculatorTests.swift in Sources */,
 				PF0000000000000000000012 /* PerformanceBaselineTests.swift in Sources */,
 				PF0000000000000000000014 /* TerrainServiceTests.swift in Sources */,
+				PF0000000000000000000016 /* LightPollutionServiceTests.swift in Sources */,
 				AA000000000000000000TB20 /* PlanetVisibilitySummaryTests.swift in Sources */,
 				AA000000000000000000TB02 /* StarGazingIndexTests.swift in Sources */,
 				AA000000000000000000TB03 /* WeatherServiceTests.swift in Sources */,

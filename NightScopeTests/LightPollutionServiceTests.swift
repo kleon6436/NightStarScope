@@ -23,7 +23,8 @@ final class LightPollutionServiceTests: XCTestCase {
     }
 
     func test_fetch_noBundleData_setsFetchFailed() async {
-        let service = LightPollutionService(gridData: nil)
+        // 既定の共有 provider はホストアプリ同梱の bortle_map.bin を読むため、provider も外してデータなしにする
+        let service = LightPollutionService(gridData: nil, gridProvider: nil)
 
         await service.fetch(latitude: 35.6762, longitude: 139.6503)
 
