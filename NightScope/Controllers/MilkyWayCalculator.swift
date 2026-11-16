@@ -93,6 +93,73 @@ enum MilkyWayCalculator {
         }
     }
 
+    /// 赤道直交座標（カタログの赤経・赤緯の単位ベクトル）を地平直交座標
+    /// （x=東, y=北, z=天頂。`GnomonicProjectionMath.altAzToCartesian` と同じ向き）へ移す回転。
+    /// `altAzFast` は歳差・章動・大気差を含まない剛体回転なので、同じ値を行列 1 つで再現できる。
+    /// 時刻が変わっても恒星ごとの三角関数を計算し直さず、この 9 成分だけを作り直せば済む。
+    struct SkyRotation: Sendable, Equatable {
+        // 各行は地平座標の東・北・天頂成分を赤道座標の単位ベクトルとの内積で与える。
+        let eastX: Double, eastY: Double, eastZ: Double
+        let northX: Double, northY: Double, northZ: Double
+        let upX: Double, upY: Double, upZ: Double
+        /// `altAzFast` と同じく、極（|cosLat| ≤ 1e-9）では方位を 0 にするために持つ。
+        let cosLatitude: Double
+
+        init(latitude: Double, localSiderealTime: Double) {
+            let latRad = latitude * .pi / 180.0
+            let lstRad = localSiderealTime * .pi / 180.0
+            let cosLat = cos(latRad)
+            let sinLat = sin(latRad)
+            let cosLST = cos(lstRad)
+            let sinLST = sin(lstRad)
+            // 時角 H = LST - RA として cosDec·cosH = cosLST·x + sinLST·y, cosDec·sinH = sinLST·x - cosLST·y。
+            eastX = -sinLST
+            eastY = cosLST
+            eastZ = 0
+            northX = -sinLat * cosLST
+            northY = -sinLat * sinLST
+            northZ = cosLat
+            upX = cosLat * cosLST
+            upY = cosLat * sinLST
+            upZ = sinLat
+            cosLatitude = cosLat
+        }
+
+        /// 赤経・赤緯（度）の単位ベクトル。
+        static func unitVector(ra: Double, dec: Double) -> (x: Double, y: Double, z: Double) {
+            let raRad = ra * .pi / 180.0
+            let decRad = dec * .pi / 180.0
+            let cosDec = cos(decRad)
+            return (cosDec * cos(raRad), cosDec * sin(raRad), sin(decRad))
+        }
+
+        /// 地平座標の天頂成分（= sin 高度）。地平線判定だけなら 3 回の積和で済む。
+        @inline(__always)
+        func sinAltitude(x: Double, y: Double, z: Double) -> Double {
+            upX * x + upY * y + upZ * z
+        }
+
+        @inline(__always)
+        func horizontal(x: Double, y: Double, z: Double) -> (x: Double, y: Double, z: Double) {
+            (
+                eastX * x + eastY * y + eastZ * z,
+                northX * x + northY * y + northZ * z,
+                upX * x + upY * y + upZ * z
+            )
+        }
+
+        /// 高度・方位角（度）。`altAzFast` と同じ縮退時の扱い（天頂・天底と極で方位 0）にそろえる。
+        func altAz(x: Double, y: Double, z: Double) -> (alt: Double, az: Double) {
+            let h = horizontal(x: x, y: y, z: z)
+            let altRad = asin(max(-1, min(1, h.z)))
+            let alt = altRad * 180.0 / .pi
+            guard cos(altRad) > 1e-10, abs(cosLatitude) > 1e-9 else { return (alt, 0.0) }
+            var az = atan2(h.x, h.y) * 180.0 / .pi
+            if az < 0 { az += 360.0 }
+            return (alt, az)
+        }
+    }
+
     // 赤経・赤緯から高度を計算 (度)
     static func altitude(ra: Double, dec: Double, latitude: Double, lst: Double) -> Double {
         altAz(ra: ra, dec: dec, latitude: latitude, lst: lst).alt

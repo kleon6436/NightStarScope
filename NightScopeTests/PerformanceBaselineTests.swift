@@ -191,6 +191,59 @@ final class PerformanceBaselineTests: XCTestCase {
         }
     }
 
+    /// 時刻スライダー操作 1 回ぶんの更新（60 分を 1 分刻みでスナップショットを作り直す）。
+    /// 恒星は回転行列の作り直しだけで、太陽・月・惑星・天の川・星座線など時刻で動くものは従来どおり計算する。
+    func test_perf_starMapTimeStepUpdate_60steps() {
+        _ = StarCatalog.stars
+        _ = StarMapComputation.catalogGeometry
+        let startJulianDate = 2_461_041.5
+        measure(metrics: [XCTClockMetric()], options: options) {
+            for step in 0..<60 {
+                let julianDate = startJulianDate + Double(step) / 1440
+                _ = StarMapComputation.compute(
+                    latitude: tokyo.latitude,
+                    longitude: tokyo.longitude,
+                    julianDate: julianDate,
+                    localSiderealTime: MilkyWayCalculator.localSiderealTime(
+                        jd: julianDate,
+                        longitude: tokyo.longitude
+                    ),
+                    activeMeteorShowers: [],
+                    starDisplayDensity: .maximum
+                )
+            }
+        }
+    }
+
+    /// 1 フレームぶんの恒星投影（最大密度の全星、地平線カット + 赤道座標からの直接投影）。
+    func test_perf_starMapFrameProjection_fullCatalog() {
+        let size = CGSize(width: 900, height: 600)
+        let lst = MilkyWayCalculator.localSiderealTime(jd: 2_461_041.5, longitude: tokyo.longitude)
+        let starField = StarMapComputation.compute(
+            latitude: tokyo.latitude,
+            longitude: tokyo.longitude,
+            julianDate: 2_461_041.5,
+            localSiderealTime: lst,
+            activeMeteorShowers: [],
+            starDisplayDensity: .maximum
+        ).starField
+        let basis = GnomonicProjectionMath.cameraBasis(centerAlt: 30, centerAz: 160, roll: 0)
+        let scale = GnomonicProjectionMath.projectionScale(size: size, horizontalFOV: 90)
+        measure(metrics: [XCTClockMetric()], options: options) {
+            let projector = GnomonicProjectionMath.EquatorialProjector(
+                cx: size.width / 2, cy: size.height / 2, scale: scale,
+                forward: basis.forward, right: basis.right, up: basis.up, rotation: starField.rotation
+            )
+            var visible = 0
+            for indices in [starField.brightCatalogIndices, starField.faintCatalogIndices] {
+                starField.forEachProjectedStar(in: indices, projector: projector) { _, _, _ in
+                    visible += 1
+                }
+            }
+            XCTAssertGreaterThan(visible, 0)
+        }
+    }
+
     // MARK: - Star catalog decode
 
     /// stars_fill.json (25,650 行) のデコード・Star 変換・名前付き星との重複除外。

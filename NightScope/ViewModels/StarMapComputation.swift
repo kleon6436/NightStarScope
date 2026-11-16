@@ -4,14 +4,14 @@ import SwiftUI
 enum StarMapComputation {
     /// 1 回の描画に必要な計算結果のスナップショット。
     struct Snapshot: Sendable {
-        let starPositions: [StarPosition]
+        let starField: StarField
         let sunAltitude: Double
         let moonAltitude: Double
         let moonAzimuth: Double
         let moonPhase: Double
         let galacticCenterAltitude: Double
         let galacticCenterAzimuth: Double
-        let constellationLines: [ConstellationLineAltAz]
+        let constellationLines: [ConstellationLineSegment]
         let constellationLabels: [ConstellationLabelAltAz]
         let planetPositions: [PlanetPosition]
         let meteorShowerRadiants: [(shower: MeteorShower, altitude: Double, azimuth: Double)]
@@ -21,13 +21,183 @@ enum StarMapComputation {
         var moonBrightLimbZenithAngle: Double? = nil
     }
 
-    private static let cachedStarColors: [Color] = {
-        StarCatalog.stars.map { starColorForBV($0.colorIndex) }
+    /// この高度（度）以下の恒星は描画・選択の対象にしない。
+    static let starHorizonCutoffAltitude: Double = -3
+    /// `starHorizonCutoffAltitude` の正弦。地平座標の天頂成分と直接比べる。
+    static let sinStarHorizonCutoff: Double = sin(starHorizonCutoffAltitude * .pi / 180)
+
+    /// 恒星カタログの時刻に依存しない幾何情報（構造体の配列ではなく成分ごとの配列）。
+    /// 赤道座標の単位ベクトルはカタログ読込後に 1 回だけ作り、時刻が変わっても使い回す。
+    struct CatalogGeometry: Sendable {
+        let x: [Double]
+        let y: [Double]
+        let z: [Double]
+        let magnitudes: [Double]
+        let colorBuckets: [Int]
+        let colors: [Color]
+    }
+
+    static let catalogGeometry: CatalogGeometry = {
+        let catalog = StarCatalog.stars
+        var x = [Double](), y = [Double](), z = [Double]()
+        x.reserveCapacity(catalog.count)
+        y.reserveCapacity(catalog.count)
+        z.reserveCapacity(catalog.count)
+        for star in catalog {
+            let vector = MilkyWayCalculator.SkyRotation.unitVector(ra: star.ra, dec: star.dec)
+            x.append(vector.x)
+            y.append(vector.y)
+            z.append(vector.z)
+        }
+        return CatalogGeometry(
+            x: x,
+            y: y,
+            z: z,
+            magnitudes: catalog.map(\.magnitude),
+            colorBuckets: catalog.map { StarMapStarStyle.colorBucket(forBV: $0.colorIndex) },
+            colors: catalog.map { starColorForBV($0.colorIndex) }
+        )
     }()
 
-    private static let cachedStarColorBuckets: [Int] = {
-        StarCatalog.stars.map { StarMapStarStyle.colorBucket(forBV: $0.colorIndex) }
+    /// 表示密度ごとのカタログ番号（カタログ順）。明るい星は 1 個ずつ、暗い星はまとめて描くため分けて持つ。
+    private struct DensityIndices: Sendable {
+        let bright: [Int]
+        let faint: [Int]
+    }
+
+    private static let indicesByDensity: [StarDisplayDensity: DensityIndices] = {
+        let magnitudes = catalogGeometry.magnitudes
+        var result: [StarDisplayDensity: DensityIndices] = [:]
+        for density in StarDisplayDensity.allCases {
+            let limit = density.maxMagnitude
+            var bright: [Int] = []
+            var faint: [Int] = []
+            for index in magnitudes.indices where magnitudes[index] <= limit {
+                if magnitudes[index] < StarMapStarStyle.glowMagnitudeLimit {
+                    bright.append(index)
+                } else {
+                    faint.append(index)
+                }
+            }
+            result[density] = DensityIndices(bright: bright, faint: faint)
+        }
+        return result
     }()
+
+    /// 星図に描く恒星の集合。表示密度で絞ったカタログ番号と、その時刻の赤道→地平回転だけを持つ。
+    /// 地平線のカットや高度・画面位置は描画時に回転から求める（時刻が変わっても恒星ごとの計算をしない）。
+    struct StarField: Sendable {
+        let rotation: MilkyWayCalculator.SkyRotation
+        /// 等級が `StarMapStarStyle.glowMagnitudeLimit` 未満の星（カタログ順）。
+        let brightCatalogIndices: [Int]
+        /// それ以外の星（カタログ順）。
+        let faintCatalogIndices: [Int]
+
+        static let empty = StarField(
+            rotation: MilkyWayCalculator.SkyRotation(latitude: 0, localSiderealTime: 0),
+            brightCatalogIndices: [],
+            faintCatalogIndices: []
+        )
+
+        /// 表示密度を満たす星の数（地平線下を含む）。
+        var count: Int { brightCatalogIndices.count + faintCatalogIndices.count }
+        var isEmpty: Bool { count == 0 }
+
+        /// 地平線カット（高度 > -3°）と視野内判定を通る星を、高度の正弦と画面位置とともにカタログ順で渡す。
+        /// 恒星 1 個あたり内積 4 回と除算だけ（三角関数なし）。毎フレーム全星を回るため、
+        /// 最適化なしのビルドでも遅くならないよう回転・投影の成分をローカルへ展開している。
+        func forEachProjectedStar(
+            in indices: [Int],
+            projector: GnomonicProjectionMath.EquatorialProjector,
+            _ body: (_ catalogIndex: Int, _ sinAltitude: Double, _ point: CGPoint) -> Void
+        ) {
+            let geometry = StarMapComputation.catalogGeometry
+            let sinCutoff = StarMapComputation.sinStarHorizonCutoff
+            let (ux, uy, uz) = (rotation.upX, rotation.upY, rotation.upZ)
+            let (fx, fy, fz) = (projector.forward.x, projector.forward.y, projector.forward.z)
+            let (rx, ry, rz) = (projector.right.x, projector.right.y, projector.right.z)
+            let (vx, vy, vz) = (projector.up.x, projector.up.y, projector.up.z)
+            let (cx, cy, scale) = (projector.cx, projector.cy, projector.scale)
+            geometry.x.withUnsafeBufferPointer { xs in
+                geometry.y.withUnsafeBufferPointer { ys in
+                    geometry.z.withUnsafeBufferPointer { zs in
+                        for index in indices {
+                            let x = xs[index], y = ys[index], z = zs[index]
+                            let sinAltitude = ux * x + uy * y + uz * z
+                            guard sinAltitude > sinCutoff else { continue }
+                            // `GnomonicProjectionMath.projectPoint(horizontal:)` と同じ式。
+                            let dot = fx * x + fy * y + fz * z
+                            guard dot > 0.1 else { continue }
+                            let px = (rx * x + ry * y + rz * z) / dot * scale
+                            let py = (vx * x + vy * y + vz * z) / dot * scale
+                            body(index, sinAltitude, CGPoint(x: cx + px, y: cy - py))
+                        }
+                    }
+                }
+            }
+        }
+
+        /// 地平線カット（高度 > -3°）を通る星の位置。通らなければ nil。
+        func starPosition(catalogIndex index: Int) -> StarPosition? {
+            let geometry = StarMapComputation.catalogGeometry
+            let x = geometry.x[index], y = geometry.y[index], z = geometry.z[index]
+            guard rotation.sinAltitude(x: x, y: y, z: z) > StarMapComputation.sinStarHorizonCutoff else {
+                return nil
+            }
+            let (altitude, azimuth) = rotation.altAz(x: x, y: y, z: z)
+            // 正弦での判定と asin 後の度数での判定が丸めで食い違う境界の星は、従来の度数判定に合わせる。
+            guard altitude > StarMapComputation.starHorizonCutoffAltitude else { return nil }
+            return StarPosition(
+                catalogIndex: index,
+                star: StarCatalog.stars[index],
+                altitude: altitude,
+                azimuth: azimuth,
+                precomputedColor: geometry.colors[index],
+                colorBucket: geometry.colorBuckets[index]
+            )
+        }
+
+        /// 等級 `maxMagnitude` 以下で地平線カットを通る星の位置（カタログ順）。タップ判定用。
+        func starPositions(maxMagnitude: Double) -> [StarPosition] {
+            let magnitudes = StarMapComputation.catalogGeometry.magnitudes
+            var indices = brightCatalogIndices.filter { magnitudes[$0] <= maxMagnitude }
+            indices += faintCatalogIndices.filter { magnitudes[$0] <= maxMagnitude }
+            indices.sort()
+            return indices.compactMap { starPosition(catalogIndex: $0) }
+        }
+    }
+
+    /// 星座線の端点の赤道座標単位ベクトル（`ConstellationData.constellations` の線分順）。
+    private static let constellationSegmentVectors: [(
+        start: (x: Double, y: Double, z: Double),
+        end: (x: Double, y: Double, z: Double)
+    )] = ConstellationData.constellations.flatMap { entry in
+        entry.segments.map { segment in
+            (
+                start: MilkyWayCalculator.SkyRotation.unitVector(ra: segment.ra1, dec: segment.dec1),
+                end: MilkyWayCalculator.SkyRotation.unitVector(ra: segment.ra2, dec: segment.dec2)
+            )
+        }
+    }
+
+    /// 両端がこの高度（度）以下の星座線は描かない。
+    private static let sinConstellationLineCutoff = sin(-15.0 * .pi / 180)
+    /// 星座線の端点はこの高度（度）未満なら持ち上げて描く。
+    private static let constellationLineMinimumAltitude = -5.0 * .pi / 180
+
+    /// 高度が `constellationLineMinimumAltitude` 未満の方向を、方位を保ったままその高度へ持ち上げる。
+    static func clampedToConstellationLineMinimumAltitude(
+        _ vector: (x: Double, y: Double, z: Double)
+    ) -> (x: Double, y: Double, z: Double) {
+        let sinMinimum = sin(constellationLineMinimumAltitude)
+        guard vector.z < sinMinimum else { return vector }
+        let cosMinimum = cos(constellationLineMinimumAltitude)
+        let horizontalLength = (vector.x * vector.x + vector.y * vector.y).squareRoot()
+        // 天底では方位が定まらない。altAzFast と同じく方位 0（北）とみなす。
+        guard horizontalLength > 1e-10 else { return (0, cosMinimum, sinMinimum) }
+        let scale = cosMinimum / horizontalLength
+        return (vector.x * scale, vector.y * scale, sinMinimum)
+    }
 
     static func compute(
         latitude: Double,
@@ -46,29 +216,14 @@ enum StarMapComputation {
             sinLat: sin(latRad),
             lst: localSiderealTime
         )
+        let rotation = MilkyWayCalculator.SkyRotation(latitude: latitude, localSiderealTime: localSiderealTime)
 
-        let catalog = StarCatalog.stars
-        let magnitudeLimit = starDisplayDensity.maxMagnitude
-        var stars = [StarPosition]()
-        stars.reserveCapacity(catalog.count / 2)
-
-        for index in catalog.indices {
-            let star = catalog[index]
-            // 表示密度と地平線下のカットオフを満たす星だけを残す。
-            guard star.magnitude <= magnitudeLimit else { continue }
-            let (altitude, azimuth) = observer.altAz(ra: star.ra, dec: star.dec)
-            guard altitude > -3 else { continue }
-            stars.append(
-                StarPosition(
-                    catalogIndex: index,
-                    star: star,
-                    altitude: altitude,
-                    azimuth: azimuth,
-                    precomputedColor: cachedStarColors[index],
-                    colorBucket: cachedStarColorBuckets[index]
-                )
-            )
-        }
+        let densityIndices = indicesByDensity[starDisplayDensity] ?? DensityIndices(bright: [], faint: [])
+        let starField = StarField(
+            rotation: rotation,
+            brightCatalogIndices: densityIndices.bright,
+            faintCatalogIndices: densityIndices.faint
+        )
 
         let sun = MilkyWayCalculator.sunRaDec(jd: julianDate)
         let (sunAltitude, _) = observer.altAz(ra: sun.ra, dec: sun.dec)
@@ -83,18 +238,18 @@ enum StarMapComputation {
             dec: MilkyWayCalculator.gcDec
         )
 
-        let constellationLines: [ConstellationLineAltAz] = ConstellationData.constellations.flatMap { entry in
-            entry.segments.compactMap { segment in
-                let (startAltitude, startAzimuth) = observer.altAz(ra: segment.ra1, dec: segment.dec1)
-                let (endAltitude, endAzimuth) = observer.altAz(ra: segment.ra2, dec: segment.dec2)
-                guard startAltitude > -15 || endAltitude > -15 else { return nil }
-                return ConstellationLineAltAz(
-                    startAlt: startAltitude,
-                    startAz: startAzimuth,
-                    endAlt: endAltitude,
-                    endAz: endAzimuth
+        var constellationLines: [ConstellationLineSegment] = []
+        constellationLines.reserveCapacity(constellationSegmentVectors.count)
+        for segment in constellationSegmentVectors {
+            let start = rotation.horizontal(x: segment.start.x, y: segment.start.y, z: segment.start.z)
+            let end = rotation.horizontal(x: segment.end.x, y: segment.end.y, z: segment.end.z)
+            guard start.z > sinConstellationLineCutoff || end.z > sinConstellationLineCutoff else { continue }
+            constellationLines.append(
+                ConstellationLineSegment(
+                    start: clampedToConstellationLineMinimumAltitude(start),
+                    end: clampedToConstellationLineMinimumAltitude(end)
                 )
-            }
+            )
         }
 
         let constellationNames = ConstellationData.localizedNames()
@@ -113,7 +268,7 @@ enum StarMapComputation {
         }
 
         return Snapshot(
-            starPositions: stars,
+            starField: starField,
             sunAltitude: sunAltitude,
             moonAltitude: moonAltitude,
             moonAzimuth: moonAzimuth,

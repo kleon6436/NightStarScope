@@ -148,12 +148,37 @@ enum StarMapStarStyle {
         max(0.8, 5 - (magnitude + 1.5) * (4 / 4.5))
     }
 
+    /// 大気消光が始まる仰角（度）。これ以下で徐々に減光する。
+    static let extinctionAltitude = 15.0
+    private static let sinExtinctionAltitude = sin(extinctionAltitude * .pi / 180)
+    /// 暗い星（6 等より暗い）を描かない仰角（度）の正弦。
+    static let sinFaintStarCutoffAltitude = sin(5.0 * .pi / 180)
+
+    /// 大気消光の係数（仰角 15° 以上で 1）。
+    static func extinction(altitude: Double) -> Double {
+        altitude < extinctionAltitude ? max(0, altitude / extinctionAltitude) : 1.0
+    }
+
+    /// 高度の正弦から求める大気消光の係数。消光しない高さでは asin を省く。
+    static func extinction(sinAltitude: Double) -> Double {
+        guard sinAltitude < sinExtinctionAltitude else { return 1.0 }
+        return extinction(altitude: asin(max(-1, sinAltitude)) * 180 / .pi)
+    }
+
     /// シンチレーションを除いた本体円の不透明度。
     static func coreOpacity(magnitude: Double, isDark: Bool, altitude: Double, moonBrightness: Double) -> Double {
+        coreOpacity(
+            magnitude: magnitude,
+            isDark: isDark,
+            extinction: extinction(altitude: altitude),
+            moonBrightness: moonBrightness
+        )
+    }
+
+    /// 大気消光の係数（`extinction(altitude:)` / `extinction(sinAltitude:)`）を受け取る版。
+    static func coreOpacity(magnitude: Double, isDark: Bool, extinction: Double, moonBrightness: Double) -> Double {
         let opacity = isDark ? 1.0 : max(0.1, 0.3 - magnitude * 0.05)
         let brightness = magnitude < 0 ? 1.0 : max(0.6, 1.0 - magnitude * 0.12)
-        // 大気消光: 仰角 15° 以下で徐々に減光
-        let extinction = altitude < 15 ? max(0, altitude / 15.0) : 1.0
         // 月光減衰: 月が明るいとき暗い星を減光
         let moonDimming = StarMapPalette.moonDimmingFactor(
             moonBrightness: moonBrightness, starMagnitude: magnitude

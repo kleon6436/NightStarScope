@@ -53,12 +53,11 @@ struct MilkyWayBandPoint: Sendable {
     let li: Double
 }
 
-/// 星座線の 2 点を水平座標系へ変換した結果。
-struct ConstellationLineAltAz {
-    let startAlt: Double
-    let startAz: Double
-    let endAlt: Double
-    let endAz: Double
+/// 星座線の 2 点を地平直交座標（x=東, y=北, z=天頂の単位ベクトル）へ変換した結果。
+/// 端点は描画用に高度 -5° 未満を -5° へ持ち上げてある（方位は保つ）。
+struct ConstellationLineSegment: Sendable {
+    let start: (x: Double, y: Double, z: Double)
+    let end: (x: Double, y: Double, z: Double)
 }
 
 /// 星座ラベルを配置する水平座標系の位置。

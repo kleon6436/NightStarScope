@@ -62,29 +62,33 @@ extension StarMapCanvasView {
     /// 1 万個超の星を個別に fill すると描画コストの大半を占めるため。
     /// 量子化の誤差は不透明度 1/128・色各チャネル約 0.008 以内。
     func drawFaintStarsBatched(ctx: GraphicsContext,
-                               stars: [StarPosition],
+                               starField: StarMapComputation.StarField,
                                isDark: Bool,
                                moonBrightness: Double,
                                canvasSize: CGSize,
-                               project: (_ altitudeRadians: Double, _ azimuthRadians: Double) -> CGPoint?) {
+                               projector: GnomonicProjectionMath.EquatorialProjector) {
         var batches: [Int: Path] = [:]
-        for pos in stars {
-            let magnitude = pos.star.magnitude
-            guard magnitude >= StarMapStarStyle.glowMagnitudeLimit else { continue }
+        let geometry = StarMapComputation.catalogGeometry
+        let magnitudes = geometry.magnitudes
+        let colorBuckets = geometry.colorBuckets
+        starField.forEachProjectedStar(in: starField.faintCatalogIndices, projector: projector) { index, sinAltitude, point in
+            let magnitude = magnitudes[index]
             // 地平線近くの暗い星をスキップ
-            if pos.altitude < 5 && magnitude > 6.0 { continue }
+            if sinAltitude < StarMapStarStyle.sinFaintStarCutoffAltitude && magnitude > 6.0 { return }
             let opacityLevel = StarMapStarStyle.quantizedOpacityLevel(
                 StarMapStarStyle.coreOpacity(
-                    magnitude: magnitude, isDark: isDark, altitude: pos.altitude, moonBrightness: moonBrightness
+                    magnitude: magnitude,
+                    isDark: isDark,
+                    extinction: StarMapStarStyle.extinction(sinAltitude: sinAltitude),
+                    moonBrightness: moonBrightness
                 )
             )
-            guard opacityLevel > 0,
-                  let point = project(pos.altitude * .pi / 180, pos.azimuth * .pi / 180) else { continue }
+            guard opacityLevel > 0 else { return }
             let radius = StarMapStarStyle.radius(magnitude: magnitude)
             guard StarMapStarStyle.isPotentiallyVisible(point, extent: radius, canvasSize: canvasSize) else {
-                continue
+                return
             }
-            let key = StarMapStarStyle.batchKey(colorBucket: pos.colorBucket, opacityLevel: opacityLevel)
+            let key = StarMapStarStyle.batchKey(colorBucket: colorBuckets[index], opacityLevel: opacityLevel)
             StarMapStarStyle.addBatchedDisc(to: &batches[key, default: Path()], center: point, radius: radius)
         }
         // 辞書の列挙順は実行ごとに変わるため、重なりの描画順を固定する。

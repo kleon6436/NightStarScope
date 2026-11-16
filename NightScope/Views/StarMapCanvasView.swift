@@ -65,6 +65,21 @@ struct StarMapCanvasView: View {
                 azimuthRadians: azimuthRadians
             )
         }
+
+        func project(horizontal point: (x: Double, y: Double, z: Double)) -> CGPoint? {
+            GnomonicProjectionMath.projectPoint(
+                cx: cx, cy: cy, scale: scale, forward: forward, right: right, up: up, horizontal: point
+            )
+        }
+
+        /// 恒星を赤道座標の単位ベクトルから直接投影するための行列（フレームごとに 1 回作る）。
+        func equatorialProjector(
+            rotation: MilkyWayCalculator.SkyRotation
+        ) -> GnomonicProjectionMath.EquatorialProjector {
+            GnomonicProjectionMath.EquatorialProjector(
+                cx: cx, cy: cy, scale: scale, forward: forward, right: right, up: up, rotation: rotation
+            )
+        }
     }
 
     var viewModel: StarMapViewModel
@@ -207,7 +222,7 @@ struct StarMapCanvasView: View {
     /// Canvas の描画クロージャは body の外で実行され、そこでの読み取りは Observation の追跡対象にならない。
     /// 描画に使う値を body で読んで依存として登録し、値が変わったら Canvas が再描画されるようにする。
     private func registerCanvasDrawDependencies() {
-        _ = viewModel.starPositions
+        _ = viewModel.starField
         _ = viewModel.sunAltitude
         _ = viewModel.moonAltitude
         _ = viewModel.moonAzimuth
@@ -231,6 +246,8 @@ struct StarMapCanvasView: View {
         _ = viewModel.viewRoll
         _ = viewModel.fov
         _ = viewModel.isGyroMode
+        // ラベル配置の流用判定（isViewMoving）に使う。スクラブ終了時に配置し直すため登録する。
+        _ = viewModel.isTimeSliderScrubbing
     }
 
     private var scintillationEnabled: Bool {
@@ -343,10 +360,8 @@ struct StarMapCanvasView: View {
         if viewModel.showsConstellationLines {
             var constPath = Path()
             for line in viewModel.constellationLines {
-                let a1 = max(line.startAlt, -5) * .pi / 180
-                let a2 = max(line.endAlt,   -5) * .pi / 180
-                if let p1 = projection.project(altitudeRadians: a1, azimuthRadians: line.startAz * .pi / 180),
-                   let p2 = projection.project(altitudeRadians: a2, azimuthRadians: line.endAz * .pi / 180),
+                if let p1 = projection.project(horizontal: line.start),
+                   let p2 = projection.project(horizontal: line.end),
                    !Self.isSegmentOutsideCanvas(p1, p2, canvasSize: size, margin: 2) {
                     constPath.move(to: p1)
                     constPath.addLine(to: p2)
@@ -368,15 +383,22 @@ struct StarMapCanvasView: View {
         }
 
         // 暗い恒星（明るい星は上層で描く）
+        let starField = viewModel.starField
         drawFaintStarsBatched(
             ctx: ctx,
-            stars: viewModel.starPositions,
+            starField: starField,
             isDark: viewModel.isNight,
             moonBrightness: currentMoonBrightness,
-            canvasSize: size
-        ) { alt, az in
-            projection.project(altitudeRadians: alt, azimuthRadians: az)
-        }
+            canvasSize: size,
+            projector: projection.equatorialProjector(rotation: starField.rotation)
+        )
+    }
+
+    /// 視点が連続的に動いている可能性があるか（ドラッグ・ピンチ・ジャイロ・時刻スライダー操作中）。
+    /// 星座ラベルの再配置を間引く判断に使う。動きが止まれば通常どおり配置し直す。
+    private var isViewMoving: Bool {
+        gestureDragOffset != .zero || gestureScale != 1.0
+            || viewModel.isGyroMode || viewModel.isTimeSliderScrubbing
     }
 
     private var currentMoonBrightness: Double {
@@ -393,22 +415,26 @@ struct StarMapCanvasView: View {
         // 明るい恒星
         let moonBright = currentMoonBrightness
         let isDark = viewModel.isNight
-        for pos in viewModel.starPositions where pos.star.magnitude < StarMapStarStyle.glowMagnitudeLimit {
-            let alt = pos.altitude * .pi / 180
-            let az  = pos.azimuth  * .pi / 180
-            guard let pt = projection.project(altitudeRadians: alt, azimuthRadians: az) else { continue }
-            let hasLabel = pos.star.magnitude < StarMapStarStyle.labelMagnitudeLimit && !pos.star.name.isEmpty
-            let extent = StarMapStarStyle.drawExtent(magnitude: pos.star.magnitude)
+        let starField = viewModel.starField
+        let geometry = StarMapComputation.catalogGeometry
+        let catalog = StarCatalog.stars
+        starField.forEachProjectedStar(
+            in: starField.brightCatalogIndices,
+            projector: projection.equatorialProjector(rotation: starField.rotation)
+        ) { index, sinAltitude, pt in
+            let star = catalog[index]
+            let hasLabel = star.magnitude < StarMapStarStyle.labelMagnitudeLimit && !star.name.isEmpty
+            let extent = StarMapStarStyle.drawExtent(magnitude: star.magnitude)
                 + (hasLabel ? StarMapStarStyle.labelCullingMargin : 0)
-            guard StarMapStarStyle.isPotentiallyVisible(pt, extent: extent, canvasSize: size) else { continue }
-            drawStar(ctx: ctx, at: pt, magnitude: pos.star.magnitude,
-                     isDark: isDark, precomputedColor: pos.precomputedColor,
-                     altitude: pos.altitude,
+            guard StarMapStarStyle.isPotentiallyVisible(pt, extent: extent, canvasSize: size) else { return }
+            drawStar(ctx: ctx, at: pt, magnitude: star.magnitude,
+                     isDark: isDark, precomputedColor: geometry.colors[index],
+                     altitude: asin(min(1, sinAltitude)) * 180 / .pi,
                      moonBrightness: moonBright,
                      scintillationTime: scintillationTime,
-                     starRA: pos.star.ra)
+                     starRA: star.ra)
             if hasLabel {
-                drawStarLabel(ctx: ctx, at: pt, name: pos.star.localizedName)
+                drawStarLabel(ctx: ctx, at: pt, name: star.localizedName)
             }
         }
 
@@ -428,7 +454,8 @@ struct StarMapCanvasView: View {
             for placement in viewModel.labelPlacements(
                 candidates: constellationLabelCandidates,
                 canvasSize: size,
-                reservedBottomInset: showsCardinalOverlay ? Double(cardinalOverlayBottomInset) + 20 : 0
+                reservedBottomInset: showsCardinalOverlay ? Double(cardinalOverlayBottomInset) + 20 : 0,
+                isViewMoving: isViewMoving
             ) {
                 ctx.draw(
                     Text(placement.name)
@@ -712,7 +739,7 @@ struct StarMapCanvasView: View {
 
         // 地平線より下、または地形シルエットに隠れている星は描画上見えないため選択対象から外す。
         let terrain = viewModel.terrainProfile
-        let selectableStars = viewModel.starPositions.filter {
+        let selectableStars = viewModel.starField.starPositions(maxMagnitude: 2.5).filter {
             Self.isSelectableForHitTest(altitude: $0.altitude, azimuth: $0.azimuth, terrain: terrain)
         }
         let index = StarMapSpatialIndex(

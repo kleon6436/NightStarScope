@@ -81,12 +81,71 @@ struct GnomonicProjectionMath {
         azimuthRadians: Double
     ) -> CGPoint? {
         let point = altAzToCartesian(alt: altitudeRadians, az: azimuthRadians)
-        let dot = point.0 * forward.x + point.1 * forward.y + point.2 * forward.z
+        return projectPoint(cx: cx, cy: cy, scale: scale, forward: forward, right: right, up: up,
+                            horizontal: (x: point.0, y: point.1, z: point.2))
+    }
+
+    /// 地平直交座標（x=東, y=北, z=天頂）の方向ベクトルを投影する。
+    @inline(__always)
+    static func projectPoint(
+        cx: Double,
+        cy: Double,
+        scale: Double,
+        forward: (x: Double, y: Double, z: Double),
+        right: (x: Double, y: Double, z: Double),
+        up: (x: Double, y: Double, z: Double),
+        horizontal point: (x: Double, y: Double, z: Double)
+    ) -> CGPoint? {
+        let dot = point.x * forward.x + point.y * forward.y + point.z * forward.z
         guard dot > 0.1 else { return nil }
 
-        let px = (point.0 * right.x + point.1 * right.y + point.2 * right.z) / dot * scale
-        let py = (point.0 * up.x    + point.1 * up.y    + point.2 * up.z)    / dot * scale
+        let px = (point.x * right.x + point.y * right.y + point.z * right.z) / dot * scale
+        let py = (point.x * up.x    + point.y * up.y    + point.z * up.z)    / dot * scale
         return CGPoint(x: cx + px, y: cy - py)
+    }
+
+    /// 赤道座標の単位ベクトルを画面へ直接投影する。カメラ基底に赤道→地平回転を掛けた行列を
+    /// フレームごとに 1 回作り、恒星 1 個あたりは内積 3 回と除算だけにする（三角関数なし）。
+    struct EquatorialProjector {
+        let cx: Double
+        let cy: Double
+        let scale: Double
+        let forward: (x: Double, y: Double, z: Double)
+        let right: (x: Double, y: Double, z: Double)
+        let up: (x: Double, y: Double, z: Double)
+
+        init(
+            cx: Double,
+            cy: Double,
+            scale: Double,
+            forward: (x: Double, y: Double, z: Double),
+            right: (x: Double, y: Double, z: Double),
+            up: (x: Double, y: Double, z: Double),
+            rotation: MilkyWayCalculator.SkyRotation
+        ) {
+            self.cx = cx
+            self.cy = cy
+            self.scale = scale
+            // 地平座標の基底ベクトル b を、赤道座標で b·(R v) = (Rᵀ b)·v となる Rᵀ b に変換する。
+            func pullBack(_ b: (x: Double, y: Double, z: Double)) -> (x: Double, y: Double, z: Double) {
+                (
+                    b.x * rotation.eastX + b.y * rotation.northX + b.z * rotation.upX,
+                    b.x * rotation.eastY + b.y * rotation.northY + b.z * rotation.upY,
+                    b.x * rotation.eastZ + b.y * rotation.northZ + b.z * rotation.upZ
+                )
+            }
+            self.forward = pullBack(forward)
+            self.right = pullBack(right)
+            self.up = pullBack(up)
+        }
+
+        @inline(__always)
+        func project(x: Double, y: Double, z: Double) -> CGPoint? {
+            GnomonicProjectionMath.projectPoint(
+                cx: cx, cy: cy, scale: scale, forward: forward, right: right, up: up,
+                horizontal: (x: x, y: y, z: z)
+            )
+        }
     }
 
     static func projectPoint(

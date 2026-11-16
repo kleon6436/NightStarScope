@@ -81,7 +81,7 @@ final class StarMapViewModelTests: XCTestCase {
         StarMapComputationDependency(
             computeSnapshot: { _, _, _, _, _, _ in
                 StarMapComputation.Snapshot(
-                    starPositions: [],
+                    starField: .empty,
                     sunAltitude: -20,
                     moonAltitude: -10,
                     moonAzimuth: 180,
@@ -710,15 +710,15 @@ final class StarMapViewModelTests: XCTestCase {
         let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
 
-        // StarMapViewModel は Observation へ移行したため、Combine の $starPositions ではなく値をポーリングで待つ。
+        // StarMapViewModel は Observation へ移行したため、Combine の購読ではなく値をポーリングで待つ。
         viewModel.activatePresentationIfNeeded()
-        await waitUntil(timeout: 5) { !viewModel.starPositions.isEmpty }
-        let initialCount = viewModel.starPositions.count
+        await waitUntil(timeout: 5) { !viewModel.starField.isEmpty }
+        let initialCount = viewModel.starField.count
         XCTAssertGreaterThan(initialCount, 0)
 
         viewModel.setStarDisplayDensity(.small)
 
-        await waitUntil(timeout: 5) { viewModel.starPositions.count < initialCount }
+        await waitUntil(timeout: 5) { viewModel.starField.count < initialCount }
     }
 
     func test_StarMapViewModel_initialPose_usesResetAltitude() {
@@ -1860,7 +1860,7 @@ final class StarMapViewModelTests: XCTestCase {
             computationDependency: StarMapComputationDependency(
                 computeSnapshot: { latitude, _, _, _, _, _ in
                     StarMapComputation.Snapshot(
-                        starPositions: [],
+                        starField: .empty,
                         sunAltitude: latitude,
                         moonAltitude: -10,
                         moonAzimuth: 180,
@@ -2235,7 +2235,7 @@ final class StarMapViewModelTests: XCTestCase {
             computationDependency: StarMapComputationDependency(computeSnapshot: { _, _, _, _, _, _ in snapshot })
         )
         viewModel.activatePresentationIfNeeded()
-        await waitUntil { !viewModel.starPositions.isEmpty }
+        await waitUntil { !viewModel.starField.isEmpty }
         viewModel.updateCanvasSize(CGSize(width: 900, height: 600))
         viewModel.applyInitialPoseIfNeeded()
 
@@ -2266,5 +2266,212 @@ final class StarMapViewModelTests: XCTestCase {
             CGImageDestinationAddImage(destination, image, nil)
             XCTAssertTrue(CGImageDestinationFinalize(destination))
         }
+    }
+
+    // MARK: - Equatorial rotation
+
+    /// 回転行列で求めた高度・方位が、従来の altAzFast とカタログ全星で一致するか。
+    /// 方位は天頂付近で条件が悪くなる（天頂では未定義）ため、天球上の位置ずれ（方位差 × cos 高度）で比べる。
+    func test_SkyRotation_matchesAltAzFast_forFullCatalog() {
+        let cases: [(latitude: Double, longitude: Double, julianDate: Double)] = [
+            (35.6762, 139.6503, 2_461_268.0),   // 東京
+            (69.6492, 18.9553, 2_461_041.5),    // トロムソ（高緯度）
+            (-33.8688, 151.2093, 2_461_150.25), // シドニー（南半球）
+            (-77.85, 166.67, 2_460_900.75),     // マクマード（南極圏）
+            (0.0, -78.5, 2_461_300.1),          // 赤道
+            (89.9, 0.0, 2_461_000.6)            // 北極点近傍
+        ]
+        let catalog = StarCatalog.stars
+        let geometry = StarMapComputation.catalogGeometry
+        XCTAssertEqual(geometry.x.count, catalog.count)
+        var worstAltitude = 0.0
+        var worstPosition = 0.0
+        for testCase in cases {
+            let lst = MilkyWayCalculator.localSiderealTime(jd: testCase.julianDate, longitude: testCase.longitude)
+            let latRad = testCase.latitude * .pi / 180
+            let observer = MilkyWayCalculator.HorizontalObserver(cosLat: cos(latRad), sinLat: sin(latRad), lst: lst)
+            let rotation = MilkyWayCalculator.SkyRotation(latitude: testCase.latitude, localSiderealTime: lst)
+            for index in catalog.indices {
+                let expected = observer.altAz(ra: catalog[index].ra, dec: catalog[index].dec)
+                let actual = rotation.altAz(x: geometry.x[index], y: geometry.y[index], z: geometry.z[index])
+                let altitudeError = abs(actual.alt - expected.alt) * .pi / 180
+                var azimuthDelta = abs(actual.az - expected.az).truncatingRemainder(dividingBy: 360)
+                azimuthDelta = min(azimuthDelta, 360 - azimuthDelta)
+                let positionError = azimuthDelta * .pi / 180 * cos(expected.alt * .pi / 180)
+                worstAltitude = max(worstAltitude, altitudeError)
+                worstPosition = max(worstPosition, positionError)
+            }
+        }
+        print("SkyRotation vs altAzFast: max altitude error \(worstAltitude) rad, max azimuth·cos(alt) error \(worstPosition) rad")
+        XCTAssertLessThan(worstAltitude, 1e-6)
+        XCTAssertLessThan(worstPosition, 1e-6)
+    }
+
+    /// 赤道座標からの直接投影が、従来の高度・方位からの投影と画面上で一致するか。
+    func test_EquatorialProjector_matchesAltAzProjection() {
+        let catalog = StarCatalog.stars
+        let geometry = StarMapComputation.catalogGeometry
+        let size = CGSize(width: 900, height: 600)
+        let poses: [(alt: Double, az: Double, roll: Double, fov: Double)] = [
+            (30, 160, 0, 90), (70, 20, 0, 110), (-5, 300, 15, 40), (85, 0, -30, 150)
+        ]
+        let lst = MilkyWayCalculator.localSiderealTime(jd: 2_461_268.0, longitude: 139.6503)
+        let latRad = 35.6762 * .pi / 180
+        let observer = MilkyWayCalculator.HorizontalObserver(cosLat: cos(latRad), sinLat: sin(latRad), lst: lst)
+        let rotation = MilkyWayCalculator.SkyRotation(latitude: 35.6762, localSiderealTime: lst)
+        var worstPixelError = 0.0
+        var visibilityMismatches = 0
+        for pose in poses {
+            let basis = GnomonicProjectionMath.cameraBasis(centerAlt: pose.alt, centerAz: pose.az, roll: pose.roll)
+            let scale = GnomonicProjectionMath.projectionScale(size: size, horizontalFOV: pose.fov)
+            let projector = GnomonicProjectionMath.EquatorialProjector(
+                cx: size.width / 2, cy: size.height / 2, scale: scale,
+                forward: basis.forward, right: basis.right, up: basis.up, rotation: rotation
+            )
+            for index in catalog.indices {
+                let (alt, az) = observer.altAz(ra: catalog[index].ra, dec: catalog[index].dec)
+                let expected = GnomonicProjectionMath.projectPoint(
+                    cx: size.width / 2, cy: size.height / 2, scale: scale,
+                    forward: basis.forward, right: basis.right, up: basis.up,
+                    altitudeRadians: alt * .pi / 180, azimuthRadians: az * .pi / 180
+                )
+                let actual = projector.project(x: geometry.x[index], y: geometry.y[index], z: geometry.z[index])
+                switch (expected, actual) {
+                case let (expected?, actual?):
+                    worstPixelError = max(worstPixelError, hypot(actual.x - expected.x, actual.y - expected.y))
+                case (nil, nil):
+                    break
+                default:
+                    visibilityMismatches += 1
+                }
+            }
+        }
+        print("EquatorialProjector vs alt/az projection: max error \(worstPixelError) px, mismatches \(visibilityMismatches)")
+        XCTAssertLessThan(worstPixelError, 1e-6)
+        XCTAssertEqual(visibilityMismatches, 0)
+    }
+
+    /// 星座線の端点（高度 -5° への持ち上げを含む）が、従来の高度・方位から作る方向と一致するか。
+    func test_StarMapComputation_constellationLines_matchLegacyAltAzClamp() {
+        let latitude = -33.8688
+        let lst = MilkyWayCalculator.localSiderealTime(jd: 2_461_150.25, longitude: 151.2093)
+        let snapshot = StarMapComputation.compute(
+            latitude: latitude, longitude: 151.2093, julianDate: 2_461_150.25,
+            localSiderealTime: lst, activeMeteorShowers: [], starDisplayDensity: .small
+        )
+        let latRad = latitude * .pi / 180
+        let observer = MilkyWayCalculator.HorizontalObserver(cosLat: cos(latRad), sinLat: sin(latRad), lst: lst)
+        var legacy: [((Double, Double, Double), (Double, Double, Double))] = []
+        for entry in ConstellationData.constellations {
+            for segment in entry.segments {
+                let start = observer.altAz(ra: segment.ra1, dec: segment.dec1)
+                let end = observer.altAz(ra: segment.ra2, dec: segment.dec2)
+                guard start.alt > -15 || end.alt > -15 else { continue }
+                legacy.append((
+                    GnomonicProjectionMath.altAzToCartesian(
+                        alt: max(start.alt, -5) * .pi / 180, az: start.az * .pi / 180
+                    ),
+                    GnomonicProjectionMath.altAzToCartesian(
+                        alt: max(end.alt, -5) * .pi / 180, az: end.az * .pi / 180
+                    )
+                ))
+            }
+        }
+        XCTAssertEqual(snapshot.constellationLines.count, legacy.count)
+        var worst = 0.0
+        for (line, expected) in zip(snapshot.constellationLines, legacy) {
+            worst = max(worst, abs(line.start.x - expected.0.0), abs(line.start.y - expected.0.1),
+                        abs(line.start.z - expected.0.2), abs(line.end.x - expected.1.0),
+                        abs(line.end.y - expected.1.1), abs(line.end.z - expected.1.2))
+        }
+        XCTAssertLessThan(worst, 1e-9)
+    }
+
+    /// 地平線カット後の恒星集合と位置が、従来の altAzFast による一覧と一致するか（タップ判定・情報表示用）。
+    func test_StarField_starPositions_matchLegacyHorizonCut() {
+        let latitude = 69.6492
+        let lst = MilkyWayCalculator.localSiderealTime(jd: 2_461_041.5, longitude: 18.9553)
+        let snapshot = StarMapComputation.compute(
+            latitude: latitude, longitude: 18.9553, julianDate: 2_461_041.5,
+            localSiderealTime: lst, activeMeteorShowers: [], starDisplayDensity: .maximum
+        )
+        let latRad = latitude * .pi / 180
+        let observer = MilkyWayCalculator.HorizontalObserver(cosLat: cos(latRad), sinLat: sin(latRad), lst: lst)
+        let legacy = StarCatalog.stars.indices.compactMap { index -> (Int, Double, Double)? in
+            let star = StarCatalog.stars[index]
+            guard star.magnitude <= 2.5 else { return nil }
+            let (alt, az) = observer.altAz(ra: star.ra, dec: star.dec)
+            return alt > -3 ? (index, alt, az) : nil
+        }
+        let actual = snapshot.starField.starPositions(maxMagnitude: 2.5)
+        XCTAssertEqual(actual.map(\.catalogIndex), legacy.map(\.0))
+        for (position, expected) in zip(actual, legacy) {
+            XCTAssertEqual(position.altitude, expected.1, accuracy: 1e-9)
+            XCTAssertEqual(position.azimuth, expected.2, accuracy: 1e-7)
+        }
+        XCTAssertEqual(
+            snapshot.starField.count,
+            StarCatalog.stars.filter { $0.magnitude <= StarDisplayDensity.maximum.maxMagnitude }.count
+        )
+    }
+
+    /// 視点が動いている間は前回の配置を平行移動で流用し、止まれば最適化の結果に戻る。
+    func test_StarMapViewModel_labelPlacements_reuseWhileMovingAndRelayoutWhenSettled() {
+        let viewModel = StarMapViewModel(
+            appController: makeTokyoAppController(),
+            terrainDependency: StarMapTerrainDependency(fetchProfile: { _, _ in nil }),
+            computationDependency: makeStaticComputationDependency()
+        )
+        let size = CGSize(width: 900, height: 600)
+        func candidates(offset: Double) -> [ConstellationLabelCandidate] {
+            [
+                ConstellationLabelCandidate(name: "A", anchor: CGPoint(x: 100 + offset, y: 100), priority: 50),
+                ConstellationLabelCandidate(name: "B", anchor: CGPoint(x: 140 + offset, y: 110), priority: 40),
+                ConstellationLabelCandidate(name: "C", anchor: CGPoint(x: 600 + offset, y: 400), priority: 30)
+            ]
+        }
+        let base = viewModel.labelPlacements(
+            candidates: candidates(offset: 0), canvasSize: size, reservedBottomInset: 0, isViewMoving: true
+        )
+        // 動いている最中（前フレームから移動）は最適化せず平行移動する。
+        let moved = viewModel.labelPlacements(
+            candidates: candidates(offset: 10), canvasSize: size, reservedBottomInset: 0, isViewMoving: true
+        )
+        XCTAssertEqual(moved.map(\.name), base.map(\.name))
+        for (movedPlacement, basePlacement) in zip(moved, base) {
+            XCTAssertEqual(movedPlacement.origin.x, basePlacement.origin.x + 10, accuracy: 1e-9)
+            XCTAssertEqual(movedPlacement.origin.y, basePlacement.origin.y, accuracy: 1e-9)
+        }
+        // 止まった（前フレームと同じアンカー）ら最適化の結果と一致させる。
+        let settled = viewModel.labelPlacements(
+            candidates: candidates(offset: 10), canvasSize: size, reservedBottomInset: 0, isViewMoving: true
+        )
+        XCTAssertEqual(
+            settled,
+            ConstellationLabelLayoutEngine.optimizedPlacements(
+                candidates: candidates(offset: 10), canvasSize: size, reservedBottomInset: 0
+            )
+        )
+        // 大きく動いたら動作中でも配置し直す。
+        let farOffset = StarMapViewModel.labelPlacementReuseDistance + 20
+        let far = viewModel.labelPlacements(
+            candidates: candidates(offset: farOffset), canvasSize: size, reservedBottomInset: 0, isViewMoving: true
+        )
+        XCTAssertEqual(
+            far,
+            ConstellationLabelLayoutEngine.optimizedPlacements(
+                candidates: candidates(offset: farOffset), canvasSize: size, reservedBottomInset: 0
+            )
+        )
+        // 動いていなければ常に最適化の結果。
+        let still = viewModel.labelPlacements(
+            candidates: candidates(offset: farOffset + 5), canvasSize: size, reservedBottomInset: 0
+        )
+        XCTAssertEqual(
+            still,
+            ConstellationLabelLayoutEngine.optimizedPlacements(
+                candidates: candidates(offset: farOffset + 5), canvasSize: size, reservedBottomInset: 0
+            )
+        )
     }
 }

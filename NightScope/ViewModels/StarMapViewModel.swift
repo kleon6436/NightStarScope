@@ -68,7 +68,7 @@ final class StarMapViewModel {
 
     // MARK: - Celestial object positions
 
-    private(set) var starPositions: [StarPosition] = []
+    private(set) var starField: StarMapComputation.StarField = .empty
     private(set) var sunAltitude: Double = 0
     private(set) var moonAltitude: Double = 0
     private(set) var moonAzimuth: Double = 0
@@ -77,7 +77,7 @@ final class StarMapViewModel {
     private(set) var moonBrightLimbZenithAngle: Double? = nil
     private(set) var galacticCenterAltitude: Double = 0
     private(set) var galacticCenterAzimuth: Double = 0
-    private(set) var constellationLines: [ConstellationLineAltAz] = []
+    private(set) var constellationLines: [ConstellationLineSegment] = []
     private(set) var constellationLabels: [ConstellationLabelAltAz] = []
     private(set) var planetPositions: [PlanetPosition] = []
     private(set) var meteorShowerRadiants: [(shower: MeteorShower, altitude: Double, azimuth: Double)] = []
@@ -154,6 +154,11 @@ final class StarMapViewModel {
     /// 星座ラベル配置の最終計算結果キャッシュ（視点が変化していなければ再計算をスキップする）
     /// body 評価中に書き換えるため、追跡すると再描画ループになる。
     @ObservationIgnored private var cachedLabelPlacements: (key: LabelPlacementCacheKey, value: [ConstellationLabelPlacement])?
+    /// 前フレームの星座ラベル候補（視点が止まったかの判定用）。body 評価中に書き換えるため追跡しない。
+    @ObservationIgnored private var lastLabelCandidates: [ConstellationLabelCandidate]?
+    /// 最後に配置を最適化した時刻。ジャイロの微小な揺れで「動いている」状態が続いても、
+    /// 一定時間ごとに配置し直して重なりが残り続けないようにする。
+    @ObservationIgnored private var lastLabelLayoutTime: ContinuousClock.Instant?
     /// 夜間タイムラインの最終計算結果キャッシュ（入力が変化していなければ再計算をスキップする）
     @ObservationIgnored private var cachedObservationTimeline: (key: TimelineCacheKey, value: [StarMapObservationConditionSample])?
     /// 次の流星群のキャッシュ。結果は観測地タイムゾーンでの暦日だけで決まるため、その日の範囲で使い回す。
@@ -439,7 +444,7 @@ final class StarMapViewModel {
     }
 
     private func apply(_ snapshot: StarMapComputation.Snapshot) {
-        starPositions = snapshot.starPositions
+        starField = snapshot.starField
         sunAltitude = snapshot.sunAltitude
         moonAltitude = snapshot.moonAltitude
         moonAzimuth = snapshot.moonAzimuth
@@ -842,19 +847,43 @@ final class StarMapViewModel {
         TerrainService.cacheKey(latitude: latitude, longitude: longitude)
     }
 
+    /// 視点が動いている間、前回の配置を流用してよいアンカーの最大移動量（pt）。超えたら配置し直す。
+    nonisolated static let labelPlacementReuseDistance: Double = 24
+    /// フレーム間のアンカー移動がこれ未満なら、視点は止まっているとみなす（pt）。
+    nonisolated static let labelPlacementSettleDistance: Double = 0.5
+    /// 動いている間でも、前回の最適化からこの時間が経ったら配置し直す。
+    nonisolated static let labelPlacementMaximumReuseAge: Duration = .milliseconds(500)
+
     /// 星座ラベルの配置を計算する。視点（候補・キャンバスサイズ・下部余白）が前回と同一ならキャッシュを返す。
+    /// `isViewMoving` が true でアンカーが前フレームから動いている間は、最適化を毎フレーム走らせず、
+    /// 前回の配置を各アンカーの移動量だけ平行移動して返す（移動量が `labelPlacementReuseDistance` を超えたら配置し直す）。
+    /// 動きが止まれば通常どおり配置し直すため、静止後の配置は常に最適化の結果と一致する。
     func labelPlacements(
         candidates: [ConstellationLabelCandidate],
         canvasSize: CGSize,
-        reservedBottomInset: Double
+        reservedBottomInset: Double,
+        isViewMoving: Bool = false
     ) -> [ConstellationLabelPlacement] {
         let key = LabelPlacementCacheKey(
             candidates: candidates,
             canvasSize: canvasSize,
             reservedBottomInset: reservedBottomInset
         )
+        let previousCandidates = lastLabelCandidates
+        lastLabelCandidates = candidates
         if let cached = cachedLabelPlacements, cached.key == key {
             return cached.value
+        }
+        let now = ContinuousClock.now
+        if isViewMoving,
+           let lastLabelLayoutTime,
+           now - lastLabelLayoutTime < Self.labelPlacementMaximumReuseAge,
+           let previousCandidates,
+           let cached = cachedLabelPlacements,
+           Self.maximumAnchorDisplacement(from: previousCandidates, to: candidates)
+            .map({ $0 >= Self.labelPlacementSettleDistance }) == true,
+           let translated = Self.translatedLabelPlacements(cached.value, from: cached.key, to: key) {
+            return translated
         }
         let placements = ConstellationLabelLayoutEngine.optimizedPlacements(
             candidates: candidates,
@@ -862,7 +891,52 @@ final class StarMapViewModel {
             reservedBottomInset: reservedBottomInset
         )
         cachedLabelPlacements = (key: key, value: placements)
+        lastLabelLayoutTime = now
         return placements
+    }
+
+    /// 同じ星座が同じ順で並ぶ候補どうしのアンカー移動量の最大値。並びが違えば nil。
+    nonisolated private static func maximumAnchorDisplacement(
+        from previous: [ConstellationLabelCandidate],
+        to current: [ConstellationLabelCandidate]
+    ) -> Double? {
+        guard previous.count == current.count else { return nil }
+        var maximum = 0.0
+        for (old, new) in zip(previous, current) {
+            guard old.name == new.name else { return nil }
+            maximum = max(maximum, hypot(new.anchor.x - old.anchor.x, new.anchor.y - old.anchor.y))
+        }
+        return maximum
+    }
+
+    /// 前回の配置を各アンカーの移動量だけ平行移動する。候補の並び・キャンバス・余白が違うか、
+    /// 移動量が大きすぎる場合は nil（配置し直す）。
+    nonisolated private static func translatedLabelPlacements(
+        _ placements: [ConstellationLabelPlacement],
+        from cachedKey: LabelPlacementCacheKey,
+        to key: LabelPlacementCacheKey
+    ) -> [ConstellationLabelPlacement]? {
+        guard cachedKey.canvasSize == key.canvasSize,
+              cachedKey.reservedBottomInset == key.reservedBottomInset,
+              let displacement = maximumAnchorDisplacement(from: cachedKey.candidates, to: key.candidates),
+              displacement <= labelPlacementReuseDistance else {
+            return nil
+        }
+        var anchorByName: [String: CGPoint] = [:]
+        for candidate in key.candidates {
+            anchorByName[candidate.name] = candidate.anchor
+        }
+        return placements.map { placement in
+            let anchor = anchorByName[placement.name] ?? placement.anchor
+            let dx = anchor.x - placement.anchor.x
+            let dy = anchor.y - placement.anchor.y
+            return ConstellationLabelPlacement(
+                name: placement.name,
+                anchor: anchor,
+                origin: CGPoint(x: placement.origin.x + dx, y: placement.origin.y + dy),
+                size: placement.size
+            )
+        }
     }
 
 }
