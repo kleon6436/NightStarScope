@@ -2,14 +2,65 @@ import Foundation
 
 // MARK: - Time Formatting
 
-enum FormatterFactory {
-    static func observationTimeZone(dateFormat: String, timeZone: TimeZone) -> DateFormatter {
-        let formatter = DateFormatter()
-        // 固定書式はユーザーの 12/24 時間設定や数字体系に左右されないようにする。
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = dateFormat
-        formatter.timeZone = timeZone
+/// 設定済みの Formatter をキーごとに使い回す。
+/// Formatter の生成と `setLocalizedDateFormatFromTemplate` は 1 回あたり 0.1 ms 前後かかり、
+/// 一覧の行や View の body から何度も呼ばれるためキャッシュする。
+/// 設定後に変更しない Foundation の Formatter は複数スレッドから同時に整形してよいため、辞書だけをロックで守る。
+final class FormatterCache<CachedFormatter: AnyObject>: @unchecked Sendable {
+    /// 観測地を何度も切り替えてもキーが増え続けないよう、上限に達したら全消去する。
+    private static var capacity: Int { 128 }
+
+    private let lock = NSLock()
+    private var storage: [String: CachedFormatter] = [:]
+    private var observers: [NSObjectProtocol] = []
+
+    /// ロケール・タイムゾーン設定の変更時は、既定値を取り込んで作った Formatter を作り直す。
+    init() {
+        let center = NotificationCenter.default
+        observers = [NSLocale.currentLocaleDidChangeNotification, .NSSystemTimeZoneDidChange].map { name in
+            center.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                self?.removeAll()
+            }
+        }
+    }
+
+    deinit {
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
+
+    func formatter(for key: String, make: () -> CachedFormatter) -> CachedFormatter {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = storage[key] {
+            return cached
+        }
+        if storage.count >= Self.capacity {
+            storage.removeAll(keepingCapacity: true)
+        }
+        let formatter = make()
+        storage[key] = formatter
         return formatter
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.removeAll()
+    }
+}
+
+enum FormatterFactory {
+    private static let dateFormatters = FormatterCache<DateFormatter>()
+
+    static func observationTimeZone(dateFormat: String, timeZone: TimeZone) -> DateFormatter {
+        dateFormatters.formatter(for: "fixed|\(dateFormat)|\(timeZone.identifier)") {
+            let formatter = DateFormatter()
+            // 固定書式はユーザーの 12/24 時間設定や数字体系に左右されないようにする。
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = dateFormat
+            formatter.timeZone = timeZone
+            return formatter
+        }
     }
 
     static func observationTimeZone(
@@ -17,11 +68,15 @@ enum FormatterFactory {
         timeStyle: DateFormatter.Style,
         timeZone: TimeZone
     ) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateStyle = dateStyle
-        formatter.timeStyle = timeStyle
-        formatter.timeZone = timeZone
-        return formatter
+        // DateFormatter は生成時の Locale.current を使うため、ロケール変更通知でキャッシュを破棄する。
+        let key = "style|\(dateStyle.rawValue)|\(timeStyle.rawValue)|\(timeZone.identifier)|\(Locale.current.identifier)"
+        return dateFormatters.formatter(for: key) {
+            let formatter = DateFormatter()
+            formatter.dateStyle = dateStyle
+            formatter.timeStyle = timeStyle
+            formatter.timeZone = timeZone
+            return formatter
+        }
     }
 
     static func localizedDate(
@@ -29,11 +84,22 @@ enum FormatterFactory {
         timeZone: TimeZone = .current,
         locale: Locale = .autoupdatingCurrent
     ) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate(template)
-        formatter.timeZone = timeZone
-        return formatter
+        dateFormatters.formatter(for: "template|\(template)|\(timeZone.identifier)|\(locale.identifier)") {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.setLocalizedDateFormatFromTemplate(template)
+            formatter.timeZone = timeZone
+            return formatter
+        }
+    }
+
+    /// 曜日記号などロケールだけで決まる値を読むための Formatter。
+    static func localeSymbols(locale: Locale = .autoupdatingCurrent) -> DateFormatter {
+        dateFormatters.formatter(for: "symbols|\(locale.identifier)") {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            return formatter
+        }
     }
 }
 

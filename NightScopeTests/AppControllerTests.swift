@@ -463,8 +463,8 @@ final class AppControllerTests: XCTestCase {
     // That test relied on a URLSession mock with a 0.2 s Thread.sleep to hold the weather fetch in-flight
     // while the location was changed 50 ms later.  WeatherKitService does not use URLSession, so the
     // handler is ignored; WeatherKit fails immediately in the test environment (no entitlement), and the
-    // race window no longer exists.  The staleness guard in AppController.refreshExternalData(using:) is
-    // still present in production code — it just cannot be exercised via timing without a WeatherKit mock.
+    // race window no longer exists.  Weather and light pollution are now fetched concurrently; stale results
+    // are discarded by each service's generation counter, bumped in prepareForLocationChange().
 
     func test_locationChange_keepsNineUpcomingNights() async {
         let tokyo = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)

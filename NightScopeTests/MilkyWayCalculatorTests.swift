@@ -1099,3 +1099,197 @@ final class MoonBrightLimbTests: XCTestCase {
         XCTAssertLessThan(waningUp.y, center.y - 2)
     }
 }
+
+// MARK: - darknessInterval regression (Phase 1 performance refactor)
+
+/// 1 分刻み線形探索だった旧 `darknessInterval` の実装を参照用に写したもの。
+/// 探索を高速化しても同じ分境界の Date を返すことを確かめるためだけに使う。
+private func referenceDarknessInterval(
+    date: Date,
+    location: CLLocationCoordinate2D,
+    timeZone: TimeZone,
+    threshold: Double
+) -> DateInterval? {
+    let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+    let observationDate = calendar.startOfDay(for: date)
+    let nextObservationDate = calendar.date(byAdding: .day, value: 1, to: observationDate)
+        ?? observationDate.addingTimeInterval(86_400)
+    let latRad = AngleMath.toRadians(location.latitude)
+    let cosLat = cos(latRad)
+    let sinLat = sin(latRad)
+
+    func sunAltitude(at sampleDate: Date) -> Double {
+        let jd = MilkyWayCalculator.julianDate(from: sampleDate)
+        let lst = MilkyWayCalculator.localSiderealTime(jd: jd, longitude: location.longitude)
+        let sun = MilkyWayCalculator.sunRaDec(jd: jd)
+        return MilkyWayCalculator.altAzFast(ra: sun.ra, dec: sun.dec, cosLat: cosLat, sinLat: sinLat, lst: lst).alt
+    }
+
+    var anchor = observationDate
+    var maxAltitude = -Double.infinity
+    var scanDate = observationDate
+    while scanDate < nextObservationDate {
+        let altitude = sunAltitude(at: scanDate)
+        if altitude > maxAltitude {
+            maxAltitude = altitude
+            anchor = scanDate
+        }
+        scanDate = scanDate.addingTimeInterval(10 * 60)
+    }
+
+    guard maxAltitude >= threshold else {
+        let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: observationDate)
+            ?? observationDate.addingTimeInterval(12 * 60 * 60)
+        let nextNoon = calendar.date(byAdding: .day, value: 1, to: noon)
+            ?? noon.addingTimeInterval(86_400)
+        return DateInterval(start: noon, end: nextNoon)
+    }
+
+    var darkStart: Date?
+    for minute in 1...24 * 60 {
+        let sampleDate = anchor.addingTimeInterval(Double(minute) * 60)
+        let altitude = sunAltitude(at: sampleDate)
+        if let darkStart {
+            if altitude >= threshold {
+                return DateInterval(start: darkStart, end: sampleDate)
+            }
+        } else if altitude < threshold {
+            darkStart = sampleDate
+        }
+    }
+
+    guard let darkStart else { return nil }
+    return DateInterval(start: darkStart, end: anchor.addingTimeInterval(86_400))
+}
+
+final class DarknessIntervalRegressionTests: XCTestCase {
+    private typealias Entry = (
+        threshold: Double,
+        compute: (Date, CLLocationCoordinate2D, TimeZone) -> DateInterval?
+    )
+
+    private let entries: [Entry] = [
+        (MilkyWayCalculator.standardSunsetAltitude, MilkyWayCalculator.sunsetSunriseInterval),
+        (MilkyWayCalculator.civilTwilightSunAltitude, MilkyWayCalculator.civilDarknessInterval),
+        (MilkyWayCalculator.horizonSunAltitude, MilkyWayCalculator.sunBelowHorizonInterval),
+    ]
+
+    private let latitudes: [Double] = [-60, -35, 0, 35.68, 51.5, 60, 64, 66, 68, 70, 78]
+
+    /// 経度とタイムゾーンの組（時差が経度と大きくずれる地域も含める）。
+    private let meridians: [(longitude: Double, timeZoneIdentifier: String)] = [
+        (139.65, "Asia/Tokyo"),
+        (-0.13, "Europe/London"),
+        (-74.0, "America/New_York"),
+        (25.5, "Europe/Helsinki"),
+        (-150.0, "Pacific/Honolulu"),
+        (-3.7, "Europe/Madrid"),
+    ]
+
+    override func setUp() {
+        super.setUp()
+        MilkyWayCalculator.clearDarknessIntervalCache()
+    }
+
+    private func days(from start: DateComponents, count: Int, stride: Int, timeZone: TimeZone) -> [Date] {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        guard let first = calendar.date(from: start) else { return [] }
+        return (0..<count).compactMap { calendar.date(byAdding: .day, value: $0 * stride, to: first) }
+    }
+
+    private func assertMatchesReference(
+        dates: [Date],
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Int {
+        var mismatches = 0
+        for date in dates {
+            for entry in entries {
+                let expected = referenceDarknessInterval(
+                    date: date,
+                    location: location,
+                    timeZone: timeZone,
+                    threshold: entry.threshold
+                )
+                let actual = entry.compute(date, location, timeZone)
+                if actual != expected {
+                    mismatches += 1
+                    XCTFail(
+                        "lat=\(location.latitude) lon=\(location.longitude) tz=\(timeZone.identifier) " +
+                        "date=\(date) threshold=\(entry.threshold): expected \(String(describing: expected)), " +
+                        "got \(String(describing: actual))",
+                        file: file,
+                        line: line
+                    )
+                }
+            }
+        }
+        return mismatches
+    }
+
+    /// 緯度 × 経度/タイムゾーン × 年間 7 日おき × 3 しきい値で旧実装と完全一致する。
+    func test_matchesReference_weeklyGridAcrossYear() {
+        for latitude in latitudes {
+            for meridian in meridians {
+                guard let timeZone = TimeZone(identifier: meridian.timeZoneIdentifier) else {
+                    XCTFail("missing time zone \(meridian.timeZoneIdentifier)")
+                    continue
+                }
+                let dates = days(
+                    from: DateComponents(year: 2026, month: 1, day: 1),
+                    count: 53,
+                    stride: 7,
+                    timeZone: timeZone
+                )
+                _ = assertMatchesReference(
+                    dates: dates,
+                    location: CLLocationCoordinate2D(latitude: latitude, longitude: meridian.longitude),
+                    timeZone: timeZone
+                )
+            }
+        }
+    }
+
+    /// 高緯度の白夜・極夜の移行期（太陽がしきい値付近をかすめる日）を毎日確認する。
+    func test_matchesReference_dailyAroundSolsticesAtHighLatitudes() {
+        let highLatitudes: [Double] = [-68, -66, -64, -60, 60, 62, 64, 65, 66, 67, 68, 70, 72, 78]
+        let timeZone = TimeZone(identifier: "Europe/Helsinki") ?? .current
+        let windows = [
+            DateComponents(year: 2026, month: 4, day: 15),
+            DateComponents(year: 2026, month: 10, day: 15),
+        ]
+        for latitude in highLatitudes {
+            for window in windows {
+                let dates = days(from: window, count: 120, stride: 1, timeZone: timeZone)
+                _ = assertMatchesReference(
+                    dates: dates,
+                    location: CLLocationCoordinate2D(latitude: latitude, longitude: 25.5),
+                    timeZone: timeZone
+                )
+            }
+        }
+    }
+
+    /// 同じ観測日の別時刻を渡しても、メモ化の有無にかかわらず同じ区間を返す。
+    func test_cachedResultMatchesFreshComputationForSameObservationDay() {
+        let timeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
+        let location = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503)
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        guard let midnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 10)) else {
+            return XCTFail("invalid date")
+        }
+        let first = MilkyWayCalculator.sunsetSunriseInterval(date: midnight, location: location, timeZone: timeZone)
+        let later = MilkyWayCalculator.sunsetSunriseInterval(
+            date: midnight.addingTimeInterval(15 * 3600),
+            location: location,
+            timeZone: timeZone
+        )
+        MilkyWayCalculator.clearDarknessIntervalCache()
+        let fresh = MilkyWayCalculator.sunsetSunriseInterval(date: midnight, location: location, timeZone: timeZone)
+        XCTAssertNotNil(first)
+        XCTAssertEqual(first, later)
+        XCTAssertEqual(first, fresh)
+    }
+}

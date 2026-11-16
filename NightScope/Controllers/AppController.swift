@@ -568,14 +568,18 @@ final class AppController: ObservableObject {
         )
     }
 
+    /// 天気と光害は互いに独立しているため並行して取得する。
+    /// 取得中に観測地が変わった場合の古い結果は、各サービスの `prepareForLocationChange()` で
+    /// 世代が進むことで破棄される。
     private func refreshExternalData(using context: SelectedLocationContext) async {
-        await refreshWeather(using: context)
         guard !Task.isCancelled,
               selectedLocationContext.matches(
                   coordinate: context.coordinate,
                   timeZoneIdentifier: context.timeZone.identifier
               ) else { return }
-        await refreshLightPollution(using: context)
+        async let weather: Void = refreshWeather(using: context)
+        async let lightPollution: Void = refreshLightPollution(using: context)
+        _ = await (weather, lightPollution)
     }
 
     private func publishObservationStateIfNeeded() {

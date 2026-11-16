@@ -63,7 +63,7 @@ final class NightCalculationService: NightCalculating, Sendable {
                 let targetDate = calendar.date(
                     byAdding: .day, value: offset, to: observationDate
                 ) ?? observationDate
-                group.addTask(priority: .background) { [summaryCalculator] in
+                group.addTask(priority: .utility) { [summaryCalculator] in
                     // キャンセル後にまだ始まっていない夜は計算しない。計算中の夜は同期処理のため最後まで走る。
                     guard !Task.isCancelled else { return nil }
                     return (offset, summaryCalculator(targetDate, location, timeZone))

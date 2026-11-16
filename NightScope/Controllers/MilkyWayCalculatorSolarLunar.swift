@@ -38,6 +38,41 @@ extension MilkyWayCalculator {
         timeZone: TimeZone,
         threshold: Double
     ) -> DateInterval? {
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        // 結果は観測日の 0 時にのみ依存するため、同じ観測日の別時刻も同じキーにまとめる。
+        let key = DarknessIntervalCache.Key(
+            latitude: location.latitude,
+            longitude: location.longitude,
+            timeZoneIdentifier: timeZone.identifier,
+            observationDate: calendar.startOfDay(for: date),
+            threshold: threshold
+        )
+        if let cached = darknessIntervalCache.value(for: key) {
+            return cached
+        }
+        let interval = computeDarknessInterval(
+            date: date,
+            location: location,
+            timeZone: timeZone,
+            threshold: threshold
+        )
+        darknessIntervalCache.store(interval, for: key)
+        return interval
+    }
+
+    /// テスト用: メモ化した夜間区間を破棄する。
+    static func clearDarknessIntervalCache() {
+        darknessIntervalCache.removeAll()
+    }
+
+    private static let darknessIntervalCache = DarknessIntervalCache()
+
+    private static func computeDarknessInterval(
+        date: Date,
+        location: CLLocationCoordinate2D,
+        timeZone: TimeZone,
+        threshold: Double
+    ) -> DateInterval? {
         let signposter = PerformanceSignposts.signposter
         let signpostState = signposter.beginInterval("DarknessInterval", id: signposter.makeSignpostID())
         defer { signposter.endInterval("DarknessInterval", signpostState) }
@@ -78,24 +113,67 @@ extension MilkyWayCalculator {
             return DateInterval(start: noon, end: nextNoon)
         }
 
-        // 3) 南中から 24 時間、1 分刻みで沈む時刻と次に昇る時刻を探す
-        var darkStart: Date?
-        for minute in 1...24 * 60 {
-            let sampleDate = anchor.addingTimeInterval(Double(minute) * 60)
-            let altitude = sunAltitude(at: sampleDate)
-            if let darkStart {
-                if altitude >= threshold {
-                    return DateInterval(start: darkStart, end: sampleDate)
+        // 3) 南中から 24 時間の範囲で、沈む時刻と次に昇る時刻を 1 分単位で探す。
+        //    1 分刻みの全走査と同じ分を返すよう、粗い刻みで符号の変わる区間を見つけてから二分探索する。
+        func sampleDate(minute: Int) -> Date {
+            anchor.addingTimeInterval(Double(minute) * 60)
+        }
+        func isDark(minute: Int) -> Bool {
+            sunAltitude(at: sampleDate(minute: minute)) < threshold
+        }
+        let lastMinute = 24 * 60
+
+        /// `lower` 分の状態が `target` でないとき、(lower, lastMinute] で最初に `target` になる分を返す。
+        func firstMinute(after lower: Int, isDarkTarget target: Bool) -> Int? {
+            var bracketStart = lower
+            var startAltitude = sunAltitude(at: sampleDate(minute: lower))
+            while bracketStart < lastMinute {
+                let bracketEnd = min(bracketStart + darknessCoarseStepMinutes, lastMinute)
+                let endAltitude = sunAltitude(at: sampleDate(minute: bracketEnd))
+                let isNearThreshold = abs(startAltitude - threshold) < darknessNearThresholdMargin
+                    || abs(endAltitude - threshold) < darknessNearThresholdMargin
+                if isNearThreshold {
+                    // しきい値をかすめる区間は粗い刻みで短い出入りを見落としうるため 1 分刻みで調べる。
+                    for minute in (bracketStart + 1)...bracketEnd where isDark(minute: minute) == target {
+                        return minute
+                    }
+                } else if (endAltitude < threshold) == target {
+                    // 両端がしきい値から十分離れていれば区間内の交差は 1 回だけなので二分探索できる。
+                    var low = bracketStart
+                    var high = bracketEnd
+                    while high - low > 1 {
+                        let mid = (low + high) / 2
+                        if isDark(minute: mid) == target {
+                            high = mid
+                        } else {
+                            low = mid
+                        }
+                    }
+                    return high
                 }
-            } else if altitude < threshold {
-                darkStart = sampleDate
+                bracketStart = bracketEnd
+                startAltitude = endAltitude
             }
+            return nil
         }
 
-        // 白夜（沈まない）: nil / 極夜へ移行する日（昇らない）: 探索範囲の終端まで
-        guard let darkStart else { return nil }
+        // 白夜（沈まない）: nil
+        guard let darkStartMinute = firstMinute(after: 0, isDarkTarget: true) else { return nil }
+        let darkStart = sampleDate(minute: darkStartMinute)
+        if let darkEndMinute = firstMinute(after: darkStartMinute, isDarkTarget: false) {
+            return DateInterval(start: darkStart, end: sampleDate(minute: darkEndMinute))
+        }
+        // 極夜へ移行する日（昇らない）: 探索範囲の終端まで
         return DateInterval(start: darkStart, end: anchor.addingTimeInterval(Constants.secondsPerDay))
     }
+
+    /// 日没・日の出の粗探索の刻み (分)。
+    private static let darknessCoarseStepMinutes = 10
+
+    /// 粗探索の端点がしきい値にこれより近い区間は 1 分刻みで調べる (度)。
+    /// 根拠: 太陽高度の時間二階微分は最大でも約 0.0011°/分² で、10 分区間の端点から
+    ///       区間内の極小・極大までの差は 0.06° 未満。0.5° あれば区間内の見落としは起きない。
+    private static let darknessNearThresholdMargin: Double = 0.5
 
     /// 指定日・場所の市民薄明 (太陽高度 -6°) の夜間区間を返す。
     /// 極夜では 24 時間区間、白夜では nil を返す。
@@ -331,5 +409,44 @@ extension MilkyWayCalculator {
         let dec = AngleMath.toDegrees(asin(max(-1.0, min(1.0, sinDec))))
         let raRad = atan2(sin(lambda) * cos(epsilon) - tan(beta) * sin(epsilon), cos(lambda))
         return (AngleMath.normalizedDegrees(AngleMath.toDegrees(raRad)), dec)
+    }
+}
+
+/// `darknessInterval` の結果をプロセス全体でメモ化する。呼び出しはメインアクター外からも来るためロックで保護する。
+private final class DarknessIntervalCache: @unchecked Sendable {
+    struct Key: Hashable {
+        let latitude: Double
+        let longitude: Double
+        let timeZoneIdentifier: String
+        let observationDate: Date
+        let threshold: Double
+    }
+
+    /// 上限に達したら全消去する。観測地 1 か所あたり数十件程度しか使わないため単純な方式で足りる。
+    private static let capacity = 256
+
+    private let lock = NSLock()
+    // nil（白夜）も結果として保持するため値を Optional で包む。
+    private var storage: [Key: DateInterval?] = [:]
+
+    func value(for key: Key) -> DateInterval?? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage[key]
+    }
+
+    func store(_ interval: DateInterval?, for key: Key) {
+        lock.lock()
+        defer { lock.unlock() }
+        if storage.count >= Self.capacity {
+            storage.removeAll(keepingCapacity: true)
+        }
+        storage[key] = interval
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.removeAll()
     }
 }

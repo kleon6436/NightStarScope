@@ -27,9 +27,7 @@ struct CalendarView: View {
     }
 
     private var weekdayLabels: [String] {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        return formatter.veryShortStandaloneWeekdaySymbols
+        FormatterFactory.localeSymbols().veryShortStandaloneWeekdaySymbols
     }
 
     private var weekdayHeaderItems: [WeekdayHeaderItem] {

@@ -69,6 +69,45 @@ final class PerformanceBaselineTests: XCTestCase {
         }
     }
 
+    /// メモ化を毎回破棄して、探索そのものの所要時間を測る（Phase 0 の数値と比較する用）。
+    func test_perf_darknessIntervals_tokyo_30days_uncached() {
+        let days = consecutiveDays(
+            from: makeDate(year: 2026, month: 3, day: 1, timeZone: tokyoTimeZone),
+            count: 30,
+            timeZone: tokyoTimeZone
+        )
+        measure(metrics: [XCTClockMetric()], options: options) {
+            MilkyWayCalculator.clearDarknessIntervalCache()
+            for day in days {
+                _ = MilkyWayCalculator.sunsetSunriseInterval(date: day, location: tokyo, timeZone: tokyoTimeZone)
+                _ = MilkyWayCalculator.civilDarknessInterval(date: day, location: tokyo, timeZone: tokyoTimeZone)
+            }
+        }
+    }
+
+    func test_perf_darknessIntervals_65N_June_30days_uncached() {
+        let days = consecutiveDays(
+            from: makeDate(year: 2026, month: 6, day: 1, timeZone: highLatitudeTimeZone),
+            count: 30,
+            timeZone: highLatitudeTimeZone
+        )
+        measure(metrics: [XCTClockMetric()], options: options) {
+            MilkyWayCalculator.clearDarknessIntervalCache()
+            for day in days {
+                _ = MilkyWayCalculator.sunsetSunriseInterval(
+                    date: day,
+                    location: highLatitude,
+                    timeZone: highLatitudeTimeZone
+                )
+                _ = MilkyWayCalculator.civilDarknessInterval(
+                    date: day,
+                    location: highLatitude,
+                    timeZone: highLatitudeTimeZone
+                )
+            }
+        }
+    }
+
     // MARK: - Upcoming nights
 
     func test_perf_calculateUpcomingNights_tokyo_9nights() {

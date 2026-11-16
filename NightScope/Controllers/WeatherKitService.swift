@@ -180,13 +180,9 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
 
     // MARK: - Date key formatter
 
-    /// "yyyy-MM-dd" 形式の DateFormatter を生成する（タイムゾーン依存）。
+    /// "yyyy-MM-dd" 形式の DateFormatter を返す（タイムゾーン依存、タイムゾーンごとにキャッシュ済み）。
     private static func makeDateKeyFormatter(timeZone: TimeZone) -> DateFormatter {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = timeZone
-        return f
+        FormatterFactory.observationTimeZone(dateFormat: "yyyy-MM-dd", timeZone: timeZone)
     }
 
     // MARK: - Private helpers

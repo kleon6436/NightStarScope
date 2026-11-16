@@ -380,11 +380,7 @@ private struct DashboardDayColumn: View {
 
 private enum DashboardDateFormatter {
     static func weekdayString(for date: Date, timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.setLocalizedDateFormatFromTemplate("E")
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        FormatterFactory.localizedDate(template: "E", timeZone: timeZone).string(from: date)
     }
 }
 

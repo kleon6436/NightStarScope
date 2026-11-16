@@ -30,13 +30,18 @@ enum WeatherPresentation {
 /// 気温（℃）を端末ロケールの温度単位で短く整形する。
 /// 単位記号は省き `18°` の形にする。℃/℉ の選択はロケール（ユーザーの温度単位設定を含む）に従う。
 enum TemperatureFormat {
+    private static let formatters = FormatterCache<MeasurementFormatter>()
+
     /// 単位記号なしの短い表記（例: `18°`、en_US では `64°`）。
     static func short(_ celsius: Double, locale: Locale = .autoupdatingCurrent) -> String {
         let converted = localized(celsius, locale: locale)
-        let formatter = MeasurementFormatter()
-        formatter.locale = locale
-        formatter.unitOptions = .temperatureWithoutUnit
-        formatter.numberFormatter.maximumFractionDigits = 0
+        let formatter = formatters.formatter(for: "short|\(locale.identifier)") {
+            let formatter = MeasurementFormatter()
+            formatter.locale = locale
+            formatter.unitOptions = .temperatureWithoutUnit
+            formatter.numberFormatter.maximumFractionDigits = 0
+            return formatter
+        }
         return formatter.string(from: converted)
     }
 
@@ -48,11 +53,14 @@ enum TemperatureFormat {
     /// VoiceOver 向けに単位名まで含めた表記（例: `18 degrees Celsius`）。
     static func spoken(_ celsius: Double, locale: Locale = .autoupdatingCurrent) -> String {
         let converted = localized(celsius, locale: locale)
-        let formatter = MeasurementFormatter()
-        formatter.locale = locale
-        formatter.unitOptions = .providedUnit
-        formatter.unitStyle = .long
-        formatter.numberFormatter.maximumFractionDigits = 0
+        let formatter = formatters.formatter(for: "spoken|\(locale.identifier)") {
+            let formatter = MeasurementFormatter()
+            formatter.locale = locale
+            formatter.unitOptions = .providedUnit
+            formatter.unitStyle = .long
+            formatter.numberFormatter.maximumFractionDigits = 0
+            return formatter
+        }
         return formatter.string(from: converted)
     }
 
