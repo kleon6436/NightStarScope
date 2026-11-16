@@ -223,11 +223,11 @@
 		D75EF08B6B443B5D2CE817E5 /* NightScopeiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E10951ADCBC5CEF800EE18 /* NightScopeiOSApp.swift */; };
 		D9E4BFA7D8043F949103A4D3 /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE36B4A54775DA36A0C53FAB /* LunarCalendar.swift */; };
 		DC00D69BD06D6AA96770CA4D /* LunarCalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BA488DFABF83DF2D81D4AA /* LunarCalendarViewModel.swift */; };
-		DDB100000000000000002001 /* DashboardCommandBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001001 /* DashboardCommandBridge.swift */; };
-		DDB100000000000000002002 /* DashboardCommandBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001001 /* DashboardCommandBridge.swift */; };
+		DDB100000000000000002001 /* NightScope/Controllers/DashboardCommandBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001001 /* NightScope/Controllers/DashboardCommandBridge.swift */; };
+		DDB100000000000000002002 /* NightScope/Controllers/DashboardCommandBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001001 /* NightScope/Controllers/DashboardCommandBridge.swift */; };
 		DDB100000000000000002003 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001002 /* DashboardViewModel.swift */; };
 		DDB100000000000000002005 /* MapSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001003 /* MapSnapshotCache.swift */; };
-		DDB100000000000000002007 /* DashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001004 /* DashboardViewModelTests.swift */; };
+		DDB100000000000000002007 /* NightScopeTests/DashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001004 /* NightScopeTests/DashboardViewModelTests.swift */; };
 		DDB100000000000000002008 /* ComparisonMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A11 /* ComparisonMatrix.swift */; };
 		DDB100000000000000002009 /* ComparisonController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C21A9833046DD44B1100A12 /* ComparisonController.swift */; };
 		DDB10000000000000000200A /* DashboardLocationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB100000000000000001005 /* DashboardLocationCard.swift */; };
@@ -439,10 +439,10 @@
 		D1A100000000000000000001 /* StarMapDisplaySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapDisplaySettings.swift; sourceTree = "<group>"; };
 		D1A100000000000000000004 /* StarMapDisplaySettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapDisplaySettingsSection.swift; sourceTree = "<group>"; };
 		D4C64042587EF8F43FAB9134 /* iOSLunarCalendarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLunarCalendarView.swift; sourceTree = "<group>"; };
-		DDB100000000000000001001 /* DashboardCommandBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScope/Controllers/DashboardCommandBridge.swift; sourceTree = "<group>"; };
+		DDB100000000000000001001 /* NightScope/Controllers/DashboardCommandBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScope/Controllers/DashboardCommandBridge.swift; sourceTree = "<group>"; };
 		DDB100000000000000001002 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		DDB100000000000000001003 /* MapSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapSnapshotCache.swift; sourceTree = "<group>"; };
-		DDB100000000000000001004 /* DashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeTests/DashboardViewModelTests.swift; sourceTree = "<group>"; };
+		DDB100000000000000001004 /* NightScopeTests/DashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightScopeTests/DashboardViewModelTests.swift; sourceTree = "<group>"; };
 		DDB100000000000000001005 /* DashboardLocationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardLocationCard.swift; sourceTree = "<group>"; };
 		DDB100000000000000001006 /* DashboardLocationPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardLocationPickerSheet.swift; sourceTree = "<group>"; };
 		DDB100000000000000001007 /* DashboardWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWindowView.swift; sourceTree = "<group>"; };
@@ -517,15 +517,14 @@
 				DDB100000000000000002013 /* DashboardSearchController.swift */,
 				DDB100000000000000001003 /* MapSnapshotCache.swift */,
 			);
-			name = Controllers;
 			path = Controllers;
 			sourceTree = "<group>";
 		};
 		6C4997172FAADEE7003112A7 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				DDB100000000000000001001 /* DashboardCommandBridge.swift */,
-				DDB100000000000000001004 /* DashboardViewModelTests.swift */,
+				DDB100000000000000001001 /* NightScope/Controllers/DashboardCommandBridge.swift */,
+				DDB100000000000000001004 /* NightScopeTests/DashboardViewModelTests.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -548,7 +547,6 @@
 				19061EF9979D0D74C3E3B5C2 /* MacScrollWheelZoomModifier.swift */,
 				691FCEFB689259A20336694F /* LunarCalendarWindowView.swift */,
 			);
-			name = Views;
 			path = Views;
 			sourceTree = "<group>";
 		};
@@ -796,7 +794,6 @@
 			children = (
 				DDB100000000000000001002 /* DashboardViewModel.swift */,
 			);
-			name = ViewModels;
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
@@ -826,7 +823,6 @@
 				68C243A867882A9D2F78FEDE /* Controllers */,
 				C15CC7BAE9415AEFECCA2BDD /* ViewModels */,
 			);
-			name = macOS;
 			path = macOS;
 			sourceTree = "<group>";
 		};
@@ -904,7 +900,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 2700;
+				LastUpgradeCheck = 2720;
 				TargetAttributes = {
 					AA000000000000000000TG01 = {
 						CreatedOnToolsVersion = 15.0;
@@ -1013,7 +1009,7 @@
 				AB3A00000000000000000022 /* StarGazingIndexBuilder.swift in Sources */,
 				AB3A00000000000000000032 /* FavoritesComposition.swift in Sources */,
 				AB3A00000000000000000035 /* LocationRefreshFetcher.swift in Sources */,
-				DDB100000000000000002002 /* DashboardCommandBridge.swift in Sources */,
+				DDB100000000000000002002 /* NightScope/Controllers/DashboardCommandBridge.swift in Sources */,
 				BD26966CB632FA724659667D /* LightPollutionService.swift in Sources */,
 				C71CDD3E6ABE68E1AA626B3E /* LocationController.swift in Sources */,
 				C71CDD3E6ABE68E1AA626B3F /* LocationControllerSupport.swift in Sources */,
@@ -1123,7 +1119,7 @@
 				DDB100000000000000002005 /* MapSnapshotCache.swift in Sources */,
 				DDB100000000000000002003 /* DashboardViewModel.swift in Sources */,
 				DDB100000000000000002011 /* DashboardSearchController.swift in Sources */,
-				DDB100000000000000002001 /* DashboardCommandBridge.swift in Sources */,
+				DDB100000000000000002001 /* NightScope/Controllers/DashboardCommandBridge.swift in Sources */,
 				DDB10000000000000000200A /* DashboardLocationCard.swift in Sources */,
 				DDB10000000000000000200B /* DashboardLocationPickerSheet.swift in Sources */,
 				DDB10000000000000000200D /* DashboardSearchSheet.swift in Sources */,
@@ -1238,7 +1234,7 @@
 				TP0000000000000000000T01 /* TemperaturePresentationTests.swift in Sources */,
 				AA000000000000000000TB13 /* UpcomingNightsGridViewModelTests.swift in Sources */,
 				0C21A9833046DD44B1100A03 /* ComparisonControllerTests.swift in Sources */,
-				DDB100000000000000002007 /* DashboardViewModelTests.swift in Sources */,
+				DDB100000000000000002007 /* NightScopeTests/DashboardViewModelTests.swift in Sources */,
 				E2B1BBFAE453C3FC09374E13 /* FavoriteLocationTests.swift in Sources */,
 				FV000000000000000000T002 /* FavoriteTonightScoreProviderTests.swift in Sources */,
 				FT0000000000000000001006 /* GnomonicProjectionMathTests.swift in Sources */,
@@ -1487,6 +1483,7 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 235777R328;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
