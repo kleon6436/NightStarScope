@@ -215,10 +215,13 @@ struct StarMapCanvasView: View {
                 let fov = effectiveGnomonicFOV()
                 let scintillationTime = scintillationEnabled
                     ? timeline.date.timeIntervalSinceReferenceDate : 0
+                let signposter = PerformanceSignposts.signposter
+                let signpostState = signposter.beginInterval("StarMapCanvasDraw", id: signposter.makeSignpostID())
                 drawGnomonicProjection(ctx: ctx, cx: cx, cy: cy, size: sz,
                                        centerAlt: centerAlt, centerAz: centerAz,
                                        roll: roll, fov: fov,
                                        scintillationTime: scintillationTime)
+                signposter.endInterval("StarMapCanvasDraw", signpostState)
             }
         }
     }

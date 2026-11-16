@@ -243,12 +243,16 @@ actor TerrainService {
 
     /// elevation_global (.bin.z / .bin) を読み込む。
     private static func loadGlobalData() -> ElevationGridData? {
-        loadFile(name: "elevation_global")
+        PerformanceSignposts.signposter.withIntervalSignpost("TerrainLoadGlobal") {
+            loadFile(name: "elevation_global")
+        }
     }
 
     /// elevation_japan (.bin.z / .bin) を読み込む。
     private static func loadHighResData() -> ElevationGridData? {
-        loadFile(name: "elevation_japan")
+        PerformanceSignposts.signposter.withIntervalSignpost("TerrainLoadHighRes") {
+            loadFile(name: "elevation_japan")
+        }
     }
 
     /// name.bin.z（圧縮）→ name.bin（非圧縮）の順で Bundle.main を検索して読み込む。

@@ -300,11 +300,14 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
                 latitude: context.latitude,
                 longitude: context.longitude
             )
+            let signposter = PerformanceSignposts.signposter
+            let signpostState = signposter.beginInterval("WeatherNightGrouping", id: signposter.makeSignpostID())
             let weatherByDate = groupNightHours(
                 Array(hourlyForecast),
                 coordinate: coordinate,
                 timeZone: context.timeZone
             )
+            signposter.endInterval("WeatherNightGrouping", signpostState)
 
             return WeatherFetchResult(
                 weatherByDate: weatherByDate,

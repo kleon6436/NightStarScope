@@ -29,6 +29,7 @@
 		477B2E3CB5355CA1BA5757D3 /* ViewingWindowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F16 /* ViewingWindowsSection.swift */; };
 		4AD3654937530A1F221A60D3 /* PlatformAdaptive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D16D20FC0E2749386EC5230 /* PlatformAdaptive.swift */; };
 		4ADBD70F53B069798670D94D /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
+		PF0000000000000000000002 /* PerformanceSignposts.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF0000000000000000000001 /* PerformanceSignposts.swift */; };
 		4DE2663F89BB12E4C05EDFB8 /* StarMapTerrainCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5261CADE1879D741D7A7C8 /* StarMapTerrainCoordinator.swift */; };
 		4F871C5177B328F9DFC5EEAA /* FavoriteLocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA0C4060B1252A05AA86C03 /* FavoriteLocationStore.swift */; };
 		518E4DCAC7901B7B21AB70AF /* PlatformAdaptive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D16D20FC0E2749386EC5230 /* PlatformAdaptive.swift */; };
@@ -114,6 +115,7 @@
 		AA0000000000000000003B09 /* AppRootDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F26 /* AppRootDependencies.swift */; };
 		AA0000000000000000003B10 /* WeatherServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000002F27 /* WeatherServiceSupport.swift */; };
 		AA000000000000000000TB01 /* MilkyWayCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */; };
+		PF0000000000000000000012 /* PerformanceBaselineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF0000000000000000000011 /* PerformanceBaselineTests.swift */; };
 		AA000000000000000000TB02 /* StarGazingIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF02 /* StarGazingIndexTests.swift */; };
 		AA000000000000000000TB03 /* WeatherServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF03 /* WeatherServiceTests.swift */; };
 		AA000000000000000000TB04 /* AppControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000TF04 /* AppControllerTests.swift */; };
@@ -161,6 +163,7 @@
 		AEF100000000000000000021 /* WeatherKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000001 /* WeatherKitService.swift */; };
 		AEF100000000000000000022 /* WeatherKitServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF100000000000000000002 /* WeatherKitServiceSupport.swift */; };
 		B180E3FFB6E5E72D560A7E78 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C46800E2414065BEED56530 /* DateFormatting.swift */; };
+		PF0000000000000000000003 /* PerformanceSignposts.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF0000000000000000000001 /* PerformanceSignposts.swift */; };
 		B66ECDD7AD401F013891BF8E /* StarGazingIndexCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000003F04 /* StarGazingIndexCardViewModel.swift */; };
 		B855D7D67504AB2744B5BBD7 /* LunarCalendarWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691FCEFB689259A20336694F /* LunarCalendarWindowView.swift */; };
 		B8EC0EB2971B109AA4BF3F43 /* SearchResultViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93053B7368EAC3C217DC7600 /* SearchResultViews.swift */; };
@@ -305,6 +308,7 @@
 		0C21A9833046DD44B1100A12 /* ComparisonController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonController.swift; sourceTree = "<group>"; };
 		0C21A9833046DD44B1100A13 /* ComparisonControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonControllerTests.swift; sourceTree = "<group>"; };
 		0C46800E2414065BEED56530 /* DateFormatting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
+		PF0000000000000000000001 /* PerformanceSignposts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceSignposts.swift; sourceTree = "<group>"; };
 		14E29A763046C8DBB1100A11 /* ObservationMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationMode.swift; sourceTree = "<group>"; };
 		14E29A763046C8DBB1100A12 /* StarGazingIndexMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarGazingIndexMode.swift; sourceTree = "<group>"; };
 		19061EF9979D0D74C3E3B5C2 /* MacScrollWheelZoomModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacScrollWheelZoomModifier.swift; sourceTree = "<group>"; };
@@ -381,6 +385,7 @@
 		AA0000000000000000003F06 /* DarkTimeCardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarkTimeCardViewModel.swift; sourceTree = "<group>"; };
 		AA0000000000000000003F07 /* ViewingWindowsSectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewingWindowsSectionViewModel.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilkyWayCalculatorTests.swift; sourceTree = "<group>"; };
+		PF0000000000000000000011 /* PerformanceBaselineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceBaselineTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF02 /* StarGazingIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarGazingIndexTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF03 /* WeatherServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherServiceTests.swift; sourceTree = "<group>"; };
 		AA000000000000000000TF04 /* AppControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppControllerTests.swift; sourceTree = "<group>"; };
@@ -643,6 +648,7 @@
 				FE0000000000000000001002 /* ConstellationLabelLayoutEngine.swift */,
 				FE0000000000000000001005 /* StarMapSpatialIndex.swift */,
 				0C46800E2414065BEED56530 /* DateFormatting.swift */,
+				PF0000000000000000000001 /* PerformanceSignposts.swift */,
 				AB3A00000000000000000001 /* AngleMath.swift */,
 				AB3A00000000000000000007 /* NotificationCenterUserDefaults.swift */,
 				AB3A00000000000000000004 /* AppSettingsKeys.swift */,
@@ -719,6 +725,7 @@
 			isa = PBXGroup;
 			children = (
 				AA000000000000000000TF01 /* MilkyWayCalculatorTests.swift */,
+				PF0000000000000000000011 /* PerformanceBaselineTests.swift */,
 				AA000000000000000000TF20 /* PlanetVisibilitySummaryTests.swift */,
 				AA000000000000000000TF02 /* StarGazingIndexTests.swift */,
 				AA000000000000000000TF03 /* WeatherServiceTests.swift */,
@@ -1064,6 +1071,7 @@
 				634114D282B4DCEEBA3C4F51 /* SearchResultViews.swift in Sources */,
 				8CFACF7563F0B8AD9197C80A /* GlassEffects.swift in Sources */,
 				4ADBD70F53B069798670D94D /* DateFormatting.swift in Sources */,
+				PF0000000000000000000002 /* PerformanceSignposts.swift in Sources */,
 				AB3A00000000000000000002 /* AngleMath.swift in Sources */,
 				AB3A00000000000000000008 /* NotificationCenterUserDefaults.swift in Sources */,
 				AB3A00000000000000000005 /* AppSettingsKeys.swift in Sources */,
@@ -1184,6 +1192,7 @@
 				B8EC0EB2971B109AA4BF3F43 /* SearchResultViews.swift in Sources */,
 				CAE4078096E2E4A569611285 /* GlassEffects.swift in Sources */,
 				B180E3FFB6E5E72D560A7E78 /* DateFormatting.swift in Sources */,
+				PF0000000000000000000003 /* PerformanceSignposts.swift in Sources */,
 				AB3A00000000000000000003 /* AngleMath.swift in Sources */,
 				AB3A00000000000000000009 /* NotificationCenterUserDefaults.swift in Sources */,
 				AB3A00000000000000000006 /* AppSettingsKeys.swift in Sources */,
@@ -1215,6 +1224,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA000000000000000000TB01 /* MilkyWayCalculatorTests.swift in Sources */,
+				PF0000000000000000000012 /* PerformanceBaselineTests.swift in Sources */,
 				AA000000000000000000TB20 /* PlanetVisibilitySummaryTests.swift in Sources */,
 				AA000000000000000000TB02 /* StarGazingIndexTests.swift in Sources */,
 				AA000000000000000000TB03 /* WeatherServiceTests.swift in Sources */,

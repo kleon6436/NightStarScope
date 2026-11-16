@@ -33,6 +33,9 @@ enum StarMapComputation {
         activeMeteorShowers: [MeteorShower],
         starDisplayDensity: StarDisplayDensity
     ) -> Snapshot {
+        let signposter = PerformanceSignposts.signposter
+        let signpostState = signposter.beginInterval("StarMapCompute", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("StarMapCompute", signpostState) }
         let latRad = latitude * .pi / 180.0
         let observer = MilkyWayCalculator.HorizontalObserver(
             cosLat: cos(latRad),

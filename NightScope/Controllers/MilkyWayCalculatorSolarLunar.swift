@@ -38,6 +38,9 @@ extension MilkyWayCalculator {
         timeZone: TimeZone,
         threshold: Double
     ) -> DateInterval? {
+        let signposter = PerformanceSignposts.signposter
+        let signpostState = signposter.beginInterval("DarknessInterval", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("DarknessInterval", signpostState) }
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
         let observationDate = calendar.startOfDay(for: date)
         let nextObservationDate = calendar.date(byAdding: .day, value: 1, to: observationDate)

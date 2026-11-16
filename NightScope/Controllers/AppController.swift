@@ -114,6 +114,8 @@ final class AppController: ObservableObject {
     private var lastObservedCoordinate: CLLocationCoordinate2D
     private var lastActiveReferenceDate: Date
     private var observationStateBatchDepth = 0
+    /// init から onStart 後に当夜の計算結果を含む ObservationState を初めて公開するまでの signpost 区間。
+    private var startupSignpostState: OSSignpostIntervalState?
     /// 観測日判定に使う夜の境界のキャッシュ。画面描画から繰り返し呼ばれても日没・日の出の探索を繰り返さない。
     private var observationDayBoundariesCache: (
         coordinate: CLLocationCoordinate2D,
@@ -140,6 +142,7 @@ final class AppController: ObservableObject {
              try await Task.sleep(for: .seconds($0))
          }) {
         let initStart = ContinuousClock.now
+        startupSignpostState = PerformanceSignposts.signposter.beginInterval("AppStartupToFirstState")
         self.locationController = locationController ?? LocationController()
         self.weatherService = weatherService ?? WeatherKitService()
         self.starGazingIndexBuilder = StarGazingIndexBuilder(weatherService: self.weatherService)
@@ -213,6 +216,7 @@ final class AppController: ObservableObject {
     func onStart(referenceDate: Date? = nil, refreshExternalData: Bool = true) {
         guard !hasStarted else { return }
         hasStarted = true
+        PerformanceSignposts.signposter.emitEvent("AppControllerOnStart")
         let referenceDate = referenceDate ?? now()
         lastActiveReferenceDate = referenceDate
         selectedDate = currentObservationDate(referenceDate: referenceDate)
@@ -581,6 +585,10 @@ final class AppController: ObservableObject {
 
     private func publishObservationState() {
         observationState = ObservationState(appController: self)
+        if hasStarted, nightSummary != nil, let startupSignpostState {
+            PerformanceSignposts.signposter.endInterval("AppStartupToFirstState", startupSignpostState)
+            self.startupSignpostState = nil
+        }
     }
 
     private func performObservationStateBatchUpdate(_ updates: () -> Void) {
