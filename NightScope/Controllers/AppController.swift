@@ -114,6 +114,11 @@ final class AppController: ObservableObject {
     private var lastObservedCoordinate: CLLocationCoordinate2D
     private var lastActiveReferenceDate: Date
     private var observationStateBatchDepth = 0
+    /// 天気・光害の値が変わるたびに進む世代。デバウンス後の再計算が必要かの判定に使う。
+    private var externalDataGeneration = 0
+    /// 指数を最後に現在の外部データから組み立てたときの世代。
+    /// 観測地変更の一括反映で指数を作り済みなら、その直後に届くデバウンス後の再計算を省く。
+    private var indexedExternalDataGeneration = 0
     /// init から onStart 後に当夜の計算結果を含む ObservationState を初めて公開するまでの signpost 区間。
     private var startupSignpostState: OSSignpostIntervalState?
     /// 観測日判定に使う夜の境界のキャッシュ。画面描画から繰り返し呼ばれても日没・日の出の探索を繰り返さない。
@@ -219,9 +224,12 @@ final class AppController: ObservableObject {
         PerformanceSignposts.signposter.emitEvent("AppControllerOnStart")
         let referenceDate = referenceDate ?? now()
         lastActiveReferenceDate = referenceDate
-        selectedDate = currentObservationDate(referenceDate: referenceDate)
-        recalculate()
-        recalculateUpcoming(referenceDate: referenceDate)
+        // 選択日・読み込み中フラグを 1 回の ObservationState 配信にまとめる。
+        performObservationStateBatchUpdate {
+            selectedDate = currentObservationDate(referenceDate: referenceDate)
+            recalculate()
+            recalculateUpcoming(referenceDate: referenceDate)
+        }
         if refreshExternalData {
             refreshExternalDataInBackground()
         }
@@ -450,7 +458,9 @@ final class AppController: ObservableObject {
     /// - Parameter referenceDate: 現在時刻として扱う時刻。nil なら注入された現在時刻。
     func recalculateUpcoming(referenceDate: Date? = nil) {
         upcomingTask?.cancel()
-        isUpcomingLoading = true
+        if !isUpcomingLoading {
+            isUpcomingLoading = true
+        }
         let context = selectedLocationContext
         let today = observationDate(
             for: referenceDate ?? now(),
@@ -604,6 +614,7 @@ final class AppController: ObservableObject {
     }
 
     private func recomputeAllIndexes() {
+        indexedExternalDataGeneration = externalDataGeneration
         performObservationStateBatchUpdate {
             recomputeStarGazingIndex()
             recomputeUpcomingIndexes()
@@ -711,9 +722,14 @@ final class AppController: ObservableObject {
                 .eraseToAnyPublisher()
         )
         externalDataPublisher
+            .handleEvents(receiveOutput: { [weak self] in
+                self?.externalDataGeneration += 1
+            })
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .sink { [weak self] in
                 guard let self else { return }
+                // 観測地変更の一括反映で、この外部データから指数を作り済みなら再計算しない。
+                guard self.externalDataGeneration != self.indexedExternalDataGeneration else { return }
                 self.recomputeAllIndexes()
             }
             .store(in: &cancellables)
@@ -746,32 +762,31 @@ final class AppController: ObservableObject {
         // キャッシュから返した天気は取り直していないため、自動更新の間引きは元の取得時刻を基準にする。
         // 現在時刻で上書きすると、地点を行き来するだけで再取得が永久に見送られる。
         lastExternalRefresh = (payload.weatherResult.cachedAt ?? now(), selectedLocationContext)
-        weatherService.applyFetchResult(payload.weatherResult)
-        lightPollutionService.applyFetchResult(payload.lightPollutionResult)
+        // 外部データ・予報・当夜の結果を 1 回の ObservationState 配信にまとめる。
         performObservationStateBatchUpdate {
+            weatherService.applyFetchResult(payload.weatherResult)
+            lightPollutionService.applyFetchResult(payload.lightPollutionResult)
+            // payload の指数は今反映した外部データから作っているため、デバウンス後の再計算は不要。
+            indexedExternalDataGeneration = externalDataGeneration
             upcomingNights = payload.upcomingNights
             upcomingIndexes = payload.upcomingIndexes
             isUpcomingLoading = false
-        }
 
-        switch disposition {
-        case .discard:
-            return
-        case .applyAll:
-            performObservationStateBatchUpdate {
+            switch disposition {
+            case .discard:
+                return
+            case .applyAll:
                 nightSummary = payload.nightSummary
                 starGazingIndex = payload.starGazingIndex
                 isCalculating = false
-            }
-        case .applyLocationDataOnly:
-            if hasCurrentNightSummaryForSelection() {
-                performObservationStateBatchUpdate {
+            case .applyLocationDataOnly:
+                if hasCurrentNightSummaryForSelection() {
                     recomputeStarGazingIndex()
                     isCalculating = false
+                } else {
+                    isCalculating = false
+                    recalculateCurrentNightIfNeeded()
                 }
-            } else {
-                isCalculating = false
-                recalculateCurrentNightIfNeeded()
             }
         }
     }

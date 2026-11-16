@@ -67,7 +67,7 @@ struct StarMapCanvasView: View {
         }
     }
 
-    @ObservedObject var viewModel: StarMapViewModel
+    var viewModel: StarMapViewModel
     var showsCardinalOverlay: Bool = true
     var cardinalOverlayBottomInset: CGFloat = StarMapLayout.cardinalLabelBottomInset
     var backgroundColor: Color = StarMapPalette.canvasBackground
@@ -92,6 +92,7 @@ struct StarMapCanvasView: View {
     // MARK: Body
 
     var body: some View {
+        let _ = registerCanvasDrawDependencies()
         GeometryReader { geo in
             let size = geo.size
             ZStack {
@@ -200,6 +201,35 @@ struct StarMapCanvasView: View {
     }
 
     // MARK: Canvas
+
+    /// Canvas の描画クロージャは body の外で実行され、そこでの読み取りは Observation の追跡対象にならない。
+    /// 描画に使う値を body で読んで依存として登録し、値が変わったら Canvas が再描画されるようにする。
+    private func registerCanvasDrawDependencies() {
+        _ = viewModel.starPositions
+        _ = viewModel.sunAltitude
+        _ = viewModel.moonAltitude
+        _ = viewModel.moonAzimuth
+        _ = viewModel.moonPhase
+        _ = viewModel.moonBrightLimbZenithAngle
+        _ = viewModel.galacticCenterAltitude
+        _ = viewModel.galacticCenterAzimuth
+        _ = viewModel.constellationLines
+        _ = viewModel.constellationLabels
+        _ = viewModel.planetPositions
+        _ = viewModel.meteorShowerRadiants
+        _ = viewModel.milkyWayBandPoints
+        _ = viewModel.terrainProfile
+        _ = viewModel.showsConstellationLines
+        _ = viewModel.showsConstellationLabels
+        _ = viewModel.showsPlanets
+        _ = viewModel.showsMeteorShowers
+        _ = viewModel.showsMilkyWay
+        _ = viewModel.viewAzimuth
+        _ = viewModel.viewAltitude
+        _ = viewModel.viewRoll
+        _ = viewModel.fov
+        _ = viewModel.isGyroMode
+    }
 
     private var scintillationEnabled: Bool {
         viewModel.isNight && !reduceMotion

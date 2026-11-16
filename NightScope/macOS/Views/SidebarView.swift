@@ -6,7 +6,7 @@ import Combine
 struct SidebarView: View {
 
     @StateObject var viewModel: SidebarViewModel
-    @ObservedObject var starMapViewModel: StarMapViewModel
+    var starMapViewModel: StarMapViewModel
     @Binding var selectedDate: Date
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
     /// カレンダーで「今日」として強調する観測日を返す。
@@ -143,20 +143,24 @@ struct SidebarView: View {
     }
 
     private var mapView: some View {
-        MapLocationPicker(
-            selectedCoordinate: viewModel.selectedCoordinate,
-            onSelect: viewModel.selectCoordinate,
-            syncState: mapSyncState,
-            onRegionChange: handleMapRegionChanged,
-            showLightPollution: shouldShowLightPollutionOverlay,
-            onCurrentLocation: viewModel.requestCurrentLocation,
-            isLocating: viewModel.isLocating,
-            centerTrigger: viewModel.currentLocationCenterTrigger,
-            viewingDirection: starMapViewModel.viewingDirection,
-            mapMinHeight: viewModel.dynamicMapMinHeight,
-            mapMaxHeight: viewModel.dynamicMapMaxHeight
-        )
-        .equatable()
+        // 視野方向は星空マップのパン・ズームで高頻度に変わるため、読み取りを小さな子ビューに閉じ込め、
+        // サイドバー全体の body が再評価されないようにする。
+        SidebarViewingDirectionReader(starMapViewModel: starMapViewModel) { viewingDirection in
+            MapLocationPicker(
+                selectedCoordinate: viewModel.selectedCoordinate,
+                onSelect: viewModel.selectCoordinate,
+                syncState: mapSyncState,
+                onRegionChange: handleMapRegionChanged,
+                showLightPollution: shouldShowLightPollutionOverlay,
+                onCurrentLocation: viewModel.requestCurrentLocation,
+                isLocating: viewModel.isLocating,
+                centerTrigger: viewModel.currentLocationCenterTrigger,
+                viewingDirection: viewingDirection,
+                mapMinHeight: viewModel.dynamicMapMinHeight,
+                mapMaxHeight: viewModel.dynamicMapMaxHeight
+            )
+            .equatable()
+        }
     }
 
     private var mapSyncState: MapKitSyncState {
@@ -299,6 +303,16 @@ struct SidebarView: View {
             cellHeight: viewModel.calendarCellHeight,
             today: currentObservationDate?()
         )
+    }
+}
+
+/// 星空マップの視野方向だけを Observation で追跡し、子ビューへ渡す。
+private struct SidebarViewingDirectionReader<Content: View>: View {
+    let starMapViewModel: StarMapViewModel
+    @ViewBuilder let content: (ViewingDirection) -> Content
+
+    var body: some View {
+        content(starMapViewModel.viewingDirection)
     }
 }
 

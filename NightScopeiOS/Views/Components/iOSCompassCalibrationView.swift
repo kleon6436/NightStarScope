@@ -37,6 +37,9 @@ struct iOSCompassCalibrationView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(L10n.tr("コンパスキャリブレーション"))
         .navigationBarTitleDisplayMode(.inline)
+        // 方位角は高頻度で変わるため、この画面の表示中だけ配信してもらう。
+        .onAppear { motionController.setCalibrationAzimuthPublishing(true) }
+        .onDisappear { motionController.setCalibrationAzimuthPublishing(false) }
     }
 
     // MARK: - コンパスローズ

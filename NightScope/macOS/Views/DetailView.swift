@@ -10,7 +10,7 @@ struct DetailView: View {
     @StateObject private var starGazingIndexCardViewModel: StarGazingIndexCardViewModel
     @StateObject private var nightWeatherCardViewModel: NightWeatherCardViewModel
     @StateObject private var upcomingGridViewModel: UpcomingNightsGridViewModel
-    @ObservedObject var starMapViewModel: StarMapViewModel
+    @Bindable var starMapViewModel: StarMapViewModel
 
     init(
         viewModel: DetailViewModel,
@@ -426,7 +426,7 @@ private struct MacSummaryCardsWrapped: View {
 }
 
 private struct MacStarMapSheet: View {
-    @ObservedObject var viewModel: StarMapViewModel
+    var viewModel: StarMapViewModel
 
     @State private var selectedStar: StarPosition?
 
@@ -498,7 +498,7 @@ private struct MacStarMapSheet: View {
 
             Spacer()
 
-            statusChips
+            MacStarMapStatusChips(viewModel: viewModel)
 
             Button {
                 viewModel.resetToNow()
@@ -524,8 +524,66 @@ private struct MacStarMapSheet: View {
         .frame(minHeight: StarMapLayout.macControlRowHeight)
     }
 
-    /// 方位・仰角・視野・地形・月・流星群を 1 行のチップ列にまとめる。
-    private var statusChips: some View {
+    /// ヒートバーと時刻スライダーを重ねた時間軸行。
+    private var timelineRow: some View {
+        // macOS の Slider つまみは iOS より大きいため、iOS より広めの間隔を取る。
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            ObservationHeatBarView(
+                observationConditionTimeline: viewModel.observationConditionTimeline,
+                sliderFraction: viewModel.timeSliderFraction,
+                currentMoonAltitude: viewModel.moonAltitude,
+                currentMoonPhase: viewModel.moonPhase,
+                currentSunAltitude: viewModel.sunAltitude,
+                currentTimeText: viewModel.displayTimeString
+            )
+            // Slider のつまみ半径ぶん内側に寄せ、スライダーのトラック端と揃える。
+            .padding(.horizontal, StarMapLayout.macHeatBarTrackInset)
+
+            Slider(
+                value: timeSliderBinding,
+                in: 0...viewModel.timeSliderMaximumMinutes,
+                step: 1,
+                onEditingChanged: timeSliderEditingChanged
+            )
+            .labelsHidden()
+            .accessibilityLabel(L10n.tr("時刻"))
+            .accessibilityValue(viewModel.displayTimeString)
+        }
+    }
+
+    private func closeSheet() {
+        viewModel.isStarMapOpen = false
+    }
+
+    private var timeSliderBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.timeSliderMinutes },
+            set: { viewModel.setTimeSliderMinutes($0) }
+        )
+    }
+
+    private var observationDateBinding: Binding<Date> {
+        Binding(
+            get: { viewModel.observationDate },
+            set: { viewModel.setObservationDate($0) }
+        )
+    }
+
+    private func timeSliderEditingChanged(_ isEditing: Bool) {
+        if isEditing {
+            viewModel.beginTimeSliderInteraction()
+        } else {
+            viewModel.endTimeSliderInteraction()
+        }
+    }
+}
+
+/// 方位・仰角・視野・地形・月・流星群のチップ列。
+/// 視点（方位・仰角・視野）はパン・ズームで高頻度に変わるため、シート全体ではなくこのビューだけが追跡する。
+private struct MacStarMapStatusChips: View {
+    let viewModel: StarMapViewModel
+
+    var body: some View {
         HStack(spacing: StarMapLayout.macStatusChipSpacing) {
             statusChip(
                 systemImage: "location.north.circle",
@@ -608,59 +666,6 @@ private struct MacStarMapSheet: View {
             StarMapPalette.terrainAvailable
         case .unavailable:
             .orange
-        }
-    }
-
-    /// ヒートバーと時刻スライダーを重ねた時間軸行。
-    private var timelineRow: some View {
-        // macOS の Slider つまみは iOS より大きいため、iOS より広めの間隔を取る。
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            ObservationHeatBarView(
-                observationConditionTimeline: viewModel.observationConditionTimeline,
-                sliderFraction: viewModel.timeSliderFraction,
-                currentMoonAltitude: viewModel.moonAltitude,
-                currentMoonPhase: viewModel.moonPhase,
-                currentSunAltitude: viewModel.sunAltitude,
-                currentTimeText: viewModel.displayTimeString
-            )
-            // Slider のつまみ半径ぶん内側に寄せ、スライダーのトラック端と揃える。
-            .padding(.horizontal, StarMapLayout.macHeatBarTrackInset)
-
-            Slider(
-                value: timeSliderBinding,
-                in: 0...viewModel.timeSliderMaximumMinutes,
-                step: 1,
-                onEditingChanged: timeSliderEditingChanged
-            )
-            .labelsHidden()
-            .accessibilityLabel(L10n.tr("時刻"))
-            .accessibilityValue(viewModel.displayTimeString)
-        }
-    }
-
-    private func closeSheet() {
-        viewModel.isStarMapOpen = false
-    }
-
-    private var timeSliderBinding: Binding<Double> {
-        Binding(
-            get: { viewModel.timeSliderMinutes },
-            set: { viewModel.setTimeSliderMinutes($0) }
-        )
-    }
-
-    private var observationDateBinding: Binding<Date> {
-        Binding(
-            get: { viewModel.observationDate },
-            set: { viewModel.setObservationDate($0) }
-        )
-    }
-
-    private func timeSliderEditingChanged(_ isEditing: Bool) {
-        if isEditing {
-            viewModel.beginTimeSliderInteraction()
-        } else {
-            viewModel.endTimeSliderInteraction()
         }
     }
 }

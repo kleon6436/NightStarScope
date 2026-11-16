@@ -59,74 +59,77 @@ struct StarMapObservationConditionSample: Equatable {
 
 // MARK: - ViewModel
 
-@MainActor
 /// 星空マップの描画状態、観測日時、視点操作をまとめて管理する。
-final class StarMapViewModel: ObservableObject {
+/// Observation で公開し、各ビューは実際に読んだプロパティの変化でのみ再描画される
+/// （パン・ズーム・ジャイロのたびに詳細画面やサイドバー全体が再構築されるのを避ける）。
+@MainActor
+@Observable
+final class StarMapViewModel {
 
     // MARK: - Celestial object positions
 
-    @Published private(set) var starPositions: [StarPosition] = []
-    @Published private(set) var sunAltitude: Double = 0
-    @Published private(set) var moonAltitude: Double = 0
-    @Published private(set) var moonAzimuth: Double = 0
-    @Published private(set) var moonPhase: Double = 0      // 0=新月, 0.5=満月, 1=新月
+    private(set) var starPositions: [StarPosition] = []
+    private(set) var sunAltitude: Double = 0
+    private(set) var moonAltitude: Double = 0
+    private(set) var moonAzimuth: Double = 0
+    private(set) var moonPhase: Double = 0      // 0=新月, 0.5=満月, 1=新月
     /// 月の輝面の向き（天頂方向 0°、観測者から見て左回り, 度）。nil なら従来の左右表示
-    @Published private(set) var moonBrightLimbZenithAngle: Double? = nil
-    @Published private(set) var galacticCenterAltitude: Double = 0
-    @Published private(set) var galacticCenterAzimuth: Double = 0
-    @Published private(set) var constellationLines: [ConstellationLineAltAz] = []
-    @Published private(set) var constellationLabels: [ConstellationLabelAltAz] = []
-    @Published private(set) var planetPositions: [PlanetPosition] = []
-    @Published private(set) var meteorShowerRadiants: [(shower: MeteorShower, altitude: Double, azimuth: Double)] = []
-    @Published private(set) var terrainProfile: TerrainProfile? = nil
-    @Published private(set) var terrainFetchState: StarMapTerrainFetchState = .idle
-    @Published private(set) var showsConstellationLines: Bool = StarMapDisplaySettings.defaultValue.showsConstellationLines
-    @Published private(set) var showsConstellationLabels: Bool = StarMapDisplaySettings.defaultValue.showsConstellationLabels
-    @Published private(set) var showsPlanets: Bool = StarMapDisplaySettings.defaultValue.showsPlanets
-    @Published private(set) var showsMeteorShowers: Bool = StarMapDisplaySettings.defaultValue.showsMeteorShowers
-    @Published private(set) var showsMilkyWay: Bool = StarMapDisplaySettings.defaultValue.showsMilkyWay
+    private(set) var moonBrightLimbZenithAngle: Double? = nil
+    private(set) var galacticCenterAltitude: Double = 0
+    private(set) var galacticCenterAzimuth: Double = 0
+    private(set) var constellationLines: [ConstellationLineAltAz] = []
+    private(set) var constellationLabels: [ConstellationLabelAltAz] = []
+    private(set) var planetPositions: [PlanetPosition] = []
+    private(set) var meteorShowerRadiants: [(shower: MeteorShower, altitude: Double, azimuth: Double)] = []
+    private(set) var terrainProfile: TerrainProfile? = nil
+    private(set) var terrainFetchState: StarMapTerrainFetchState = .idle
+    private(set) var showsConstellationLines: Bool = StarMapDisplaySettings.defaultValue.showsConstellationLines
+    private(set) var showsConstellationLabels: Bool = StarMapDisplaySettings.defaultValue.showsConstellationLabels
+    private(set) var showsPlanets: Bool = StarMapDisplaySettings.defaultValue.showsPlanets
+    private(set) var showsMeteorShowers: Bool = StarMapDisplaySettings.defaultValue.showsMeteorShowers
+    private(set) var showsMilkyWay: Bool = StarMapDisplaySettings.defaultValue.showsMilkyWay
     /// 天の川バンドのキャッシュ (lat/LST が変わったときのみ再計算)
-    @Published private(set) var milkyWayBandPoints: [MilkyWayBandPoint] = []
-    @Published private(set) var observationConditionTimeline: [StarMapObservationConditionSample] = []
+    private(set) var milkyWayBandPoints: [MilkyWayBandPoint] = []
+    private(set) var observationConditionTimeline: [StarMapObservationConditionSample] = []
 
     // MARK: - Observation datetime (independent of AppController.selectedDate)
 
-    @Published var displayDate: Date = Date() {
+    var displayDate: Date = Date() {
         didSet {
             handleDisplayDateChange(from: oldValue, to: displayDate)
         }
     }
 
-    @Published private(set) var timeSliderMinutes: Double = 0
-    @Published private(set) var isTimeSliderScrubbing: Bool = false
+    private(set) var timeSliderMinutes: Double = 0
+    private(set) var isTimeSliderScrubbing: Bool = false
 
     /// 夜間開始時刻 (分, 0-1439) — 日没 (太陽高度 0°) 基準
-    @Published private(set) var nightStartMinutes: Double = 1080  // デフォルト 18:00
+    private(set) var nightStartMinutes: Double = 1080  // デフォルト 18:00
     /// 夜間の長さ (分)
-    @Published private(set) var nightDurationMinutes: Double = 600 // デフォルト 10時間
+    private(set) var nightDurationMinutes: Double = 600 // デフォルト 10時間
 
     // MARK: - View direction (full-sky planisphere rotation or gyro center)
 
     /// 画面中心が向く方位角 (度, 0=北, 時計回り)。パノラマモードでは中央の方位
-    @Published var viewAzimuth: Double = 0   // 初期値=北向き
+    var viewAzimuth: Double = 0   // 初期値=北向き
 
     /// 画面中心の仰角 (度, 0=地平線, 90=天頂)。ジャイロモードで使用
-    @Published var viewAltitude: Double = 45
+    var viewAltitude: Double = 45
 
     /// 画面のロール角 (度)。ジャイロモード時のみ投影へ反映する
-    @Published var viewRoll: Double = 0
+    var viewRoll: Double = 0
 
     /// ジャイロモードの有効/無効 (iPhone のみ true にする)
-    @Published var isGyroMode: Bool = false
+    var isGyroMode: Bool = false
 
     /// 水平視野角 (度): 30°〜150°, デフォルト 60°
-    @Published var fov: Double = StarMapLayout.defaultFOV
+    var fov: Double = StarMapLayout.defaultFOV
 
     /// 星空マップ描画領域の最新サイズ
-    @Published private(set) var canvasSize: CGSize = .zero
+    private(set) var canvasSize: CGSize = .zero
 
     /// 星空マップシートが表示中か（サイドバーの視野オーバーレイ連動用）
-    @Published var isStarMapOpen: Bool = false
+    var isStarMapOpen: Bool = false
 
     /// 現在の視野方向（サイドバーマップオーバーレイ用）
     var viewingDirection: ViewingDirection {
@@ -135,22 +138,34 @@ final class StarMapViewModel: ObservableObject {
 
     // MARK: - Dependencies
 
-    private let appController: AppController
-    private let settingsDependency: StarMapSettingsDependency
-    private let terrainCoordinator: StarMapTerrainCoordinator
+    @ObservationIgnored private let appController: AppController
+    @ObservationIgnored private let settingsDependency: StarMapSettingsDependency
+    @ObservationIgnored private let terrainCoordinator: StarMapTerrainCoordinator
     /// スライダー編集中の日時コミット間隔: 20fps
-    private let timeSliderScheduler = StarMapTimeSliderScheduler(commitInterval: 1.0 / 20)
-    private let computationDependency: StarMapComputationDependency
-    private var cancellables: Set<AnyCancellable> = []
-    private var shouldApplyInitialPose = true
-    private var hasPreparedInitialPresentation = false
-    private var displayDateUpdateMode: DisplayDateUpdateMode = .standard
+    @ObservationIgnored private let timeSliderScheduler = StarMapTimeSliderScheduler(commitInterval: 1.0 / 20)
+    @ObservationIgnored private let computationDependency: StarMapComputationDependency
+    @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
+    @ObservationIgnored private var shouldApplyInitialPose = true
+    @ObservationIgnored private var hasPreparedInitialPresentation = false
+    @ObservationIgnored private var displayDateUpdateMode: DisplayDateUpdateMode = .standard
+    /// 表示設定は `displaySettings` 経由でビューが読むため追跡対象に残す。
     private var starMapDisplaySettings: StarMapDisplaySettings
-    private var starDisplayDensity: StarDisplayDensity
+    @ObservationIgnored private var starDisplayDensity: StarDisplayDensity
     /// 星座ラベル配置の最終計算結果キャッシュ（視点が変化していなければ再計算をスキップする）
-    private var cachedLabelPlacements: (key: LabelPlacementCacheKey, value: [ConstellationLabelPlacement])?
+    /// body 評価中に書き換えるため、追跡すると再描画ループになる。
+    @ObservationIgnored private var cachedLabelPlacements: (key: LabelPlacementCacheKey, value: [ConstellationLabelPlacement])?
     /// 夜間タイムラインの最終計算結果キャッシュ（入力が変化していなければ再計算をスキップする）
-    private var cachedObservationTimeline: (key: TimelineCacheKey, value: [StarMapObservationConditionSample])?
+    @ObservationIgnored private var cachedObservationTimeline: (key: TimelineCacheKey, value: [StarMapObservationConditionSample])?
+    /// 次の流星群のキャッシュ。結果は観測地タイムゾーンでの暦日だけで決まるため、その日の範囲で使い回す。
+    /// body 評価中に書き換えるため追跡しない。
+    @ObservationIgnored private var cachedNextMeteorShower: (
+        dayInterval: DateInterval,
+        timeZoneIdentifier: String,
+        value: (shower: MeteorShower, daysUntilPeak: Int)?
+    )?
+    /// AppController 側の観測日・地点（Observation 非対応）が変わったことをビューへ伝えるためのカウンタ。
+    /// `observationDate` などの派生プロパティが読むことで、ビューの追跡対象に入る。
+    private var observationContextRevision = 0
 
     // MARK: - Init
 
@@ -186,11 +201,11 @@ final class StarMapViewModel: ObservableObject {
     // MARK: - Calculation
 
     /// 進行中の計算タスク (新しい update() 呼び出しでキャンセルする)
-    private var updateTask: Task<Void, Never>?
+    @ObservationIgnored private var updateTask: Task<Void, Never>?
     /// trailing-edge debounce 用タスク
-    private var trailingTask: Task<Void, Never>?
+    @ObservationIgnored private var trailingTask: Task<Void, Never>?
     /// 前回の計算開始タイムスタンプ (全 update() 呼び出しで共通スロットルに使用)
-    private var lastPositionUpdateTime: TimeInterval = 0
+    @ObservationIgnored private var lastPositionUpdateTime: TimeInterval = 0
     /// 通常時の計算更新インターバル: 30fps
     private static let minUpdateInterval: TimeInterval = 1.0 / 30
     /// スライダー編集中の計算更新インターバル: 20fps
@@ -306,7 +321,7 @@ final class StarMapViewModel: ObservableObject {
     }
 
     private func setupBindings() {
-        // 地点とタイムゾーンは同時に変わることが多い。@Published の willSet 時点では
+        // 地点とタイムゾーンは同時に変わることが多い。Combine の @Published は willSet 時点では
         // コントローラの値が古いため、メインキューへ送って確定後に 1 回だけ再同期する。
         let locationChanges = appController.locationController.selectedLocationPublisher
             .dropFirst()
@@ -319,6 +334,7 @@ final class StarMapViewModel: ObservableObject {
             .merge(with: timeZoneChanges)
             .debounce(for: .zero, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
+                self?.observationContextRevision += 1
                 self?.resyncAfterSelectionChange()
             }
             .store(in: &cancellables)
@@ -332,8 +348,10 @@ final class StarMapViewModel: ObservableObject {
 
         appController.$selectedDate
             .dropFirst()
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
+                self?.observationContextRevision += 1
                 self?.handleSelectedDateChanged()
             }
             .store(in: &cancellables)
@@ -440,23 +458,35 @@ final class StarMapViewModel: ObservableObject {
 
     /// 現在の表示日時でアクティブな流星群
     var activeMeteorShowers: [MeteorShower] {
-        MeteorShowerCatalog.active(
+        _ = observationContextRevision
+        return MeteorShowerCatalog.active(
             on: displayDate,
             timeZone: selectedTimeZone
         )
     }
 
-    /// 次の流星群とピークまでの日数
+    /// 次の流星群とピークまでの日数。表示日時の暦日が変わるまでキャッシュを返す。
     var nextMeteorShower: (shower: MeteorShower, daysUntilPeak: Int)? {
-        MeteorShowerCatalog.next(
-            after: displayDate,
-            timeZone: selectedTimeZone
-        )
+        _ = observationContextRevision
+        let date = displayDate
+        let timeZone = selectedTimeZone
+        if let cached = cachedNextMeteorShower,
+           cached.timeZoneIdentifier == timeZone.identifier,
+           cached.dayInterval.start <= date, date < cached.dayInterval.end {
+            return cached.value
+        }
+        let value = MeteorShowerCatalog.next(after: date, timeZone: timeZone)
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        if let dayInterval = calendar.dateInterval(of: .day, for: date) {
+            cachedNextMeteorShower = (dayInterval, timeZone.identifier, value)
+        }
+        return value
     }
 
     /// 現在の表示が属する観測日の開始時刻です。
     var observationDate: Date {
-        ObservationTimeZone.startOfDay(
+        _ = observationContextRevision
+        return ObservationTimeZone.startOfDay(
             for: appController.selectedDate,
             timeZone: selectedTimeZone
         )
@@ -464,7 +494,8 @@ final class StarMapViewModel: ObservableObject {
 
     /// 観測日の暦日を判定する観測地のタイムゾーンです。日付ピッカー等の表示に使います。
     var observationTimeZone: TimeZone {
-        selectedTimeZone
+        _ = observationContextRevision
+        return selectedTimeZone
     }
 
     /// 太陽が地平線下 (夜間) か
@@ -535,6 +566,7 @@ final class StarMapViewModel: ObservableObject {
 
     /// 星空マップ描画領域の最新サイズを記録する。
     func updateCanvasSize(_ size: CGSize) {
+        guard canvasSize != size else { return }
         canvasSize = size
     }
 
@@ -545,6 +577,13 @@ final class StarMapViewModel: ObservableObject {
         viewAltitude = StarMapLayout.resetAltitude
         viewRoll = 0
         shouldApplyInitialPose = false
+    }
+
+    /// ジャイロの姿勢をまとめて反映する。Observation は同値の代入でも通知するため、変化した値だけ書き込む。
+    func applyGyroPose(azimuth: Double, altitude: Double, roll: Double) {
+        if viewAzimuth != azimuth { viewAzimuth = azimuth }
+        if viewAltitude != altitude { viewAltitude = altitude }
+        if viewRoll != roll { viewRoll = roll }
     }
 
     /// 北向きへ戻す。
@@ -741,8 +780,13 @@ final class StarMapViewModel: ObservableObject {
             referenceDate: referenceDate,
             fallback: fallback
         )
-        nightStartMinutes = range.startMinutes
-        nightDurationMinutes = range.durationMinutes
+        // Observation は同値の代入でも通知するため、変化したときだけ書き込む。
+        if nightStartMinutes != range.startMinutes {
+            nightStartMinutes = range.startMinutes
+        }
+        if nightDurationMinutes != range.durationMinutes {
+            nightDurationMinutes = range.durationMinutes
+        }
 
         let timelineKey = TimelineCacheKey(
             latitude: context.location.latitude,
@@ -752,19 +796,17 @@ final class StarMapViewModel: ObservableObject {
             nightStartMinutes: range.startMinutes,
             nightDurationMinutes: range.durationMinutes
         )
-        if let cached = cachedObservationTimeline, cached.key == timelineKey {
-            observationConditionTimeline = cached.value
-        } else {
-            let timeline = StarMapObservationTimeline.build(
-                location: context.location,
-                observationDate: context.selectedDate,
-                timeZone: context.timeZone,
-                nightStartMinutes: range.startMinutes,
-                nightDurationMinutes: range.durationMinutes
-            )
-            cachedObservationTimeline = (key: timelineKey, value: timeline)
-            observationConditionTimeline = timeline
-        }
+        // キャッシュ一致時の値は前回このプロパティへ代入済みのため、再代入（=再描画通知）しない。
+        guard cachedObservationTimeline?.key != timelineKey else { return }
+        let timeline = StarMapObservationTimeline.build(
+            location: context.location,
+            observationDate: context.selectedDate,
+            timeZone: context.timeZone,
+            nightStartMinutes: range.startMinutes,
+            nightDurationMinutes: range.durationMinutes
+        )
+        cachedObservationTimeline = (key: timelineKey, value: timeline)
+        observationConditionTimeline = timeline
     }
 
     /// 夜間スライダーのオフセットを、現在の観測日に属する実際の表示日時へ変換します。

@@ -101,20 +101,21 @@ final class DetailViewModel: ObservableObject {
                 }
                 self.upcomingNights = state.upcomingNights
                 self.upcomingIndexes = state.upcomingIndexes
-                self.isCalculating = state.isCalculating
-                self.isUpcomingLoading = state.isUpcomingLoading
+                // @Published は同値の代入でも objectWillChange を送るため、Equatable な値は変化時だけ書き込む。
+                if self.isCalculating != state.isCalculating {
+                    self.isCalculating = state.isCalculating
+                }
+                if self.isUpcomingLoading != state.isUpcomingLoading {
+                    self.isUpcomingLoading = state.isUpcomingLoading
+                }
                 if self.selectedDate != state.selectedDate {
                     self.selectedDate = state.selectedDate
                 }
                 self.updateDisplayedContentState()
             }
             .store(in: &cancellables)
-
-        appController.weatherService.weatherByDatePublisher
-            .sink { [weak self] _ in
-                self?.updateDisplayedContentState()
-            }
-            .store(in: &cancellables)
+        // 天気の変化は AppController が指数を組み直して ObservationState を配信するため、上の購読で反映される。
+        // （weatherByDatePublisher を直接購読すると willSet 時点の古い値を読んでしまう。）
 
         $selectedDate
             .dropFirst()
@@ -292,24 +293,33 @@ final class DetailViewModel: ObservableObject {
 
     private func updateDisplayedContentState() {
         // 表示中の日付に対応する天気と星空指数を、観測タイムゾーン基準で揃える。
-        displayedDate = effectiveDisplayDate
+        let newDisplayedDate = effectiveDisplayDate
+        if displayedDate != newDisplayedDate {
+            displayedDate = newDisplayedDate
+        }
         let weatherByDate = appController.weatherService.weatherByDate
         currentWeather = appController.weatherService.summary(
-            for: displayedDate,
+            for: newDisplayedDate,
             from: weatherByDate,
             timeZone: selectedTimeZone
         )
-        isCurrentWeatherCoverageIncomplete = {
+        let isCoverageIncomplete: Bool = {
             guard let nightSummary, let currentWeather else { return false }
             return !nightSummary.hasUsableWeatherData(
                 nighttimeHours: currentWeather.nighttimeHours,
                 referenceDate: appController.currentDate()
             )
         }()
-        isCurrentWeatherForecastOutOfRange = appController.weatherService.isForecastOutOfRange(
-            for: displayedDate,
+        if isCurrentWeatherCoverageIncomplete != isCoverageIncomplete {
+            isCurrentWeatherCoverageIncomplete = isCoverageIncomplete
+        }
+        let isOutOfRange = appController.weatherService.isForecastOutOfRange(
+            for: newDisplayedDate,
             in: weatherByDate,
             timeZone: selectedTimeZone
         )
+        if isCurrentWeatherForecastOutOfRange != isOutOfRange {
+            isCurrentWeatherForecastOutOfRange = isOutOfRange
+        }
     }
 }

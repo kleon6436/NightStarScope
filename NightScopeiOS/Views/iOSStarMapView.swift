@@ -5,7 +5,7 @@ import UIKit
 // MARK: - 星空ビュー
 /// 星空マップとカメラ背景、操作パネルを統合する画面。
 struct iOSStarMapView: View {
-    @ObservedObject var viewModel: StarMapViewModel
+    var viewModel: StarMapViewModel
 
     @StateObject private var motionController = StarMapMotionController()
     @StateObject private var cameraController = StarMapCameraController()
@@ -460,14 +460,13 @@ struct iOSStarMapView: View {
         motionController.updateScreenOrientation(screenOrientation)
         motionController.start(
             onPoseUpdate: { pose in
-                let offset = UserDefaults.standard.double(
-                    forKey: StarMapDisplaySettings.compassAzimuthOffsetDefaultsKey
+                let corrected = pose.azimuth + motionController.compassAzimuthOffset
+                viewModel.applyGyroPose(
+                    azimuth: (corrected.truncatingRemainder(dividingBy: 360) + 360)
+                        .truncatingRemainder(dividingBy: 360),
+                    altitude: pose.altitude,
+                    roll: pose.roll
                 )
-                let corrected = pose.azimuth + offset
-                viewModel.viewAzimuth = (corrected.truncatingRemainder(dividingBy: 360) + 360)
-                    .truncatingRemainder(dividingBy: 360)
-                viewModel.viewAltitude = pose.altitude
-                viewModel.viewRoll = pose.roll
             },
             onFailure: {
                 viewModel.isGyroMode = false

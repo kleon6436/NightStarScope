@@ -1,5 +1,6 @@
 import SwiftUI
 @preconcurrency import AVFoundation
+import Combine
 import CoreLocation
 import CoreMedia
 import CoreMotion
@@ -281,7 +282,15 @@ final class StarMapMotionController: NSObject, ObservableObject {
     private var latestMagneticDeclination: Double?
 
     /// 最新の方位角（平滑化済み・磁気偏角補正済み・ユーザーオフセット未適用）。キャリブレーション UI が参照する。
+    /// 45 Hz で変わるため、キャリブレーション UI の表示中だけ配信する（星空画面全体の再描画を避ける）。
     @Published private(set) var calibrationAzimuth: Double = 0
+    /// 配信の有無に関わらず保持する最新の方位角。
+    private var latestCalibrationAzimuth: Double = 0
+    /// キャリブレーション UI が表示中か。true の間だけ `calibrationAzimuth` を毎回更新する。
+    private var isPublishingCalibrationAzimuth = false
+    /// ユーザーが設定したコンパス補正量（度）。姿勢更新のたびに UserDefaults を読まないようキャッシュする。
+    private(set) var compassAzimuthOffset: Double = StarMapMotionController.loadCompassAzimuthOffset()
+    private var compassAzimuthOffsetCancellable: AnyCancellable?
     /// 磁気精度（度単位、低いほど精度良好）。`xTrueNorthZVertical` 使用時は nil。
     @Published private(set) var headingAccuracy: Double? = nil
     /// モーション更新が稼働中かどうか。キャリブレーションボタンの有効/無効制御に使う。
@@ -289,6 +298,28 @@ final class StarMapMotionController: NSObject, ObservableObject {
 
     var canEnableGyroMode: Bool {
         motionManager.isDeviceMotionAvailable && !candidateReferenceFrames.isEmpty
+    }
+
+    /// キャリブレーション UI の表示状態に合わせて方位角の配信を切り替える。
+    func setCalibrationAzimuthPublishing(_ isEnabled: Bool) {
+        isPublishingCalibrationAzimuth = isEnabled
+        if isEnabled, calibrationAzimuth != latestCalibrationAzimuth {
+            calibrationAzimuth = latestCalibrationAzimuth
+        }
+    }
+
+    private static func loadCompassAzimuthOffset() -> Double {
+        UserDefaults.standard.double(forKey: StarMapDisplaySettings.compassAzimuthOffsetDefaultsKey)
+    }
+
+    /// コンパス補正量の変更（キャリブレーション画面での保存など）を購読してキャッシュを更新する。
+    private func observeCompassAzimuthOffsetIfNeeded() {
+        compassAzimuthOffset = Self.loadCompassAzimuthOffset()
+        guard compassAzimuthOffsetCancellable == nil else { return }
+        compassAzimuthOffsetCancellable = NotificationCenter.default.userDefaultsChangesOnMain()
+            .sink { [weak self] _ in
+                self?.compassAzimuthOffset = Self.loadCompassAzimuthOffset()
+            }
     }
 
     /// 位置情報の利用が許可されているか。`xTrueNorthZVertical` は位置情報が必要で、
@@ -328,6 +359,7 @@ final class StarMapMotionController: NSObject, ObservableObject {
         }
         guard !motionManager.isDeviceMotionActive else { return }
 
+        observeCompassAzimuthOffsetIfNeeded()
         startUpdates(
             referenceFrames: frames,
             onPoseUpdate: onPoseUpdate,
@@ -407,7 +439,10 @@ final class StarMapMotionController: NSObject, ObservableObject {
                 correctedPose = smoothedPose
             }
 
-            self.calibrationAzimuth = correctedPose.azimuth
+            self.latestCalibrationAzimuth = correctedPose.azimuth
+            if self.isPublishingCalibrationAzimuth {
+                self.calibrationAzimuth = correctedPose.azimuth
+            }
             if !self.isMotionActive { self.isMotionActive = true }
             onPoseUpdate(correctedPose)
         }
@@ -445,7 +480,11 @@ extension StarMapMotionController: CLLocationManagerDelegate {
             if let declination {
                 self?.latestMagneticDeclination = declination
             }
-            self?.headingAccuracy = accuracy >= 0 ? accuracy : nil
+            let newAccuracy: Double? = accuracy >= 0 ? accuracy : nil
+            // headingFilter = 0 で頻繁に届くため、値が変わったときだけ配信する。
+            if self?.headingAccuracy != newAccuracy {
+                self?.headingAccuracy = newAccuracy
+            }
         }
     }
 }

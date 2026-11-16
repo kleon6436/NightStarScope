@@ -693,7 +693,7 @@ final class StarMapViewModelTests: XCTestCase {
         )
     }
 
-    func test_StarMapViewModel_recomputesWhenStarDisplayDensityChanges() {
+    func test_StarMapViewModel_recomputesWhenStarDisplayDensityChanges() async {
         let key = StarDisplayDensity.defaultsKey
         let previousValue = UserDefaults.standard.string(forKey: key)
         UserDefaults.standard.set(StarDisplayDensity.maximum.rawValue, forKey: key)
@@ -707,41 +707,16 @@ final class StarMapViewModelTests: XCTestCase {
 
         let appController = makeTokyoAppController()
         let viewModel = StarMapViewModel(appController: appController)
-        var cancellables = Set<AnyCancellable>()
 
-        let initialExpectation = expectation(description: "initial star positions")
-        var initialCount = 0
-        var initialCancellable: AnyCancellable?
-        initialCancellable = viewModel.$starPositions
-            .sink { stars in
-                guard stars.count > 0 else { return }
-                guard initialCount == 0 else { return }
-                initialCount = stars.count
-                initialExpectation.fulfill()
-                initialCancellable?.cancel()
-            }
-        if let initialCancellable {
-            initialCancellable.store(in: &cancellables)
-        }
+        // StarMapViewModel は Observation へ移行したため、Combine の $starPositions ではなく値をポーリングで待つ。
         viewModel.activatePresentationIfNeeded()
-        wait(for: [initialExpectation], timeout: 5)
-
-        let reducedExpectation = expectation(description: "reduced star positions")
-        var reducedCancellable: AnyCancellable?
-        reducedCancellable = viewModel.$starPositions
-            .dropFirst()
-            .sink { stars in
-                guard stars.count < initialCount else { return }
-                reducedExpectation.fulfill()
-                reducedCancellable?.cancel()
-            }
-        if let reducedCancellable {
-            reducedCancellable.store(in: &cancellables)
-        }
+        await waitUntil(timeout: 5) { !viewModel.starPositions.isEmpty }
+        let initialCount = viewModel.starPositions.count
+        XCTAssertGreaterThan(initialCount, 0)
 
         viewModel.setStarDisplayDensity(.small)
 
-        wait(for: [reducedExpectation], timeout: 5)
+        await waitUntil(timeout: 5) { viewModel.starPositions.count < initialCount }
     }
 
     func test_StarMapViewModel_initialPose_usesResetAltitude() {
