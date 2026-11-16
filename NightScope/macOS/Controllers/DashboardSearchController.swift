@@ -33,7 +33,8 @@ final class DashboardSearchController: ObservableObject {
         state = .loading(query: normalizedQuery, previousResults: state.results)
 
         searchTask = Task { [normalizedQuery] in
-            try? await Task.sleep(for: .milliseconds(150))
+            // MKLocalSearch はレート制限があるため、入力が 300ms 止まるまで検索しない
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
 
             do {

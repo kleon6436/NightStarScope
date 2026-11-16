@@ -317,7 +317,8 @@ final class LocationControllerTests: XCTestCase {
         let sut = LocationController(storage: storage, searchService: searchService, locationNameResolver: resolver)
 
         sut.search(query: "tok")
-        try? await Task.sleep(nanoseconds: 170_000_000)
+        // デバウンス (300ms) を過ぎて "tok" の検索が始まってから次の入力を送る
+        try? await Task.sleep(nanoseconds: 350_000_000)
         sut.search(query: "tokyo")
 
         await waitUntil(timeout: 2.0) {

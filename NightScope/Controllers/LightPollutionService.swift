@@ -19,7 +19,7 @@ enum LightPollutionServiceError: Error, LocalizedError {
 
 /// Bortle 値の取得と公開状態を扱う。
 @MainActor
-protocol LightPollutionProviding: AnyObject, ObservableObject {
+protocol LightPollutionProviding: AnyObject, ObservableObject, Sendable {
     var bortleClass: Double? { get }
     var bortleClassPublisher: Published<Double?>.Publisher { get }
     var isLoading: Bool { get }

@@ -90,7 +90,8 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         await currentTask?.value
     }
 
-    /// 取得結果を副作用なしで返すスナップショット版。
+    /// 取得結果を返すスナップショット版。公開状態（weatherByDate 等）は変更せず、
+    /// 新規取得に成功した場合だけメモリ上の地点キャッシュ（1 時間 TTL・最大 10 地点）へ書き込む。
     func fetchWeatherSnapshot(latitude: Double, longitude: Double, timeZone: TimeZone) async -> WeatherFetchResult {
         let context = LocationContext(latitude: latitude, longitude: longitude, timeZone: timeZone)
         let locationKey = context.locationKey
@@ -110,10 +111,31 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
                 cachedAt: timestamp
             )
         }
-        return await loadWeather(
+        let result = await loadWeather(
             context: context,
             fallbackWeatherByDate: weatherByDateByLocation[locationKey] ?? [:]
         )
+        storeInCache(result)
+        return result
+    }
+
+    /// 新規取得に成功したスナップショットをメモリ上の地点キャッシュへ書き込む。
+    /// 公開中の weatherByDate（選択中の観測地の表示）は変更しない。
+    /// キャンセル時の結果は既存キャッシュの使い回しなので、取得時刻（TTL の起点）を更新しないよう書き込まない。
+    /// 選択中の観測地は公開中の値と観測時刻を突き合わせて期限切れを判定しているため、
+    /// 表示を伴わない書き込みで食い違わないよう applyFetchResult だけが更新する。
+    private func storeInCache(_ result: WeatherFetchResult) {
+        guard !Task.isCancelled,
+              result.locationKey != activeLocationKey,
+              result.errorMessage == nil,
+              result.cachedAt == nil,
+              !result.weatherByDate.isEmpty else { return }
+        weatherByDateByLocation[result.locationKey] = result.weatherByDate
+        cacheTimestamps[result.locationKey] = Date()
+        if let celsius = result.currentTemperatureCelsius {
+            currentByLocation[result.locationKey] = (celsius, result.currentObservedAt ?? now())
+        }
+        evictCacheIfNeeded()
     }
 
     /// 取得結果をキャッシュと公開状態へ同期する。
@@ -181,7 +203,7 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     // MARK: - Date key formatter
 
     /// "yyyy-MM-dd" 形式の DateFormatter を返す（タイムゾーン依存、タイムゾーンごとにキャッシュ済み）。
-    private static func makeDateKeyFormatter(timeZone: TimeZone) -> DateFormatter {
+    private nonisolated static func makeDateKeyFormatter(timeZone: TimeZone) -> DateFormatter {
         FormatterFactory.observationTimeZone(dateFormat: "yyyy-MM-dd", timeZone: timeZone)
     }
 
@@ -296,14 +318,16 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
                 latitude: context.latitude,
                 longitude: context.longitude
             )
-            let signposter = PerformanceSignposts.signposter
-            let signpostState = signposter.beginInterval("WeatherNightGrouping", id: signposter.makeSignpostID())
-            let weatherByDate = groupNightHours(
-                Array(hourlyForecast),
-                coordinate: coordinate,
-                timeZone: context.timeZone
-            )
-            signposter.endInterval("WeatherNightGrouping", signpostState)
+            // WeatherKit の型はメインアクター上で共通の値型へ変換し、夜ごとの束ね（日没探索を含む）だけを
+            // メインアクター外で行う。結果の反映（applyFetchResult）は呼び出し元がメインアクターで行う。
+            let hours = Self.hourlyWeathers(from: Array(hourlyForecast))
+            let timeZone = context.timeZone
+            let weatherByDate = await Task.detached(priority: .userInitiated) {
+                let signposter = PerformanceSignposts.signposter
+                let signpostState = signposter.beginInterval("WeatherNightGrouping", id: signposter.makeSignpostID())
+                defer { signposter.endInterval("WeatherNightGrouping", signpostState) }
+                return Self.nightlySummaries(from: hours, coordinate: coordinate, timeZone: timeZone)
+            }.value
 
             return WeatherFetchResult(
                 weatherByDate: weatherByDate,
@@ -328,14 +352,9 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
 
     // MARK: - Night grouping
 
-    /// 24時間予報を夜間区間ごとに束ねる。
-    private func groupNightHours(
-        _ hourWeathers: [HourWeather],
-        coordinate: CLLocationCoordinate2D,
-        timeZone: TimeZone
-    ) -> [String: DayWeatherSummary] {
-        // WeatherKit HourWeather → 共通 HourlyWeather へ変換
-        let hours: [HourlyWeather] = hourWeathers.map { hw in
+    /// WeatherKit HourWeather → 共通 HourlyWeather へ変換する。
+    private static func hourlyWeathers(from hourWeathers: [HourWeather]) -> [HourlyWeather] {
+        hourWeathers.map { hw in
             HourlyWeather(
                 date:                hw.date,
                 temperatureCelsius:  hw.temperature.converted(to: .celsius).value,
@@ -350,8 +369,6 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
                 windSpeedKmh500hpa:  nil   // WeatherKit は 500hPa 風速を非提供
             )
         }
-
-        return Self.nightlySummaries(from: hours, coordinate: coordinate, timeZone: timeZone)
     }
 
     /// 天気予報を束ねる 1 夜分の区間。
@@ -360,7 +377,7 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     /// 太陽が地平線下（< 0°）の区間で代用する。月・惑星モードでは薄明の空でも観測対象になるため、
     /// 天気が全く得られない夜を作らない。
     /// 根拠: NightSummary の天気網羅判定（weatherCoverageHourStarts）と同じ基準・同じ順序で判定する。
-    static func weatherNightInterval(
+    nonisolated static func weatherNightInterval(
         date: Date,
         coordinate: CLLocationCoordinate2D,
         timeZone: TimeZone
@@ -385,14 +402,15 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     }
 
     /// 区間 [start, end) に正時（時計の hh:00）が含まれるか。予報は正時ごとのため、含まれなければ天気は得られない。
-    private static func containsHourStart(_ interval: DateInterval, calendar: Calendar) -> Bool {
+    private nonisolated static func containsHourStart(_ interval: DateInterval, calendar: Calendar) -> Bool {
         guard let hour = calendar.dateInterval(of: .hour, for: interval.start) else { return false }
         let firstHourStart = hour.start == interval.start ? hour.start : hour.end
         return firstHourStart < interval.end
     }
 
     /// 共通形式の時間別予報を夜間区間ごとに束ねる（テストから直接呼べるよう分離）。
-    static func nightlySummaries(
+    /// 純粋な計算のみで状態に触れないため、メインアクター外から呼べる。
+    nonisolated static func nightlySummaries(
         from hours: [HourlyWeather],
         coordinate: CLLocationCoordinate2D,
         timeZone: TimeZone

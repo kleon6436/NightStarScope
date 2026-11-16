@@ -1,11 +1,22 @@
 import Foundation
+import os
 
 /// 日付境界をタイムゾーン固定で扱うためのカレンダーヘルパー。
 enum ObservationTimeZone {
-    /// 指定タイムゾーンに固定した Gregorian カレンダーを返す。
+    /// タイムゾーン ID ごとの Gregorian カレンダー。ループや並べ替えの比較関数から呼ばれるため生成を使い回す。
+    /// 扱うタイムゾーンは保存地点と端末のものに限られ、件数は小さい。
+    private static let calendarCache = OSAllocatedUnfairLock<[String: Calendar]>(initialState: [:])
+
+    /// 指定タイムゾーンに固定した Gregorian カレンダーを返す（値型のコピー）。
     static func gregorianCalendar(timeZone: TimeZone) -> Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
+        let key = timeZone.identifier
+        if let cached = calendarCache.withLock({ $0[key] }), cached.timeZone == timeZone {
+            return cached
+        }
+        var newCalendar = Calendar(identifier: .gregorian)
+        newCalendar.timeZone = timeZone
+        let calendar = newCalendar
+        calendarCache.withLock { $0[key] = calendar }
         return calendar
     }
 

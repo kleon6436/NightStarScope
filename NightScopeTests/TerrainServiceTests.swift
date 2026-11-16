@@ -1,6 +1,7 @@
 import XCTest
 @testable import NightScope
 import Compression
+import zlib
 
 final class TerrainServiceTests: XCTestCase {
 
@@ -114,13 +115,15 @@ final class TerrainServiceTests: XCTestCase {
 
         // 高解像度範囲外（ヨーロッパ付近）→ 全球グリッドから取得できる
         let profile = await service.fetchProfile(latitude: 48.0, longitude: 2.0)
-        XCTAssertNotNil(profile, "\u9ad8\u89e3\u50cf\u5ea6\u7bc4\u56f2\u5916\u3067\u3082\u5168\u7403\u30b0\u30ea\u30c3\u30c9\u304b\u3089\u30d7\u30ed\u30d5\u30a1\u30a4\u30eb\u3092\u53d6\u5f97\u3067\u304d\u308b\u306f\u305a")
+        XCTAssertNotNil(profile, "高解像度範囲外でも全球グリッドからプロファイルを取得できるはず")
         XCTAssertEqual(profile?.horizonAngles.count, 72)
     }
 
     func test_elevationGridData_load_compressedELVZ() throws {
         let raw = makeElevationVersion1Data(latCells: 2, lonCells: 2, elevation: 123)
-        let compressedPayload = try (raw as NSData).compressed(using: .zlib) as Data
+        // NSData.compressed(using: .zlib) はヘッダーなしの raw DEFLATE を出すため、
+        // 実データ（Tools/prepare_srtm.py の zlib.compress）と同じ zlib 形式で圧縮する。
+        let compressedPayload = try XCTUnwrap(referenceDeflate(raw))
 
         var fileData = Data([0x45, 0x4C, 0x56, 0x5A]) // "ELVZ"
         fileData.append(compressedPayload)
@@ -130,7 +133,7 @@ final class TerrainServiceTests: XCTestCase {
 
         let grid = ElevationGridData.load(from: fileURL)
         XCTAssertNotNil(grid)
-        XCTAssertEqual(grid?.elevation(latitude: 0, longitude: 0), 123, accuracy: 0.1)
+        XCTAssertEqual(grid?.elevation(latitude: 0, longitude: 0) ?? .nan, 123, accuracy: 0.1)
     }
 
     func test_fetchProfile_realYamanakakoData_hasPositiveTerrainAngles() async throws {
@@ -154,6 +157,173 @@ final class TerrainServiceTests: XCTestCase {
 
         let maxAngle = profile.horizonAngles.max() ?? -.infinity
         XCTAssertGreaterThan(maxAngle, 1.0, "山中湖では周囲地形により遮蔽仰角が正になるはず")
+    }
+
+    // MARK: - Decode equivalence
+
+    /// 圧縮グリッドの展開経路（ヘッダー先読み＋事前確保バッファへの直接展開）が、
+    /// 従来の「全体を展開してから非圧縮パーサーへ渡す」経路と同じ標高を返す。
+    func test_elevationGridData_load_realData_matchesReferenceDecode() throws {
+        for name in ["elevation_japan.bin.z", "elevation_global.bin.z"] {
+            let url = repositoryRootURL().appendingPathComponent("NightScope/Data/\(name)")
+            guard let fileData = try? Data(contentsOf: url, options: .mappedIfSafe) else {
+                throw XCTSkip("実データが未生成のためスキップ: \(name)")
+            }
+            let referenceRaw = try XCTUnwrap(referenceInflate(fileData.dropFirst(4)), name)
+            let reference = try XCTUnwrap(ElevationGridData(data: referenceRaw), name)
+            let decoded = try XCTUnwrap(ElevationGridData.load(from: url), name)
+
+            var mismatches = 0
+            for latStep in stride(from: -89.9, through: 89.9, by: 0.37) {
+                for lonStep in stride(from: -179.9, through: 179.9, by: 0.53) {
+                    if decoded.elevation(latitude: latStep, longitude: lonStep)
+                        != reference.elevation(latitude: latStep, longitude: lonStep) {
+                        mismatches += 1
+                    }
+                }
+            }
+            // 日本付近は細かく比較する
+            for latStep in stride(from: 30.0, through: 46.0, by: 0.013) {
+                for lonStep in stride(from: 128.0, through: 146.0, by: 0.017) {
+                    if decoded.elevation(latitude: latStep, longitude: lonStep)
+                        != reference.elevation(latitude: latStep, longitude: lonStep) {
+                        mismatches += 1
+                    }
+                }
+            }
+            XCTAssertEqual(mismatches, 0, name)
+        }
+    }
+
+    func test_elevationGridData_load_rejectsTrailingData() throws {
+        var raw = makeElevationVersion1Data(latCells: 2, lonCells: 2, elevation: 1)
+        raw.append(contentsOf: [0, 0])
+        let compressed = try XCTUnwrap(referenceDeflate(raw))
+        var fileData = Data([0x45, 0x4C, 0x56, 0x5A])
+        fileData.append(compressed)
+        let fileURL = try writeTemporaryFile(data: fileData)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        XCTAssertNil(ElevationGridData.load(from: fileURL), "ヘッダーのセル数と展開サイズが合わなければ読み込まない")
+    }
+
+    func test_elevationGridData_loadHeader_readsVersion2BoundsWithoutFullDecode() throws {
+        let url = repositoryRootURL().appendingPathComponent("NightScope/Data/elevation_japan.bin.z")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw XCTSkip("elevation_japan.bin.z が未生成のためスキップ")
+        }
+        let header = try XCTUnwrap(ElevationGridData.loadHeader(from: url))
+        XCTAssertEqual(header.size, 32)
+        XCTAssertEqual(header.latCells * header.lonCells, 2600 * 3200)
+        XCTAssertLessThan(header.latMin, header.latMax)
+        XCTAssertLessThan(header.lonMin, header.lonMax)
+    }
+
+    /// 遅延読み込み（範囲外なら高解像度グリッドを読まない）と、両グリッドを常に参照する従来経路が同じプロファイルを返す。
+    /// 高解像度グリッドの範囲境界の外側近傍（サンプル点だけが範囲に入る地点）も含める。
+    func test_fetchProfile_lazyHighResSkipping_matchesEagerProfiles() async throws {
+        let dataURL = repositoryRootURL().appendingPathComponent("NightScope/Data", isDirectory: true)
+        guard let globalGrid = ElevationGridData.load(from: dataURL.appendingPathComponent("elevation_global.bin.z")),
+              let highResGrid = ElevationGridData.load(from: dataURL.appendingPathComponent("elevation_japan.bin.z")),
+              let header = ElevationGridData.loadHeader(from: dataURL.appendingPathComponent("elevation_japan.bin.z"))
+        else {
+            throw XCTSkip("実データが未生成のためスキップ")
+        }
+        let eager = TerrainService(globalData: globalGrid, highResData: highResGrid)
+        let globalOnly = TerrainService(globalData: globalGrid, highResData: nil)
+
+        let midLat = (header.latMin + header.latMax) / 2
+        let midLon = (header.lonMin + header.lonMax) / 2
+        let coordinates: [(Double, Double)] = [
+            (35.4175, 138.8628),                 // 山中湖（範囲内）
+            (header.latMax + 0.5, midLon),       // 北端の外側 (サンプルは範囲に掛かる)
+            (midLat, header.lonMin - 0.5),       // 西端の外側
+            (midLat, header.lonMax + 0.8),       // 東端の外側
+            (header.latMin - 0.85, midLon),      // 南端の外側
+            (header.latMax + 1.05, midLon),      // 北端から到達距離 (≈0.9°) を少し超えた地点
+            (midLat, header.lonMax + 1.6),       // 東端から到達距離を少し超えた地点
+            (48.0, 2.0),                         // パリ（範囲から遠い）
+            (-33.9, 151.2)                       // シドニー
+        ]
+        for (lat, lon) in coordinates {
+            let expected = await eager.fetchProfile(latitude: lat, longitude: lon)
+            let mayIntersect = TerrainService.samplingArea(latitude: lat, longitude: lon, mayIntersect: header)
+            if !mayIntersect {
+                // 範囲判定で高解像度グリッドを読まない地点は、全球グリッドだけの結果と一致するはず
+                let globalOnlyProfile = await globalOnly.fetchProfile(latitude: lat, longitude: lon)
+                XCTAssertEqual(globalOnlyProfile?.horizonAngles, expected?.horizonAngles, "\(lat),\(lon)")
+            }
+        }
+        XCTAssertTrue(TerrainService.samplingArea(latitude: 35.4175, longitude: 138.8628, mayIntersect: header))
+        XCTAssertTrue(TerrainService.samplingArea(latitude: header.latMax + 0.5, longitude: midLon, mayIntersect: header))
+        XCTAssertFalse(TerrainService.samplingArea(latitude: 48.0, longitude: 2.0, mayIntersect: header))
+    }
+
+    /// 共有インスタンス（バンドルから遅延読み込み）と、事前に読み込んだグリッドを注入した結果が一致する。
+    func test_fetchProfile_sharedLazyLoad_matchesEagerlyLoadedGrids() async throws {
+        let dataURL = repositoryRootURL().appendingPathComponent("NightScope/Data", isDirectory: true)
+        guard Bundle.main.url(forResource: "elevation_global", withExtension: "bin.z") != nil,
+              let globalGrid = ElevationGridData.load(from: dataURL.appendingPathComponent("elevation_global.bin.z")),
+              let highResGrid = ElevationGridData.load(from: dataURL.appendingPathComponent("elevation_japan.bin.z"))
+        else {
+            throw XCTSkip("テストホストに標高データが同梱されていないためスキップ")
+        }
+        let lazy = TerrainService()
+        let eager = TerrainService(globalData: globalGrid, highResData: highResGrid)
+        // 同時要求でも 1 回だけ読み込み、どちらも同じ結果になる
+        async let first = lazy.fetchProfile(latitude: 35.4175, longitude: 138.8628)
+        async let second = lazy.fetchProfile(latitude: 46.5, longitude: 7.9)
+        let lazyResults = await [first, second]
+        let eagerFirst = await eager.fetchProfile(latitude: 35.4175, longitude: 138.8628)
+        let eagerSecond = await eager.fetchProfile(latitude: 46.5, longitude: 7.9)
+        XCTAssertEqual(lazyResults[0]?.horizonAngles, eagerFirst?.horizonAngles)
+        XCTAssertEqual(lazyResults[1]?.horizonAngles, eagerSecond?.horizonAngles)
+        XCTAssertNotNil(lazyResults[0])
+    }
+
+    /// 旧実装と同じ方式（256KB チャンクで逐次展開）の参照デコーダ。
+    private func referenceInflate(_ data: Data) -> Data? {
+        var stream = z_stream()
+        guard inflateInit_(&stream, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else { return nil }
+        defer { inflateEnd(&stream) }
+        let input = Data(data)
+        return input.withUnsafeBytes { srcRaw -> Data? in
+            guard let srcBase = srcRaw.bindMemory(to: Bytef.self).baseAddress else { return nil }
+            stream.next_in = UnsafeMutablePointer<Bytef>(mutating: srcBase)
+            stream.avail_in = uInt(input.count)
+            var output = Data()
+            let chunkSize = 256 * 1024
+            let outBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: chunkSize)
+            defer { outBuffer.deallocate() }
+            while true {
+                stream.next_out = outBuffer
+                stream.avail_out = uInt(chunkSize)
+                let status = inflate(&stream, Z_NO_FLUSH)
+                let produced = chunkSize - Int(stream.avail_out)
+                if produced > 0 { output.append(outBuffer, count: produced) }
+                if status == Z_STREAM_END { return output }
+                if status != Z_OK { return nil }
+            }
+        }
+    }
+
+    /// zlib 形式（ヘッダー付き）で圧縮する。Tools/prepare_srtm.py の zlib.compress と同じ形式。
+    private func referenceDeflate(_ data: Data) -> Data? {
+        var destinationLength = compressBound(uLong(data.count))
+        var output = Data(count: Int(destinationLength))
+        let status = output.withUnsafeMutableBytes { dst in
+            data.withUnsafeBytes { src in
+                compress2(
+                    dst.bindMemory(to: Bytef.self).baseAddress,
+                    &destinationLength,
+                    src.bindMemory(to: Bytef.self).baseAddress,
+                    uLong(data.count),
+                    9
+                )
+            }
+        }
+        guard status == Z_OK else { return nil }
+        return output.prefix(Int(destinationLength))
     }
 
     // MARK: - Helpers

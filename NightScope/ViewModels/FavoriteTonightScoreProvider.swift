@@ -13,9 +13,9 @@ struct FavoriteTonightScore: Equatable, Sendable {
 
 /// お気に入り地点ごとの「今夜の星空指数」をまとめて計算し、キャッシュして公開する。
 ///
-/// `WeatherKitService.fetchWeatherSnapshot` はキャッシュを書かないため、
-/// お気に入り 1 件につき WeatherKit 呼び出しが 1 回発生する。
-/// そのため TTL（`cacheLifetime`）で呼び出し回数を抑える。
+/// `WeatherKitService.fetchWeatherSnapshot` は 1 時間・最大 10 地点のメモリキャッシュを持つが、
+/// お気に入りがそれより多い場合や TTL 切れでは 1 件につき WeatherKit 呼び出しが 1 回発生する。
+/// そのため指数自体も TTL（`cacheLifetime`）でキャッシュし、呼び出し回数を抑える。
 @MainActor
 final class FavoriteTonightScoreProvider: ObservableObject {
     /// 計算結果を再利用する有効期間（秒）。
@@ -88,40 +88,69 @@ final class FavoriteTonightScoreProvider: ObservableObject {
         // 「今夜」（観測日）は地点ごとに異なる（時差や深夜〜明け方の前夜）ため、地点ごとに 1 列の行列を作る。
         // まとめて計算すると列が最も早い観測日にそろい、他の地点で終わった夜の指数を出してしまう。
         // 取得に失敗した地点は既存値を残し、成功した地点だけを差し替える。
-        // 地点ごとに、更新が世代交代していない間は即座に反映する（途中でやめても完了分は失われない）。
-        for target in targets {
-            let matrix = await ComparisonController.computeMatrix(
-                referenceDate: referenceDate,
-                locations: [target],
-                dayCount: 1,
-                weatherService: weatherService,
-                lightPollutionService: lightPollutionService,
-                calculationService: calculationService
-            )
-            guard generation == refreshGeneration, !Task.isCancelled else { return }
-            // 天気の取得に失敗した結果は正規の値として保存しない。
-            // 既存値は同じ観測夜のものだけ残し、過去の夜の値は「今夜」として出さないよう取り除く。
-            guard !matrix.weatherFailedLocationIDs.contains(target.id),
-                  let tonight = matrix.dates.first,
-                  let index = matrix.cellsByID[ComparisonCell.makeID(locationID: target.id, date: tonight)]?.index
-            else {
-                lastFailureByFavoriteID[target.id] = referenceDate
-                if let cached = scoresByFavoriteID[target.id],
-                   cached.observationDate != observationDate(for: target, referenceDate: referenceDate) {
-                    scoresByFavoriteID[target.id] = nil
+        // 地点ごとに、更新が世代交代していない間は完了次第反映する（途中でやめても完了分は失われない）。
+        // 地点は最大 `maxConcurrentRefreshes` 件ずつ並行して取得し、完了した順に反映する。
+        let weatherService = self.weatherService
+        let lightPollutionService = self.lightPollutionService
+        let calculationService = self.calculationService
+        await withTaskGroup(of: (FavoriteLocation, ComparisonMatrix).self) { group in
+            var pendingTargets = targets[...]
+            var runningCount = 0
+            while true {
+                while runningCount < Self.maxConcurrentRefreshes,
+                      !Task.isCancelled,
+                      let target = pendingTargets.popFirst() {
+                    runningCount += 1
+                    group.addTask {
+                        let matrix = await ComparisonController.computeMatrix(
+                            referenceDate: referenceDate,
+                            locations: [target],
+                            dayCount: 1,
+                            weatherService: weatherService,
+                            lightPollutionService: lightPollutionService,
+                            calculationService: calculationService
+                        )
+                        return (target, matrix)
+                    }
                 }
-                continue
+                guard let (target, matrix) = await group.next() else { break }
+                runningCount -= 1
+                guard generation == refreshGeneration, !Task.isCancelled else {
+                    group.cancelAll()
+                    return
+                }
+                apply(matrix, for: target, referenceDate: referenceDate)
             }
-            let cellID = ComparisonCell.makeID(locationID: target.id, date: tonight)
-            lastFailureByFavoriteID[target.id] = nil
-            scoresByFavoriteID[target.id] = FavoriteTonightScore(
-                score: index.score,
-                tier: index.tier,
-                bortleClass: matrix.cellsByID[cellID]?.bortleClass,
-                computedAt: referenceDate,
-                observationDate: tonight
-            )
         }
+    }
+
+    /// 同時に計算するお気に入りの上限。ComparisonController の地点並列数とそろえる。
+    private static let maxConcurrentRefreshes = 3
+
+    /// 1 地点分の計算結果をキャッシュへ反映する。
+    private func apply(_ matrix: ComparisonMatrix, for target: FavoriteLocation, referenceDate: Date) {
+        // 天気の取得に失敗した結果は正規の値として保存しない。
+        // 既存値は同じ観測夜のものだけ残し、過去の夜の値は「今夜」として出さないよう取り除く。
+        guard !matrix.weatherFailedLocationIDs.contains(target.id),
+              let tonight = matrix.dates.first,
+              let index = matrix.cellsByID[ComparisonCell.makeID(locationID: target.id, date: tonight)]?.index
+        else {
+            lastFailureByFavoriteID[target.id] = referenceDate
+            if let cached = scoresByFavoriteID[target.id],
+               cached.observationDate != observationDate(for: target, referenceDate: referenceDate) {
+                scoresByFavoriteID[target.id] = nil
+            }
+            return
+        }
+        let cellID = ComparisonCell.makeID(locationID: target.id, date: tonight)
+        lastFailureByFavoriteID[target.id] = nil
+        scoresByFavoriteID[target.id] = FavoriteTonightScore(
+            score: index.score,
+            tier: index.tier,
+            bortleClass: matrix.cellsByID[cellID]?.bortleClass,
+            computedAt: referenceDate,
+            observationDate: tonight
+        )
     }
 
     /// その地点の「今夜」にあたる観測夜（列のタイムゾーンの暦日）。

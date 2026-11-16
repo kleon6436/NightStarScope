@@ -320,8 +320,8 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         searchState = .loading(query: normalizedQuery, previousResults: searchState.results)
 
         searchTask = Task { [normalizedQuery] in
-            // デバウンス: 150ms 以内に次の入力があればキャンセルされる
-            try? await Task.sleep(for: .milliseconds(150))
+            // デバウンス: 300ms 以内に次の入力があればキャンセルされる
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
 
             do {

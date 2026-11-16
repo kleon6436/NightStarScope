@@ -190,4 +190,20 @@ final class PerformanceBaselineTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Terrain grid decode
+
+    /// 全球標高グリッド (3600×7200 Int16 ≈ 52MB) の ELVZ 展開。初回の星図表示時に 1 度だけ走る。
+    func test_perf_terrainGlobalGridDecode() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("NightScope/Data/elevation_global.bin.z")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw XCTSkip("elevation_global.bin.z が未生成のためスキップ")
+        }
+        measure(metrics: [XCTClockMetric(), XCTMemoryMetric()], options: options) {
+            _ = ElevationGridData.load(from: url)
+        }
+    }
 }

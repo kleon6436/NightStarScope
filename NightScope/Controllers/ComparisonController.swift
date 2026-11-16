@@ -145,35 +145,29 @@ final class ComparisonController: ObservableObject {
         }
         let indexBuilder = StarGazingIndexBuilder(weatherService: weatherService)
         var weatherFailedLocationIDs: Set<UUID> = []
+        let fetches = await fetchLocationInputs(
+            locations: locations,
+            firstColumnDate: dates.first,
+            columnTimeZone: columnTimeZone,
+            referenceDate: referenceDate,
+            dayCount: dayCount,
+            weatherService: weatherService,
+            lightPollutionService: lightPollutionService,
+            calculationService: calculationService
+        )
 
-        for location in locations {
-            guard !Task.isCancelled else { break }
-
-            let timeZone = TimeZone(identifier: location.timeZoneIdentifier) ?? .current
-            let coordinate = CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)
-            let weatherResult = await weatherService.fetchWeatherSnapshot(
-                latitude: location.latitude,
-                longitude: location.longitude,
-                timeZone: timeZone
-            )
+        // キャンセル等で取得できなかった地点のセルは読み込み中のまま残す（従来の逐次処理での break と同じ）。
+        // キャンセル後に完了した地点はキャッシュの使い回しや空の結果を返すため、天気なしの読み込み済みセルにしない。
+        let isCancelled = Task.isCancelled
+        for (location, fetch) in zip(locations, fetches) {
+            guard !isCancelled, let fetch else { continue }
+            let timeZone = fetch.timeZone
+            let weatherResult = fetch.weatherResult
+            let bortleClass = fetch.bortleClass
+            let nights = fetch.nights
             if weatherResult.errorMessage != nil {
                 weatherFailedLocationIDs.insert(location.id)
             }
-            let bortleClass = try? await lightPollutionService.fetchBortle(
-                latitude: location.latitude,
-                longitude: location.longitude
-            )
-            // 列と同じ年月日の夜をこの地点のタイムゾーンで計算する。
-            // 列の 0 時（端末のタイムゾーン）から数えると、時差のある地点では夜が 1 日ずれる。
-            let firstLocalDay = dates.first.map {
-                ObservationTimeZone.preservingCalendarDay($0, from: columnTimeZone, to: timeZone)
-            } ?? referenceDate
-            let nights = await calculationService.calculateUpcomingNights(
-                from: firstLocalDay,
-                location: coordinate,
-                timeZone: timeZone,
-                days: dayCount
-            )
 
             for date in dates {
                 let cellID = ComparisonCell.makeID(locationID: location.id, date: date)
@@ -216,6 +210,104 @@ final class ComparisonController: ObservableObject {
             cellsByID: cellsByID,
             weatherFailedLocationIDs: weatherFailedLocationIDs,
             columnTimeZone: columnTimeZone
+        )
+    }
+    /// 1 地点分の取得結果。
+    private struct LocationInputs: Sendable {
+        let timeZone: TimeZone
+        let weatherResult: WeatherFetchResult
+        let bortleClass: Double?
+        let nights: [NightSummary]
+    }
+
+    /// 同時に取得する地点数の上限。WeatherKit への同時リクエストを抑えつつ逐次待ちを減らす。
+    private static let maxConcurrentLocationFetches = 3
+
+    /// 地点ごとの天気・光害・夜間計算を、最大 `maxConcurrentLocationFetches` 地点ずつ並行して取得する。
+    /// 戻り値は `locations` と同じ順序で、キャンセルにより取得しなかった地点は nil。
+    private static func fetchLocationInputs(
+        locations: [FavoriteLocation],
+        firstColumnDate: Date?,
+        columnTimeZone: TimeZone,
+        referenceDate: Date,
+        dayCount: Int,
+        weatherService: any WeatherProviding,
+        lightPollutionService: any LightPollutionProviding,
+        calculationService: any NightCalculating
+    ) async -> [LocationInputs?] {
+        await withTaskGroup(of: (Int, LocationInputs).self) { group in
+            var results = [LocationInputs?](repeating: nil, count: locations.count)
+            var nextIndex = 0
+            var runningCount = 0
+            while true {
+                while runningCount < maxConcurrentLocationFetches,
+                      nextIndex < locations.count,
+                      !Task.isCancelled {
+                    let index = nextIndex
+                    let location = locations[index]
+                    nextIndex += 1
+                    runningCount += 1
+                    group.addTask {
+                        let inputs = await fetchInputs(
+                            for: location,
+                            firstColumnDate: firstColumnDate,
+                            columnTimeZone: columnTimeZone,
+                            referenceDate: referenceDate,
+                            dayCount: dayCount,
+                            weatherService: weatherService,
+                            lightPollutionService: lightPollutionService,
+                            calculationService: calculationService
+                        )
+                        return (index, inputs)
+                    }
+                }
+                guard let (index, inputs) = await group.next() else { break }
+                runningCount -= 1
+                results[index] = inputs
+            }
+            return results
+        }
+    }
+
+    /// 1 地点分の天気・光害・夜間計算を並行して取得する。
+    private static func fetchInputs(
+        for location: FavoriteLocation,
+        firstColumnDate: Date?,
+        columnTimeZone: TimeZone,
+        referenceDate: Date,
+        dayCount: Int,
+        weatherService: any WeatherProviding,
+        lightPollutionService: any LightPollutionProviding,
+        calculationService: any NightCalculating
+    ) async -> LocationInputs {
+        let timeZone = TimeZone(identifier: location.timeZoneIdentifier) ?? .current
+        let coordinate = CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)
+        // 列と同じ年月日の夜をこの地点のタイムゾーンで計算する。
+        // 列の 0 時（端末のタイムゾーン）から数えると、時差のある地点では夜が 1 日ずれる。
+        let firstLocalDay = firstColumnDate.map {
+            ObservationTimeZone.preservingCalendarDay($0, from: columnTimeZone, to: timeZone)
+        } ?? referenceDate
+
+        async let weatherResult = weatherService.fetchWeatherSnapshot(
+            latitude: location.latitude,
+            longitude: location.longitude,
+            timeZone: timeZone
+        )
+        async let bortleClass = try? lightPollutionService.fetchBortle(
+            latitude: location.latitude,
+            longitude: location.longitude
+        )
+        async let nights = calculationService.calculateUpcomingNights(
+            from: firstLocalDay,
+            location: coordinate,
+            timeZone: timeZone,
+            days: dayCount
+        )
+        return await LocationInputs(
+            timeZone: timeZone,
+            weatherResult: weatherResult,
+            bortleClass: bortleClass,
+            nights: nights
         )
     }
 }
