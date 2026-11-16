@@ -103,6 +103,10 @@ struct NightTimelineModel {
     /// 軸の右端（既定: 翌日の 06:00）。
     let axisEnd: Date
 
+    /// 3 時間刻みの目盛り（既定では 18:00 / 21:00 / 00:00 / 03:00 / 06:00 の 5 点）。
+    /// 描画中に何度も参照されるため生成時に 1 回だけ組み立てる。
+    let tickLabels: [(fraction: Double, text: String)]
+
     private let summary: NightSummary
     private let nighttimeHours: [HourlyWeather]
     private let timeZone: TimeZone
@@ -125,8 +129,10 @@ struct NightTimelineModel {
         // 終端の時刻が開始以下なら翌日に回り込む（既定の 18:00 → 翌 06:00）。
         let endDayOffset = axisEndHour <= axisStartHour ? 1 : 0
         let endDayStart = calendar.date(byAdding: .day, value: endDayOffset, to: dayStart) ?? dayStart
+        let end = calendar.date(bySettingHour: axisEndHour, minute: 0, second: 0, of: endDayStart) ?? start
         self.axisStart = start
-        self.axisEnd = calendar.date(bySettingHour: axisEndHour, minute: 0, second: 0, of: endDayStart) ?? start
+        self.axisEnd = end
+        self.tickLabels = Self.makeTickLabels(axisStart: start, axisEnd: end, timeZone: timeZone)
     }
 
     var totalSeconds: TimeInterval { axisEnd.timeIntervalSince(axisStart) }
@@ -174,12 +180,18 @@ struct NightTimelineModel {
             .map { (fraction(of: $0.date), $0.cloudCoverPercent, $0.precipitationMM) }
     }
 
-    /// 3 時間刻みの目盛り（既定では 18:00 / 21:00 / 00:00 / 03:00 / 06:00 の 5 点）。
-    var tickLabels: [(fraction: Double, text: String)] {
+    private static func makeTickLabels(
+        axisStart: Date,
+        axisEnd: Date,
+        timeZone: TimeZone
+    ) -> [(fraction: Double, text: String)] {
+        let totalSeconds = axisEnd.timeIntervalSince(axisStart)
         guard totalSeconds > 0 else { return [] }
         return stride(from: 0, through: totalSeconds, by: Constants.tickIntervalSeconds).map { offset in
             let date = axisStart.addingTimeInterval(offset)
-            return (fraction(of: date), date.nightTimeString(timeZone: timeZone))
+            // fraction(of:) と同じく軸の外側は 0.0 / 1.0 に丸める。
+            let fraction = min(max(date.timeIntervalSince(axisStart) / totalSeconds, 0), 1)
+            return (fraction, date.nightTimeString(timeZone: timeZone))
         }
     }
 
@@ -247,13 +259,21 @@ struct BestNightPicker {
         }
         guard !candidates.isEmpty else { return nil }
 
+        // 観測可能時間帯の算出は重いため、比較関数の外で候補ごとに 1 回だけ求める。
+        let ranked = candidates.enumerated().map { offset, candidate in
+            (
+                offset: offset,
+                element: candidate,
+                window: observableWindow(candidate, referenceDate: referenceDate)
+            )
+        }
         // sorted(by:) は安定ソートではないため、最後に元の並び順で決着させる。
-        let ranked = candidates.enumerated().sorted { lhs, rhs in
+        .sorted { lhs, rhs in
             if lhs.element.index.score != rhs.element.index.score {
                 return lhs.element.index.score > rhs.element.index.score
             }
-            let lhsDuration = observableWindowDuration(lhs.element, referenceDate: referenceDate)
-            let rhsDuration = observableWindowDuration(rhs.element, referenceDate: referenceDate)
+            let lhsDuration = windowDuration(lhs.window)
+            let rhsDuration = windowDuration(rhs.window)
             if lhsDuration != rhsDuration { return lhsDuration > rhsDuration }
             if lhs.element.summary.date != rhs.element.summary.date {
                 return lhs.element.summary.date < rhs.element.summary.date
@@ -261,13 +281,14 @@ struct BestNightPicker {
             return lhs.offset < rhs.offset
         }
 
-        guard let winner = ranked.first?.element else { return nil }
+        guard let first = ranked.first else { return nil }
+        let winner = first.element
         let otherScores = ranked.dropFirst().map(\.element.index.score)
 
         return BestNightPick(
             summary: winner.summary,
             index: winner.index,
-            windowText: windowText(winner, referenceDate: referenceDate),
+            windowText: windowText(first.window, timeZone: winner.summary.timeZone),
             reasonText: reasonText(winner),
             isWorthHighlighting: isWorthHighlighting(winner: winner, otherScores: otherScores)
         )
@@ -275,8 +296,8 @@ struct BestNightPicker {
 
     // MARK: - Helpers
 
-    private static func observableWindowDuration(_ candidate: Candidate, referenceDate: Date) -> TimeInterval {
-        guard let window = observableWindow(candidate, referenceDate: referenceDate) else { return 0 }
+    private static func windowDuration(_ window: (start: Date, end: Date)?) -> TimeInterval {
+        guard let window else { return 0 }
         return window.end.timeIntervalSince(window.start)
     }
 
@@ -294,9 +315,8 @@ struct BestNightPicker {
     /// 天気込みの観測可能時間帯を "HH:mm〜HH:mm" で返す。
     /// - Note: `weatherAwareRangeText` は「観測不可」「月明かり」といった非時刻の値も返すため、
     ///         時刻レンジだけが欲しいここではウィンドウから直接組み立てる。
-    private static func windowText(_ candidate: Candidate, referenceDate: Date) -> String? {
-        guard let window = observableWindow(candidate, referenceDate: referenceDate) else { return nil }
-        let timeZone = candidate.summary.timeZone
+    private static func windowText(_ window: (start: Date, end: Date)?, timeZone: TimeZone) -> String? {
+        guard let window else { return nil }
         return "\(window.start.nightTimeString(timeZone: timeZone))〜\(window.end.nightTimeString(timeZone: timeZone))"
     }
 

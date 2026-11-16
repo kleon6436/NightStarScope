@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// 主要な月相（太陽との黄経の離角が 0/90/180/270° になる瞬間）。
 enum PrincipalMoonPhase: CaseIterable, Sendable {
@@ -143,6 +144,25 @@ enum LunarCalendar {
         }
     }
 
+    /// `NightSummary.moonAge` の結果。朔の探索は重く、同じ夜のカードが描画のたびに問い合わせるため使い回す。
+    /// キーは夜の翌 0 時の時刻で、結果は時刻だけで決まる。
+    private static let nightMoonAgeCache = OSAllocatedUnfairLock<[Date: Double]>(initialState: [:])
+    /// 保存地点や日付を切り替え続けても際限なく増えないよう、超えたら破棄する件数。
+    private static let nightMoonAgeCacheLimit = 512
+
+    /// `moonAge(at:)` を時刻ごとにメモ化して返す。
+    static func cachedMoonAge(at date: Date) -> Double {
+        if let cached = nightMoonAgeCache.withLock({ $0[date] }) {
+            return cached
+        }
+        let age = moonAge(at: date)
+        nightMoonAgeCache.withLock { cache in
+            if cache.count >= nightMoonAgeCacheLimit { cache.removeAll() }
+            cache[date] = age
+        }
+        return age
+    }
+
     /// 時刻 `date` における月齢（直前の新月からの経過日数）。
     static func moonAge(at date: Date) -> Double {
         let lastNewMoon = phaseEvents(
@@ -183,7 +203,7 @@ extension NightSummary {
     /// 月齢カレンダーと同じ定義の月齢（翌 0 時時点での、直前の新月からの経過日数）。
     var moonAge: Double {
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        return LunarCalendar.moonAge(at: MilkyWayCalculator.nightMidnight(for: date, calendar: calendar))
+        return LunarCalendar.cachedMoonAge(at: MilkyWayCalculator.nightMidnight(for: date, calendar: calendar))
     }
 
     var moonlightLevel: MoonPhase.MoonlightLevel {

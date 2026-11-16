@@ -2,6 +2,37 @@ import SwiftUI
 import Combine
 import CoreLocation
 
+/// 予報一覧の 1 夜分の表示値。判定や文言の組み立ては入力が変わったときだけ行う。
+struct UpcomingNightRow: Identifiable {
+    let night: NightSummary
+    let index: StarGazingIndex?
+    let weather: DayWeatherSummary?
+    let isReliableWeather: Bool
+    let hasPartialWeather: Bool
+    let isForecastOutOfRange: Bool
+    let hasWeatherLoadError: Bool
+    let isSelected: Bool
+    /// 選択中のタイムゾーンで組み立てた表示文言。
+    let presentation: ForecastCardPresentation
+    let accessibilityLabel: String
+    let milkyWayPeakText: String
+    let currentObservationDate: Date
+
+    /// 一覧の夜は日付ごとに 1 件のため、夜の日付で識別する。
+    var id: Date { night.date }
+}
+
+/// 予報一覧全体の表示値。行と「狙い目」の判定をまとめて 1 回で求める。
+struct UpcomingNightsDisplay {
+    let rows: [UpcomingNightRow]
+    /// 「狙い目」の判定結果。強調に値するかの判定と最低夜数の判定は呼び出し側で行う。
+    let bestNightPick: BestNightPick?
+    /// 星空指数が出ている夜の数。
+    let scoredNightCount: Int
+    /// macOS の見出しに添える「狙い目」の文言。
+    let bestNightHighlightText: String?
+}
+
 /// 未来数夜の表示と選択状態を管理する ViewModel。
 @MainActor
 final class UpcomingNightsGridViewModel: ObservableObject {
@@ -17,6 +48,14 @@ final class UpcomingNightsGridViewModel: ObservableObject {
 
     private let detailViewModel: DetailViewModel
     private var cancellables = Set<AnyCancellable>()
+    /// `display` の計算結果。入力（@Published）のいずれかが変わると破棄する。
+    /// 現在時刻に依存する判定（今夜・部分予報）が日をまたいで古くならないよう、日付の区切りもキーに含める。
+    private var displayCache: (key: DisplayCacheKey, display: UpcomingNightsDisplay)?
+
+    private struct DisplayCacheKey: Equatable {
+        let currentObservationDate: Date
+        let currentDayStart: Date
+    }
 
     /// 詳細画面の状態をそのまま監視して、一覧へ反映する。
     init(detailViewModel: DetailViewModel) {
@@ -55,6 +94,73 @@ final class UpcomingNightsGridViewModel: ObservableObject {
 
         detailViewModel.$isUpcomingLoading
             .assign(to: &$isLoading)
+
+        objectWillChange
+            .sink { [weak self] _ in self?.displayCache = nil }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Display Snapshot
+
+    /// 一覧の表示値。描画のたびに判定し直さないよう、入力が変わるまで使い回す。
+    var display: UpcomingNightsDisplay {
+        let key = DisplayCacheKey(
+            currentObservationDate: detailViewModel.currentObservationDate(),
+            currentDayStart: ObservationTimeZone.startOfDay(
+                for: detailViewModel.currentDate(),
+                timeZone: selectedTimeZone
+            )
+        )
+        if let displayCache, displayCache.key == key {
+            return displayCache.display
+        }
+        let display = makeDisplay()
+        displayCache = (key, display)
+        return display
+    }
+
+    /// 指定した夜の行を組み立てる（プレースホルダー行など `displayNights` 以外にも使う）。
+    func rows(for nights: [NightSummary]) -> [UpcomingNightRow] {
+        let hasWeatherLoadError = weatherErrorMessage != nil
+        let currentObservationDate = currentObservationDate()
+        return nights.map { night in
+            let weather = weatherSummary(for: night.date)
+            let index = starGazingIndex(for: night.date)
+            return UpcomingNightRow(
+                night: night,
+                index: index,
+                weather: weather,
+                isReliableWeather: hasReliableWeatherData(for: night, weather: weather),
+                hasPartialWeather: hasPartialWeatherData(for: night, weather: weather),
+                isForecastOutOfRange: isForecastOutOfRange(for: night, weather: weather),
+                hasWeatherLoadError: hasWeatherLoadError,
+                isSelected: isDateSelected(night.date),
+                presentation: forecastPresentation(for: night),
+                accessibilityLabel: cardAccessibilityLabel(night: night, weather: weather, index: index),
+                milkyWayPeakText: milkyWayPeakText(night: night),
+                currentObservationDate: currentObservationDate
+            )
+        }
+    }
+
+    private func makeDisplay() -> UpcomingNightsDisplay {
+        let rows = rows(for: displayNights)
+        let candidates: [BestNightPicker.Input] = rows.map { row in
+            (
+                summary: row.night,
+                index: row.index,
+                weather: row.weather,
+                isReliableWeather: row.isReliableWeather
+            )
+        }
+        let scoredNightCount = candidates.filter { $0.index != nil }.count
+        let pick = BestNightPicker.pick(nights: candidates, referenceDate: detailViewModel.currentDate())
+        return UpcomingNightsDisplay(
+            rows: rows,
+            bestNightPick: pick,
+            scoredNightCount: scoredNightCount,
+            bestNightHighlightText: highlightText(pick: pick, scoredNightCount: scoredNightCount)
+        )
     }
 
     // MARK: - Public Properties
@@ -159,13 +265,19 @@ final class UpcomingNightsGridViewModel: ObservableObject {
     /// - Parameter referenceDate: 部分予報の判定に使う現在時刻。nil なら AppController の時計を使う。
     func bestNightHighlightText(referenceDate: Date? = nil) -> String? {
         let candidates = bestNightCandidates()
-        // 指数が出ていない夜は比較対象にならないため、採点済みの夜数で判定する。
-        guard candidates.filter({ $0.index != nil }).count >= 2 else { return nil }
-        guard let pick = BestNightPicker.pick(
+        return highlightText(
+            pick: BestNightPicker.pick(
                 nights: candidates,
                 referenceDate: referenceDate ?? detailViewModel.currentDate()
-              ),
-              pick.isWorthHighlighting else { return nil }
+            ),
+            scoredNightCount: candidates.filter { $0.index != nil }.count
+        )
+    }
+
+    private func highlightText(pick: BestNightPick?, scoredNightCount: Int) -> String? {
+        // 指数が出ていない夜は比較対象にならないため、採点済みの夜数で判定する。
+        guard scoredNightCount >= 2 else { return nil }
+        guard let pick, pick.isWorthHighlighting else { return nil }
         let presentation = forecastPresentation(for: pick.summary)
         let window = pick.windowText ?? presentation.darkStartText ?? "—"
         return L10n.format("狙い目: %@ %@", presentation.shortDateLabel, window)

@@ -43,24 +43,19 @@ struct iOSForecastViewModel {
         )
     }
 
-    func rowModel(for night: NightSummary, using gridViewModel: UpcomingNightsGridViewModel) -> iOSForecastRowModel {
-        let index = gridViewModel.starGazingIndex(for: night.date)
-        let weather = gridViewModel.weatherSummary(for: night.date)
-        let isReliableWeather = gridViewModel.hasReliableWeatherData(for: night, weather: weather)
-        let hasPartialWeather = gridViewModel.hasPartialWeatherData(for: night, weather: weather)
-        let isForecastOutOfRange = gridViewModel.isForecastOutOfRange(for: night, weather: weather)
-
-        return iOSForecastRowModel(
-            night: night,
-            index: index,
-            weather: weather,
-            isReliableWeather: isReliableWeather,
-            hasPartialWeather: hasPartialWeather,
-            isForecastOutOfRange: isForecastOutOfRange,
-            hasWeatherLoadError: gridViewModel.weatherErrorMessage != nil,
-            isSelected: gridViewModel.isDateSelected(night.date),
-            accessibilityLabel: gridViewModel.cardAccessibilityLabel(night: night, weather: weather, index: index),
-            currentObservationDate: gridViewModel.currentObservationDate()
+    /// 一覧の行値（入力が変わったときだけ判定済み）から、予報タブの行モデルを作る。
+    func rowModel(for row: UpcomingNightRow) -> iOSForecastRowModel {
+        iOSForecastRowModel(
+            night: row.night,
+            index: row.index,
+            weather: row.weather,
+            isReliableWeather: row.isReliableWeather,
+            hasPartialWeather: row.hasPartialWeather,
+            isForecastOutOfRange: row.isForecastOutOfRange,
+            hasWeatherLoadError: row.hasWeatherLoadError,
+            isSelected: row.isSelected,
+            accessibilityLabel: row.accessibilityLabel,
+            currentObservationDate: row.currentObservationDate
         )
     }
 
@@ -191,15 +186,16 @@ struct iOSForecastView: View {
     }
 
     private var forecastList: some View {
-        let nightItems = Array(gridViewModel.displayNights.enumerated())
+        let display = gridViewModel.display
 
         return VStack(alignment: .leading, spacing: IOSDesignTokens.Forecast.calloutSpacing) {
-            if let pick = bestNightPick {
-                bestNightCallout(pick: pick)
+            if let pick = bestNightPick(in: display),
+               let pickRow = display.rows.first(where: { $0.id == pick.summary.date }) {
+                bestNightCallout(pick: pick, row: pickRow)
             }
             LazyVStack(alignment: .leading, spacing: IOSDesignTokens.Forecast.rowSpacing) {
-                ForEach(nightItems, id: \.offset) { _, night in
-                    forecastRow(for: night)
+                ForEach(display.rows) { row in
+                    forecastRow(for: row)
                 }
             }
             // 天気データを含む一覧の直下に帰属表示を置く（WeatherKit 利用規約）。
@@ -211,17 +207,16 @@ struct iOSForecastView: View {
     }
 
     /// 強調する価値のある夜。採点済みの候補が 1 夜だけの一覧では「いちばんの夜」に意味がないため出さない。
-    private var bestNightPick: BestNightPick? {
-        let candidates = gridViewModel.bestNightCandidates()
-        guard candidates.filter({ $0.index != nil }).count >= IOSDesignTokens.Forecast.calloutMinimumNightCount,
-              let pick = BestNightPicker.pick(nights: candidates, referenceDate: detailViewModel.currentDate()),
+    private func bestNightPick(in display: UpcomingNightsDisplay) -> BestNightPick? {
+        guard display.scoredNightCount >= IOSDesignTokens.Forecast.calloutMinimumNightCount,
+              let pick = display.bestNightPick,
               pick.isWorthHighlighting else { return nil }
         return pick
     }
 
     /// 一覧の先頭で「この期間の狙い目」を 1 枚に要約するカード。タップ操作は行と同じ。
-    private func bestNightCallout(pick: BestNightPick) -> some View {
-        let rowModel = viewModel.rowModel(for: pick.summary, using: gridViewModel)
+    private func bestNightCallout(pick: BestNightPick, row: UpcomingNightRow) -> some View {
+        let rowModel = viewModel.rowModel(for: row)
         let presentation = rowModel.presentation
         let timeText = pick.windowText ?? presentation.darkStartText
         let headline = [presentation.shortDateLabel, timeText]
@@ -269,8 +264,8 @@ struct iOSForecastView: View {
         .accessibilityHint(L10n.tr("タップして今夜タブで詳細を表示"))
     }
 
-    private func forecastRow(for night: NightSummary) -> some View {
-        let rowModel = viewModel.rowModel(for: night, using: gridViewModel)
+    private func forecastRow(for row: UpcomingNightRow) -> some View {
+        let rowModel = viewModel.rowModel(for: row)
 
         return Button {
             viewModel.selectNight(rowModel.night.date, using: gridViewModel, selectedTab: $selectedTab)

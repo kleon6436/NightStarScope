@@ -24,7 +24,7 @@ struct UpcomingNightsGrid: View {
                     .controlSize(.small)
                     .accessibilityLabel(L10n.tr("今後9日間の予報を更新中"))
             }
-            if let highlight = viewModel.bestNightHighlightText() {
+            if let highlight = viewModel.display.bestNightHighlightText {
                 Text(highlight)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
@@ -50,7 +50,7 @@ struct UpcomingNightsGrid: View {
         let displayNights = viewModel.displayNights
 
         if viewModel.isLoading && displayNights.isEmpty {
-            table(nights: (0..<placeholderRowCount).map(viewModel.placeholderNight(at:)))
+            table(rows: viewModel.rows(for: (0..<placeholderRowCount).map(viewModel.placeholderNight(at:))))
                 .redacted(reason: .placeholder)
                 .allowsHitTesting(false)
         } else if displayNights.isEmpty {
@@ -60,28 +60,28 @@ struct UpcomingNightsGrid: View {
                 description: Text("今後9日間の夜間予報を表示できませんでした")
             )
         } else {
-            table(nights: displayNights)
+            table(rows: viewModel.display.rows)
         }
     }
 
     /// 列幅が固定のため、ウィンドウが狭いときだけ横スクロールへ退避する。
-    private func table(nights: [NightSummary]) -> some View {
+    private func table(rows: [UpcomingNightRow]) -> some View {
         ViewThatFits(in: .horizontal) {
-            tableBody(nights: nights)
+            tableBody(rows: rows)
             ScrollView(.horizontal) {
-                tableBody(nights: nights)
+                tableBody(rows: rows)
             }
             .scrollBounceBehavior(.basedOnSize)
         }
     }
 
-    private func tableBody(nights: [NightSummary]) -> some View {
+    private func tableBody(rows: [UpcomingNightRow]) -> some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
             headerRow
             LazyVStack(alignment: .leading, spacing: TableMetrics.rowSpacing) {
-                ForEach(Array(nights.enumerated()), id: \.offset) { offset, night in
-                    row(night: night)
-                    if offset < nights.count - 1 {
+                ForEach(rows) { rowValue in
+                    row(rowValue)
+                    if rowValue.id != rows.last?.id {
                         Divider()
                     }
                 }
@@ -121,11 +121,12 @@ struct UpcomingNightsGrid: View {
 
     // MARK: - Row
 
-    private func row(night: NightSummary) -> some View {
-        let presentation = viewModel.forecastPresentation(for: night)
-        let weather = viewModel.weatherSummary(for: night.date)
-        let index = viewModel.starGazingIndex(for: night.date)
-        let isSelected = viewModel.isDateSelected(night.date)
+    private func row(_ rowValue: UpcomingNightRow) -> some View {
+        let night = rowValue.night
+        let presentation = rowValue.presentation
+        let weather = rowValue.weather
+        let index = rowValue.index
+        let isSelected = rowValue.isSelected
 
         return HStack(spacing: Spacing.xs) {
             dateCell(presentation: presentation)
@@ -136,7 +137,7 @@ struct UpcomingNightsGrid: View {
             indexCell(index: index)
             Text(presentation.darkStartText ?? Placeholder.dash)
                 .frame(width: LayoutMacOS.forecastDarkColumn, alignment: .leading)
-            Text(viewModel.milkyWayPeakText(night: night))
+            Text(rowValue.milkyWayPeakText)
                 .frame(width: LayoutMacOS.forecastMilkyWayColumn, alignment: .leading)
             Spacer(minLength: 0)
         }
@@ -151,7 +152,7 @@ struct UpcomingNightsGrid: View {
             viewModel.setSelectedDate(night.date)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(viewModel.cardAccessibilityLabel(night: night, weather: weather, index: index))
+        .accessibilityLabel(rowValue.accessibilityLabel)
         .accessibilityAddTraits(.isButton)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

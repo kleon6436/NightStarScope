@@ -5,8 +5,9 @@ import CoreLocation
 
 /// 1つの時刻における天文イベントの観測条件を表すモデル。
 /// - Note: 各角度は度数法で保持する。
-struct AstroEvent: Identifiable {
-    let id = UUID()
+struct AstroEvent: Identifiable, Equatable {
+    /// 1 夜のイベントは一定間隔のサンプルで時刻が重複しないため、時刻をそのまま識別子にする。
+    var id: Date { date }
     let date: Date
     let galacticCenterAltitude: Double  // degrees above horizon
     let galacticCenterAzimuth: Double   // degrees from north, clockwise
@@ -71,6 +72,31 @@ struct NightSummary {
     /// 日付計算に使う IANA タイムゾーン識別子。
     let timeZoneIdentifier: String
 
+    // 以下は天気に依存しない派生値。表示や星空指数の計算で何度も参照されるため生成時に 1 回だけ求める。
+
+    /// `timeZoneIdentifier` が無効な場合は現在のタイムゾーンに退避する。
+    let timeZone: TimeZone
+    let totalDarkHours: Double
+    /// 天文薄明中に月が地平線上（高度 > 0°）にある時間の割合 (0.0–1.0)
+    /// 根拠: 月が地平線以下の時間帯は照明影響を受けないため、スコア計算で減点不要
+    let moonAboveHorizonFractionDuringDark: Double
+    /// 暗い時間の開始（夜全体を時刻順に見た最初の isDark イベント）。
+    /// 根拠: 高緯度の夏など天文薄明が深夜0時以降に始まる夜もあるため、時刻（12時）で区切らない。
+    let eveningDarkStart: Date?
+    /// 暗い時間の終了（夜全体を時刻順に見た最後の isDark イベントの次の区間）。
+    let morningDarkEnd: Date?
+    /// isDark なイベントを含む正時の集合。
+    let darkHourStarts: Set<Date>
+    /// 天気データの網羅性を判定する基準の時間帯（正時の集合）。
+    /// 暗時間があればその時間帯、暗時間がない夜（白夜等）は天気の夜間区間
+    /// （WeatherKitService.weatherNightInterval）と同じく市民薄明終了後（太陽高度 < -6°）の正時、
+    /// それも 1 つもない夜は太陽が地平線下（< 0°）の正時を基準にする。
+    /// 根拠: 白夜では暗時間が空集合になり、天気が揃っていても「一部のみ」と誤判定されるため。
+    ///       また -6° まで沈まない夜の天気は地平線下の区間で束ねられるため、同じ基準で判定しないと
+    ///       天気があっても「データなし」になる。
+    private let weatherCoverageHourStarts: Set<Date>
+    private let hasDarkEvents: Bool
+
     init(
         date: Date,
         location: CLLocationCoordinate2D,
@@ -85,11 +111,32 @@ struct NightSummary {
         self.viewingWindows = viewingWindows
         self.moonPhaseAtMidnight = moonPhaseAtMidnight
         self.timeZoneIdentifier = timeZoneIdentifier
-    }
 
-    /// `timeZoneIdentifier` が無効な場合は現在のタイムゾーンに退避する。
-    var timeZone: TimeZone {
-        TimeZone(identifier: timeZoneIdentifier) ?? .current
+        let timeZone = TimeZone(identifier: timeZoneIdentifier) ?? .current
+        self.timeZone = timeZone
+        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+        let darkEvents = events.filter { $0.isDark }
+        self.hasDarkEvents = !darkEvents.isEmpty
+        self.totalDarkHours = Double(darkEvents.count) * 15.0 / 60.0
+        if darkEvents.isEmpty {
+            self.moonAboveHorizonFractionDuringDark = 0
+        } else {
+            let visibleCount = darkEvents.filter { $0.moonAltitude > 0 }.count
+            self.moonAboveHorizonFractionDuringDark = Double(visibleCount) / Double(darkEvents.count)
+        }
+        self.eveningDarkStart = darkEvents.min { $0.date < $1.date }?.date
+        self.morningDarkEnd = darkEvents.max { $0.date < $1.date }.map {
+            $0.date.addingTimeInterval(MilkyWayCalculator.Constants.sampleIntervalSeconds)
+        }
+        let darkHourStarts = Set(darkEvents.compactMap { event in
+            calendar.dateInterval(of: .hour, for: event.date)?.start
+        })
+        self.darkHourStarts = darkHourStarts
+        self.weatherCoverageHourStarts = Self.makeWeatherCoverageHourStarts(
+            events: events,
+            darkHourStarts: darkHourStarts,
+            calendar: calendar
+        )
     }
 
     private var bestWindow: ViewingWindow? {
@@ -108,35 +155,6 @@ struct NightSummary {
     var moonPhaseIcon: String { MoonPhase.icon(phase: moonPhaseAtMidnight) }
 
     var moonIllumination: Double { MoonPhase.illumination(phase: moonPhaseAtMidnight) }
-
-    var totalDarkHours: Double {
-        let count = events.filter { $0.isDark }.count
-        return Double(count) * 15.0 / 60.0
-    }
-
-    /// 天文薄明中に月が地平線上（高度 > 0°）にある時間の割合 (0.0–1.0)
-    /// 根拠: 月が地平線以下の時間帯は照明影響を受けないため、スコア計算で減点不要
-    var moonAboveHorizonFractionDuringDark: Double {
-        let darkEvents = events.filter { $0.isDark }
-        guard !darkEvents.isEmpty else { return 0 }
-        let visibleCount = darkEvents.filter { $0.moonAltitude > 0 }.count
-        return Double(visibleCount) / Double(darkEvents.count)
-    }
-
-    private var darkEvents: [AstroEvent] { events.filter { $0.isDark } }
-
-    /// 暗い時間の開始（夜全体を時刻順に見た最初の isDark イベント）。
-    /// 根拠: 高緯度の夏など天文薄明が深夜0時以降に始まる夜もあるため、時刻（12時）で区切らない。
-    var eveningDarkStart: Date? {
-        darkEvents.min { $0.date < $1.date }?.date
-    }
-
-    /// 暗い時間の終了（夜全体を時刻順に見た最後の isDark イベントの次の区間）。
-    var morningDarkEnd: Date? {
-        darkEvents.max { $0.date < $1.date }.map {
-            $0.date.addingTimeInterval(MilkyWayCalculator.Constants.sampleIntervalSeconds)
-        }
-    }
 
     /// 天気を考慮した最長連続観測可能ウィンドウ（暗闇 + 晴れ間）
     /// - Parameter nighttimeHours: DayWeatherSummary.nighttimeHours
@@ -168,7 +186,7 @@ struct NightSummary {
         referenceDate: Date = Date()
     ) -> String? {
         // 暗時間がない夜（白夜等）は観測可能時間帯を評価できないため、天文学的時間の表示に任せる
-        guard !darkEvents.isEmpty,
+        guard hasDarkEvents,
               hasUsableWeatherData(nighttimeHours: nighttimeHours, referenceDate: referenceDate) else { return nil }
         if let w = weatherAwareObservableWindow(nighttimeHours: nighttimeHours, referenceDate: referenceDate) {
             return "\(w.start.nightTimeString(timeZone: timeZone)) 〜 \(w.end.nightTimeString(timeZone: timeZone))"
@@ -283,16 +301,17 @@ struct NightSummary {
         }
 
         let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        let matchedHours = nighttimeHours.filter { weather in
-            guard let hourStart = calendar.dateInterval(of: .hour, for: weather.date)?.start else {
-                return false
+        // 正時の算出は天気 1 件につき 1 回に抑える。
+        var matchedHours: [HourlyWeather] = []
+        var matchedHourStarts = Set<Date>()
+        for weather in nighttimeHours {
+            guard let hourStart = calendar.dateInterval(of: .hour, for: weather.date)?.start,
+                  expectedHourStarts.contains(hourStart) else {
+                continue
             }
-            return expectedHourStarts.contains(hourStart)
+            matchedHours.append(weather)
+            matchedHourStarts.insert(hourStart)
         }
-
-        let matchedHourStarts = Set(matchedHours.compactMap { weather in
-            calendar.dateInterval(of: .hour, for: weather.date)?.start
-        })
 
         return (
             matchedHours.sorted { $0.date < $1.date },
@@ -300,32 +319,32 @@ struct NightSummary {
         )
     }
 
-    private var darkHourStarts: Set<Date> {
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        return Set(darkEvents.compactMap { event in
-            calendar.dateInterval(of: .hour, for: event.date)?.start
-        })
-    }
-
-    /// 天気データの網羅性を判定する基準の時間帯（正時の集合）。
-    /// 暗時間があればその時間帯、暗時間がない夜（白夜等）は天気の夜間区間
-    /// （WeatherKitService.weatherNightInterval）と同じく市民薄明終了後（太陽高度 < -6°）の正時、
-    /// それも 1 つもない夜は太陽が地平線下（< 0°）の正時を基準にする。
-    /// 根拠: 白夜では暗時間が空集合になり、天気が揃っていても「一部のみ」と誤判定されるため。
-    ///       また -6° まで沈まない夜の天気は地平線下の区間で束ねられるため、同じ基準で判定しないと
-    ///       天気があっても「データなし」になる。
-    private var weatherCoverageHourStarts: Set<Date> {
-        let darkHours = darkHourStarts
-        guard darkHours.isEmpty else { return darkHours }
-        let civilHours = onTheHourStarts(sunAltitudeBelow: MilkyWayCalculator.civilTwilightSunAltitude)
+    private static func makeWeatherCoverageHourStarts(
+        events: [AstroEvent],
+        darkHourStarts: Set<Date>,
+        calendar: Calendar
+    ) -> Set<Date> {
+        guard darkHourStarts.isEmpty else { return darkHourStarts }
+        let civilHours = onTheHourStarts(
+            events: events,
+            sunAltitudeBelow: MilkyWayCalculator.civilTwilightSunAltitude,
+            calendar: calendar
+        )
         guard civilHours.isEmpty else { return civilHours }
-        return onTheHourStarts(sunAltitudeBelow: MilkyWayCalculator.horizonSunAltitude)
+        return onTheHourStarts(
+            events: events,
+            sunAltitudeBelow: MilkyWayCalculator.horizonSunAltitude,
+            calendar: calendar
+        )
     }
 
     /// 太陽高度が `threshold` 未満となる正時のイベント時刻の集合。
-    private func onTheHourStarts(sunAltitudeBelow threshold: Double) -> Set<Date> {
-        let calendar = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
-        return Set(events.compactMap { event in
+    private static func onTheHourStarts(
+        events: [AstroEvent],
+        sunAltitudeBelow threshold: Double,
+        calendar: Calendar
+    ) -> Set<Date> {
+        Set(events.compactMap { event in
             guard event.sunAltitude < threshold,
                   let hourStart = calendar.dateInterval(of: .hour, for: event.date)?.start,
                   hourStart == event.date else {

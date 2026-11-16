@@ -6,6 +6,7 @@ struct MoonPhaseCard: View {
     var style: SummaryCardStyle = .regular
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 月齢は朔の探索を伴うため、描画のたびに計算し直さないよう生成時に 1 回だけ求める。
+    /// 親の再描画で生成し直されても、探索結果は `LunarCalendar.cachedMoonAge(at:)` が夜ごとに使い回す。
     private let moonAgeDays: Double
 
     init(summary: NightSummary, style: SummaryCardStyle = .regular) {

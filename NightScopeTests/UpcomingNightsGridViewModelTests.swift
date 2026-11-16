@@ -415,4 +415,70 @@ final class UpcomingNightsGridViewModelTests: XCTestCase {
         // 今夜扱いなので曇天（雲量 90%）の安全上限がかかる。
         XCTAssertLessThanOrEqual(vm.starGazingIndex(for: night.date)?.score ?? 100, 34)
     }
+
+    // MARK: - 表示値の事前計算
+
+    /// 事前計算した行・狙い目が、個別の判定関数を呼んだ結果と一致し、入力の変更で作り直される。
+    func test_display_matchesPerCallFunctions_andRebuildsOnInputChange() async {
+        let (night, weather, fixedNow) = makeCloudyPartiallyCoveredTokyoNight()
+        let weatherService = WeatherKitService()
+        let appController = makeInMemoryAppController(
+            weatherService: weatherService,
+            calculationService: MockNightCalculationService(),
+            now: { fixedNow }
+        )
+        let timeZone = appController.locationController.selectedTimeZone
+        let secondNight = makeNightSummary(
+            date: ObservationTimeZone.date(byAdding: .day, value: 1, to: night.date, timeZone: timeZone)!,
+            withWindow: true,
+            timeZoneIdentifier: timeZone.identifier
+        )
+        weatherService.weatherByDate = [weatherService.dateKey(night.date, timeZone: timeZone): weather]
+        let detailVM = DetailViewModel(appController: appController)
+        let vm = UpcomingNightsGridViewModel(detailViewModel: detailVM)
+        let nights = [night, secondNight]
+        appController.upcomingNights = nights
+        appController.upcomingIndexes = Dictionary(uniqueKeysWithValues: nights.map {
+            (
+                ObservationTimeZone.startOfDay(for: $0.date, timeZone: timeZone),
+                StarGazingIndex.compute(nightSummary: $0, weather: nil, bortleClass: 1)
+            )
+        })
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        let display = vm.display
+        XCTAssertEqual(display.rows.map(\.id), nights.map(\.date))
+        for row in display.rows {
+            let rowWeather = vm.weatherSummary(for: row.night.date)
+            let index = vm.starGazingIndex(for: row.night.date)
+            let presentation = vm.forecastPresentation(for: row.night)
+            XCTAssertEqual(row.index?.score, index?.score)
+            XCTAssertEqual(row.weather?.date, rowWeather?.date)
+            XCTAssertEqual(row.isReliableWeather, vm.hasReliableWeatherData(for: row.night, weather: rowWeather))
+            XCTAssertEqual(row.hasPartialWeather, vm.hasPartialWeatherData(for: row.night, weather: rowWeather))
+            XCTAssertEqual(row.isForecastOutOfRange, vm.isForecastOutOfRange(for: row.night, weather: rowWeather))
+            XCTAssertEqual(row.isSelected, vm.isDateSelected(row.night.date))
+            XCTAssertEqual(row.accessibilityLabel, vm.cardAccessibilityLabel(night: row.night, weather: rowWeather, index: index))
+            XCTAssertEqual(row.milkyWayPeakText, vm.milkyWayPeakText(night: row.night))
+            XCTAssertEqual(row.presentation.shortDateLabel, presentation.shortDateLabel)
+            XCTAssertEqual(row.presentation.relativeNightLabel, presentation.relativeNightLabel)
+            XCTAssertEqual(row.presentation.cloudCoverText, presentation.cloudCoverText)
+            XCTAssertEqual(row.presentation.weatherDetailText, presentation.weatherDetailText)
+            XCTAssertEqual(row.presentation.darkStartText, presentation.darkStartText)
+            XCTAssertEqual(row.currentObservationDate, vm.currentObservationDate())
+        }
+        let candidates = vm.bestNightCandidates()
+        let expectedPick = BestNightPicker.pick(nights: candidates, referenceDate: fixedNow)
+        XCTAssertEqual(display.bestNightPick?.summary.date, expectedPick?.summary.date)
+        XCTAssertEqual(display.bestNightPick?.windowText, expectedPick?.windowText)
+        XCTAssertEqual(display.scoredNightCount, candidates.filter { $0.index != nil }.count)
+        XCTAssertEqual(display.bestNightHighlightText, vm.bestNightHighlightText())
+
+        let selectedBefore = display.rows.map(\.isSelected)
+        vm.setSelectedDate(secondNight.date)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        let selectedAfter = vm.display.rows.map(\.isSelected)
+        XCTAssertEqual(selectedAfter, nights.map { vm.isDateSelected($0.date) })
+        XCTAssertNotEqual(selectedBefore, selectedAfter)
+    }
 }

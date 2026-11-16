@@ -249,23 +249,26 @@ final class DashboardViewModel: ObservableObject {
 
         switch sortKey {
         case .score:
-            return selectedLocations.sorted { lhs, rhs in
-                let lhsScore = scoreSum(for: lhs)
-                let rhsScore = scoreSum(for: rhs)
-                if lhsScore != rhsScore { return lhsScore > rhsScore }
-                return lhs.name.localizedCompare(rhs.name) == .orderedAscending
-            }
+            // 合計点はセル探索を伴うため、比較のたびではなく地点ごとに 1 回だけ求める。
+            return selectedLocations
+                .map { (location: $0, score: scoreSum(for: $0)) }
+                .sorted { lhs, rhs in
+                    if lhs.score != rhs.score { return lhs.score > rhs.score }
+                    return lhs.location.name.localizedCompare(rhs.location.name) == .orderedAscending
+                }
+                .map(\.location)
         case .name:
             return selectedLocations.sorted {
                 $0.name.localizedCompare($1.name) == .orderedAscending
             }
         case .bestDate:
-            return selectedLocations.sorted { lhs, rhs in
-                let lhsDate = bestScoredDate(for: lhs) ?? .distantFuture
-                let rhsDate = bestScoredDate(for: rhs) ?? .distantFuture
-                if lhsDate != rhsDate { return lhsDate < rhsDate }
-                return lhs.name.localizedCompare(rhs.name) == .orderedAscending
-            }
+            return selectedLocations
+                .map { (location: $0, date: bestScoredDate(for: $0) ?? .distantFuture) }
+                .sorted { lhs, rhs in
+                    if lhs.date != rhs.date { return lhs.date < rhs.date }
+                    return lhs.location.name.localizedCompare(rhs.location.name) == .orderedAscending
+                }
+                .map(\.location)
         }
     }
 

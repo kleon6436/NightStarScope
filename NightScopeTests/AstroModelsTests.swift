@@ -586,4 +586,105 @@ final class AstroModelsTests: XCTestCase {
         let window = summary.weatherAwareObservableWindow(nighttimeHours: hours)
         XCTAssertEqual(window?.start, date)
     }
+
+    // MARK: - 生成時に求める派生値
+
+    /// 東京の冬・夏、トロムソの白夜（暗時間なし）と極夜を計算し、旧来の都度計算と同じ値かを確かめる。
+    func test_nightSummary_storedDerivedValues_matchPerAccessFormulas() {
+        let cases: [(latitude: Double, longitude: Double, timeZoneIdentifier: String, year: Int, month: Int, day: Int)] = [
+            (35.6762, 139.6503, "Asia/Tokyo", 2026, 1, 15),
+            (35.6762, 139.6503, "Asia/Tokyo", 2026, 7, 15),
+            (69.6492, 18.9553, "Europe/Oslo", 2026, 6, 21),
+            (69.6492, 18.9553, "Europe/Oslo", 2026, 12, 21)
+        ]
+        for testCase in cases {
+            let timeZone = TimeZone(identifier: testCase.timeZoneIdentifier)!
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = timeZone
+            let date = calendar.date(from: DateComponents(year: testCase.year, month: testCase.month, day: testCase.day))!
+            let summary = MilkyWayCalculator.calculateNightSummary(
+                date: date,
+                location: CLLocationCoordinate2D(latitude: testCase.latitude, longitude: testCase.longitude),
+                timeZone: timeZone
+            )
+            let label = "\(testCase.timeZoneIdentifier) \(testCase.month)/\(testCase.day)"
+            let darkEvents = summary.events.filter { $0.isDark }
+
+            XCTAssertEqual(summary.timeZone, TimeZone(identifier: summary.timeZoneIdentifier) ?? .current, label)
+            XCTAssertEqual(summary.totalDarkHours, Double(darkEvents.count) * 15.0 / 60.0, label)
+            let expectedFraction = darkEvents.isEmpty
+                ? 0
+                : Double(darkEvents.filter { $0.moonAltitude > 0 }.count) / Double(darkEvents.count)
+            XCTAssertEqual(summary.moonAboveHorizonFractionDuringDark, expectedFraction, label)
+            XCTAssertEqual(summary.eveningDarkStart, darkEvents.min { $0.date < $1.date }?.date, label)
+            XCTAssertEqual(
+                summary.morningDarkEnd,
+                darkEvents.max { $0.date < $1.date }?.date
+                    .addingTimeInterval(MilkyWayCalculator.Constants.sampleIntervalSeconds),
+                label
+            )
+            XCTAssertEqual(
+                summary.darkHourStarts,
+                Set(darkEvents.compactMap { calendar.dateInterval(of: .hour, for: $0.date)?.start }),
+                label
+            )
+        }
+    }
+
+    /// 白夜は暗時間が空でも、薄明・地平線下の正時が揃っていれば天気データを使える（網羅性基準の退避が生成時計算でも同じ）。
+    func test_nightSummary_whiteNight_weatherCoverageFallsBackToTwilightHours() {
+        let timeZone = TimeZone(identifier: "Europe/Oslo")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let date = calendar.date(from: DateComponents(year: 2026, month: 6, day: 21))!
+        let summary = MilkyWayCalculator.calculateNightSummary(
+            date: date,
+            location: CLLocationCoordinate2D(latitude: 63.4305, longitude: 10.3951),
+            timeZone: timeZone
+        )
+        XCTAssertTrue(summary.darkHourStarts.isEmpty)
+        func onTheHour(below threshold: Double) -> [Date] {
+            summary.events
+                .filter { $0.sunAltitude < threshold && calendar.dateInterval(of: .hour, for: $0.date)?.start == $0.date }
+                .map(\.date)
+        }
+        let civilHours = onTheHour(below: MilkyWayCalculator.civilTwilightSunAltitude)
+        let expectedHours = civilHours.isEmpty ? onTheHour(below: MilkyWayCalculator.horizonSunAltitude) : civilHours
+        XCTAssertFalse(expectedHours.isEmpty)
+        let hours = expectedHours.map { makeWeatherHour(date: $0, cloud: 0, precipitation: 0, weatherCode: 0) }
+        XCTAssertTrue(summary.hasReliableWeatherData(nighttimeHours: hours))
+        XCTAssertFalse(summary.hasReliableWeatherData(nighttimeHours: Array(hours.dropLast())))
+    }
+
+    func test_astroEventIDs_areUniqueWithinNight() {
+        let timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let summary = MilkyWayCalculator.calculateNightSummary(
+            date: calendar.date(from: DateComponents(year: 2026, month: 8, day: 12))!,
+            location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+            timeZone: timeZone
+        )
+        XCTAssertFalse(summary.events.isEmpty)
+        XCTAssertEqual(Set(summary.events.map(\.id)).count, summary.events.count)
+        XCTAssertEqual(summary.events.first, summary.events.first)
+    }
+
+    func test_nightSummaryMoonAge_matchesUncachedMoonAge() {
+        let timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let date = calendar.date(from: DateComponents(year: 2026, month: 3, day: 3))!
+        let summary = NightSummary(
+            date: date,
+            location: CLLocationCoordinate2D(latitude: 35.0, longitude: 135.0),
+            events: [],
+            viewingWindows: [],
+            moonPhaseAtMidnight: 0.1,
+            timeZoneIdentifier: timeZone.identifier
+        )
+        let expected = LunarCalendar.moonAge(at: MilkyWayCalculator.nightMidnight(for: date, calendar: calendar))
+        XCTAssertEqual(summary.moonAge, expected)
+        XCTAssertEqual(summary.moonAge, expected)
+    }
 }
