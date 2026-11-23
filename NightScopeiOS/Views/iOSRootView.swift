@@ -55,6 +55,8 @@ struct iOSRootView: View {
                 }
                 .tag(4)
         }
+        // 下方向へのスクロール中はタブバーを縮め、内容を広く見せる。
+        .tabBarMinimizeBehavior(.onScrollDown)
         .onAppear {
             handleActiveSceneIfNeeded()
         }

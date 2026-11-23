@@ -154,20 +154,24 @@ struct DetailView: View {
         // 同じ ToolbarItemGroup の項目を 1 枚のガラスにまとめる。
         // ボタン個別にガラススタイルを当てると二重のガラスになるため付けず、
         // 役割ごとにグループを分けて ToolbarSpacer で区切る。
+        // 幅が足りないときは別ウィンドウを開くボタン群から畳み、更新と観測モードは最後まで残す。
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             refreshButton
         }
+        .preferredVisibilityPriority(.high)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItemGroup(placement: .primaryAction) {
             starMapButton
             lunarCalendarButton
             dashboardButton
         }
+        .preferredVisibilityPriority(.low)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             ObservationModeMenu(observationModePreference: observationModePreference)
         }
+        .preferredVisibilityPriority(.high)
     }
 
     private var starMapButton: some View {
@@ -660,6 +664,26 @@ private struct MacStarMapStatusChips: View {
             StarMapPalette.terrainAvailable
         case .unavailable:
             .orange
+        }
+    }
+}
+
+// MARK: - Toolbar Visibility Priority
+
+/// ツールバー項目の表示優先度。`ToolbarItemVisibilityPriority` は macOS 26.1 以降のため独自の値で受ける。
+private enum ToolbarItemPriority {
+    case low
+    case high
+}
+
+private extension ToolbarContent {
+    /// 幅が足りないときに畳む順番を指定する。macOS 26.0 では何もしない。
+    @ToolbarContentBuilder
+    func preferredVisibilityPriority(_ priority: ToolbarItemPriority) -> some ToolbarContent {
+        if #available(macOS 26.1, *) {
+            visibilityPriority(priority == .high ? .high : .low)
+        } else {
+            self
         }
     }
 }
