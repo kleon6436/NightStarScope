@@ -9,7 +9,7 @@ NightScope is a macOS 26.0+ / iOS 26.0+ stargazing app that aggregates location,
 - macOS target: `NightScope/`
 - iOS (iPhone) target: `NightScopeiOS/`
 - Both managed in a single Xcode project (`NightScope.xcodeproj`)
-- Language: Swift. iOS target is Swift 6 (`SWIFT_STRICT_CONCURRENCY = complete`); macOS target and its tests are Swift 5.
+- Language: Swift 6 for all targets (iOS, macOS, and tests).
 
 ## Build & Test Commands
 

@@ -123,7 +123,7 @@ struct MapKitViewRepresentable: NSViewRepresentable {
             }
         }
 
-        deinit {
+        isolated deinit {
             if let gridLoadObserver {
                 NotificationCenter.default.removeObserver(gridLoadObserver)
             }
@@ -180,7 +180,7 @@ struct MapLocationPicker: View, Equatable {
     var mapMinHeight: CGFloat = Layout.mapMinHeight
     var mapMaxHeight: CGFloat = Layout.mapMaxHeight
 
-    static func == (lhs: Self, rhs: Self) -> Bool {
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.selectedCoordinate.isSameCoordinate(as: rhs.selectedCoordinate) &&
         lhs.syncState == rhs.syncState &&
         lhs.showLightPollution == rhs.showLightPollution &&

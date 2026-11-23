@@ -63,9 +63,7 @@ struct iOSMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: iOSMapView
         let state: MapKitCoordinatorState
-        // `makeUIView` 内で MainActor 上から一度だけ代入され、以降 deinit まで不変。
-        // deinit からの読み出しは競合しない。
-        nonisolated(unsafe) private var gridLoadObserver: NSObjectProtocol?
+        private var gridLoadObserver: NSObjectProtocol?
         private weak var observedMapView: MKMapView?
         /// 単一タップが失敗を待つダブルタップ認識器（MapKit のズームと同時に認識させる）。
         weak var doubleTapRecognizer: UITapGestureRecognizer?
@@ -94,7 +92,7 @@ struct iOSMapView: UIViewRepresentable {
             }
         }
 
-        deinit {
+        isolated deinit {
             if let gridLoadObserver {
                 NotificationCenter.default.removeObserver(gridLoadObserver)
             }

@@ -1,6 +1,7 @@
 import XCTest
 @testable import NightScope
 
+@MainActor
 final class ViewHelperTests: XCTestCase {
 
     // MARK: - CalendarView.makeWeekdayHeaderItems

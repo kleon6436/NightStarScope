@@ -13,7 +13,7 @@ final class AppControllerTests: XCTestCase {
         var timeZoneIdentifier: String?
     }
 
-    actor NoopLocationSearchService: LocationSearchServicing {
+    struct NoopLocationSearchService: LocationSearchServicing {
         func search(query: String) async throws -> [MKMapItem] { [] }
     }
 
@@ -1512,6 +1512,7 @@ final class AppControllerForegroundRefreshTests: XCTestCase {
     }
 
     /// 待機を外から再開できる sleep の代役。
+    @MainActor
     private final class ManualSleeper {
         private(set) var requestedDelays: [TimeInterval] = []
         private var continuations: [CheckedContinuation<Void, Error>] = []

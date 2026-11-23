@@ -89,6 +89,7 @@ final class LightPollutionTileOverlay: MKTileOverlay {
             result(Self.transparentTileData(), nil)
             return
         }
+        // MapKit の `result` は Sendable 注釈がないが、任意スレッドから 1 回呼ぶ契約の完了ハンドラ。
         nonisolated(unsafe) let completion = result
         Self.renderQueue.addOperation { [tileService] in
             let data = Self.renderTile(path: path, grid: grid, size: OverlayConfig.tilePixelSize)

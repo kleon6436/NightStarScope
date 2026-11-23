@@ -282,6 +282,7 @@ final class WeatherKitServiceCurrentTemperatureTests: XCTestCase {
     // MARK: 再取得なしでの失効
 
     /// 待機を外から再開できる sleep の代役。要求された待ち時間も記録する。
+    @MainActor
     private final class ManualSleeper {
         private(set) var requestedDelays: [TimeInterval] = []
         private var continuations: [CheckedContinuation<Void, Never>] = []

@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 import CoreLocation
 import CoreMedia
+import Synchronization
 import CoreMotion
 import UIKit
 
@@ -501,10 +502,8 @@ final class StarMapCameraController: NSObject, ObservableObject {
     var previewDevice: AVCaptureDevice? { Self.currentBackCameraDevice() }
 
     private let sessionQueue = DispatchQueue(label: "NightScope.StarMapCameraSession")
-    private let activationStateQueue = DispatchQueue(
-        label: "NightScope.StarMapCameraSessionActivation"
-    )
-    nonisolated(unsafe) private var activationState = StarMapCameraSessionActivationState()
+    /// sessionQueue 上の nonisolated 処理からも参照するため Mutex で保護する。
+    private let activationState = Mutex(StarMapCameraSessionActivationState())
     private var hasConfiguredSession = false
     private var isConfiguringSession = false
 
@@ -686,22 +685,15 @@ final class StarMapCameraController: NSObject, ObservableObject {
     }
 
     private func updateActivationState(isActive: Bool) -> UInt {
-        activationStateQueue.sync {
-            activationState.update(isActive: isActive)
-        }
+        activationState.withLock { $0.update(isActive: isActive) }
     }
 
     private func currentActivationGenerationIfActive() -> UInt? {
-        activationStateQueue.sync {
-            guard activationState.isActive else { return nil }
-            return activationState.generation
-        }
+        activationState.withLock { $0.isActive ? $0.generation : nil }
     }
 
     nonisolated private func matchesActivationState(generation: UInt, isActive: Bool) -> Bool {
-        activationStateQueue.sync {
-            activationState.matches(generation: generation, isActive: isActive)
-        }
+        activationState.withLock { $0.matches(generation: generation, isActive: isActive) }
     }
 
     private func observeSessionNotifications() {

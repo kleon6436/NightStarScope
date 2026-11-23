@@ -1252,7 +1252,8 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
 
             var changeCount = 0
             let cancellable = reconciler.objectWillChange.sink { changeCount += 1 }
-            let defaults = env.defaults
+            // UserDefaults はスレッドセーフだが SDK 上 Sendable ではない。非メインからの書き込みを再現するため同一インスタンスを渡す。
+            nonisolated(unsafe) let defaults = env.defaults
             if writesOffMain {
                 await Task.detached {
                     XCTAssertFalse(Thread.isMainThread)

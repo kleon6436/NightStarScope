@@ -1,7 +1,8 @@
 import XCTest
 import Combine
 import CoreLocation
-import MapKit
+// テスト用 actor が MKMapItem（SDK 上 Sendable 未対応）を返すため。
+@preconcurrency import MapKit
 @testable import NightScope
 
 @MainActor
