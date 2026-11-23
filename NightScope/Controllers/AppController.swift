@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 import CoreLocation
 import Observation
 import os
@@ -11,7 +10,8 @@ private let logger = Logger(subsystem: "com.nightscope", category: "AppControlle
 
 /// アプリ全体の観測状態と外部データ更新を統括するコントローラ。
 @MainActor
-final class AppController: ObservableObject {
+@Observable
+final class AppController {
     /// View 層へ公開する観測状態のスナップショット。
     struct ObservationState {
         var selectedDate = Date()
@@ -64,29 +64,39 @@ final class AppController: ObservableObject {
     let weatherService: any WeatherProviding
     let lightPollutionService: LightPollutionService
 
-    // MARK: - Published State
-    @Published var selectedDate: Date = Date() {
+    // MARK: - Observable State
+    var selectedDate: Date = Date() {
         didSet { publishObservationStateIfNeeded() }
     }
-    var nightSummary: NightSummary? {
+    // 個々の観測状態は ObservationState にまとめて公開するため、Observation の追跡対象から外す
+    // （バッチ更新が 1 回の observationState の変化になるようにする）。
+    @ObservationIgnored var nightSummary: NightSummary? {
         didSet { publishObservationStateIfNeeded() }
     }
-    var upcomingNights: [NightSummary] = [] {
+    @ObservationIgnored var upcomingNights: [NightSummary] = [] {
         didSet { publishObservationStateIfNeeded() }
     }
-    var starGazingIndex: StarGazingIndex? {
+    @ObservationIgnored var starGazingIndex: StarGazingIndex? {
         didSet { publishObservationStateIfNeeded() }
     }
-    var upcomingIndexes: [Date: StarGazingIndex] = [:] {
+    @ObservationIgnored var upcomingIndexes: [Date: StarGazingIndex] = [:] {
         didSet { publishObservationStateIfNeeded() }
     }
-    var isCalculating = false {
+    @ObservationIgnored var isCalculating = false {
         didSet { publishObservationStateIfNeeded() }
     }
-    var isUpcomingLoading = false {
+    @ObservationIgnored var isUpcomingLoading = false {
         didSet { publishObservationStateIfNeeded() }
     }
-    @Published private(set) var observationState = ObservationState()
+    private(set) var observationState = ObservationState() {
+        didSet { observationStateDidChange?(observationState) }
+    }
+    /// observationState を書き換えた直後に同期的に呼ぶ、所有者（DetailViewModel）用のフック。
+    /// 表示中の当夜を残すかどうかの判断や選択日の写しを、同じ実行中に続く日付選択より先に済ませるため、
+    /// 次の実行機会まで遅れる Observation の通知ではなくここで受ける。
+    @ObservationIgnored var observationStateDidChange: (@MainActor (ObservationState) -> Void)? {
+        didSet { assert(oldValue == nil, "observationStateDidChange の所有者は 1 つだけ") }
+    }
 
     // MARK: - Private State
     let favoriteStore: any FavoriteLocationStoring
@@ -97,36 +107,35 @@ final class AppController: ObservableObject {
     private let locationRefreshFetcher: LocationRefreshFetcher
     /// 「今日（今夜）」の判定と星空指数の評価に使う現在時刻。テストでは固定値を注入する。
     private let now: () -> Date
-    private var calculationTask: Task<Void, Never>?
-    private var upcomingTask: Task<Void, Never>?
-    private var locationTask: Task<Void, Never>?
-    private var externalDataTask: Task<Void, Never>?
+    @ObservationIgnored private var calculationTask: Task<Void, Never>?
+    @ObservationIgnored private var upcomingTask: Task<Void, Never>?
+    @ObservationIgnored private var locationTask: Task<Void, Never>?
+    @ObservationIgnored private var externalDataTask: Task<Void, Never>?
     /// 前面にある間、一定間隔で外部データを取り直すタスク
-    private var foregroundRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var foregroundRefreshTask: Task<Void, Never>?
     /// 定期更新の待機処理（テストで差し替える）
     private let foregroundRefreshSleep: (TimeInterval) async throws -> Void
     /// 最後に外部データを取り直した時刻と観測地。自動更新の間引きに使う。
-    private var lastExternalRefresh: (date: Date, context: SelectedLocationContext)?
+    @ObservationIgnored private var lastExternalRefresh: (date: Date, context: SelectedLocationContext)?
     /// 天気・光害の変化をデバウンスして指数を組み直すタスク。
-    private var externalDataRecomputeTask: Task<Void, Never>?
-    private var dashboardCommandBridgeCancellable: AnyCancellable?
-    private var dashboardSelectionDateHandler: ((Date) -> Void)?
-    private var hasStarted = false
-    private var lastObservedTimeZone: TimeZone
+    @ObservationIgnored private var externalDataRecomputeTask: Task<Void, Never>?
+    @ObservationIgnored private var dashboardSelectionDateHandler: ((Date) -> Void)?
+    @ObservationIgnored private var hasStarted = false
+    @ObservationIgnored private var lastObservedTimeZone: TimeZone
     /// 場所変更処理を最後に予約したときの locationUpdateID。
-    private var lastHandledLocationUpdateID: UUID
-    private var lastObservedCoordinate: CLLocationCoordinate2D
-    private var lastActiveReferenceDate: Date
-    private var observationStateBatchDepth = 0
+    @ObservationIgnored private var lastHandledLocationUpdateID: UUID
+    @ObservationIgnored private var lastObservedCoordinate: CLLocationCoordinate2D
+    @ObservationIgnored private var lastActiveReferenceDate: Date
+    @ObservationIgnored private var observationStateBatchDepth = 0
     /// 天気・光害の値が変わるたびに進む世代。デバウンス後の再計算が必要かの判定に使う。
-    private var externalDataGeneration = 0
+    @ObservationIgnored private var externalDataGeneration = 0
     /// 指数を最後に現在の外部データから組み立てたときの世代。
     /// 観測地変更の一括反映で指数を作り済みなら、その直後に届くデバウンス後の再計算を省く。
-    private var indexedExternalDataGeneration = 0
+    @ObservationIgnored private var indexedExternalDataGeneration = 0
     /// init から onStart 後に当夜の計算結果を含む ObservationState を初めて公開するまでの signpost 区間。
-    private var startupSignpostState: OSSignpostIntervalState?
+    @ObservationIgnored private var startupSignpostState: OSSignpostIntervalState?
     /// 観測日判定に使う夜の境界のキャッシュ。画面描画から繰り返し呼ばれても日没・日の出の探索を繰り返さない。
-    private var observationDayBoundariesCache: (
+    @ObservationIgnored private var observationDayBoundariesCache: (
         coordinate: CLLocationCoordinate2D,
         timeZoneIdentifier: String,
         boundaries: StarMapDateLogic.ObservationDayBoundaries
@@ -207,7 +216,7 @@ final class AppController: ObservableObject {
         onSelectDate: ((Date) -> Void)? = nil
     ) {
         dashboardSelectionDateHandler = onSelectDate
-        dashboardCommandBridgeCancellable = bridge.selectionPublisher.sink { [weak self] selection in
+        bridge.selectionHandler = { [weak self] selection in
             self?.handleDashboardSelection(selection)
         }
     }

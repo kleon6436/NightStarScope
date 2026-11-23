@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 /// 夜間天気カードの表示ロジックと設定同期を担う ViewModel。
 @MainActor
@@ -8,18 +7,24 @@ final class NightWeatherCardViewModel {
     /// ユーザー設定に追従する風速単位。
     @ObservationIgnored @AppStorage("windSpeedUnit") private var windSpeedUnitRaw: String = WindSpeedUnit.kmh.rawValue
     private(set) var windSpeedUnit: WindSpeedUnit
-    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var userDefaultsObservationTask: Task<Void, Never>?
 
     /// 保存済みの単位を初期化し、設定変更通知も購読する。
     init() {
         let storedValue = UserDefaults.standard.string(forKey: "windSpeedUnit") ?? WindSpeedUnit.kmh.rawValue
         self.windSpeedUnit = WindSpeedUnit(rawValue: storedValue) ?? .kmh
         // AppStorage 以外の経路で設定が変わっても、表示単位を即時に追従させる。
-        NotificationCenter.default.userDefaultsChangesOnMain()
-            .sink { [weak self] _ in
-                self?.syncWindSpeedUnit()
+        let changes = NotificationCenter.default.userDefaultsChanges()
+        userDefaultsObservationTask = Task { [weak self] in
+            for await _ in changes {
+                guard let self else { return }
+                self.syncWindSpeedUnit()
             }
-            .store(in: &cancellables)
+        }
+    }
+
+    deinit {
+        userDefaultsObservationTask?.cancel()
     }
 
     /// UserDefaults 上の値を現在の表示単位へ反映する。

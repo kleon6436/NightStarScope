@@ -1,6 +1,6 @@
 import XCTest
-import Combine
 import CoreLocation
+import Observation
 @testable import NightScope
 
 /// 初回同期前の書き込みは破棄される、という OS の挙動を模擬するフェイク KV ストア。
@@ -178,19 +178,16 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
 
     /// 外部変更の通知を送り、各ストアがメインで反映し終えるまで待つ。
     private func applyExternalChange(to stores: [iCloudFavoriteLocationStore], post: () -> Void) async {
-        var cancellables = Set<AnyCancellable>()
-        let expectations = stores.map { store in
-            let applied = expectation(description: "external change applied")
-            applied.assertForOverFulfill = false
-            store.locationsPublisher
-                .dropFirst()
-                .sink { _ in applied.fulfill() }
-                .store(in: &cancellables)
-            return applied
-        }
+        // post はストアの通知ハンドラが反映用の MainActor の Task を積み終えるまで待つ。
+        // メインキューは FIFO なので、その後に積んだ処理が動いた時点で各ストアは反映を終えている。
+        // （Observation は同じ値の代入を通知しないため、一覧の変化を待つと内容が変わらない反映を待てない。）
+        // stores は待つ対象のストアを呼び出し側で明示するために受け取る。
         post()
-        await fulfillment(of: expectations, timeout: 5)
-        withExtendedLifetime(cancellables) {}
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                continuation.resume()
+            }
+        }
     }
 
     private func waitUntil(
@@ -450,6 +447,30 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         XCTAssertEqual(reconciler.localOnly, [pointX])
     }
 
+    /// R5d: `advancingDeletionBaseline: false` で加えた地点は、同じターンのうちに古い配列で save されても削除とみなさない。
+    /// 基準へ入れるのを次のターンまで遅らせる処理を、reconciler を介さずストア単体で確かめる。
+    /// 次のターン以降の明示的な削除は通常どおり反映する。
+    func test_saveWithoutAdvancingBaseline_staleSaveInSameTurn_keepsAddedSpot() async throws {
+        let pointT = FavoriteLocation(name: "T", latitude: 36.0, longitude: 138.0, timeZoneIdentifier: "Asia/Tokyo")
+        let env = try makeEnvironment(kv: [pointA], local: [pointT])
+        let store = env.makeICloudStore()
+
+        store.save([pointA, pointT], advancingDeletionBaseline: false)
+        store.save([pointA])
+        await settle()
+
+        XCTAssertEqual(env.localFavorites, [pointT])
+        XCTAssertFalse(store.isMarkedDeleted(pointT.id))
+
+        store.save([pointA, pointT], advancingDeletionBaseline: false)
+        await settle()
+        store.save([pointA])
+        await settle()
+
+        XCTAssertTrue(env.localFavorites.isEmpty)
+        XCTAssertTrue(store.isMarkedDeleted(pointT.id))
+    }
+
     /// R5: 自動追加で送った地点を含まない古い配列で save されても、ローカルからは消さない。
     /// 自動では送り直さず設定画面の候補に出し、選べば手動で追加できる。
     func test_staleSaveAfterAutoUpload_keepsSpotInLocalAndListsIt() async throws {
@@ -489,8 +510,8 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         XCTAssertTrue(reconciler.localOnly.isEmpty)
     }
 
-    /// R5c: 自動追加の直後、ViewModel がまだ追いついていない同じターンに古い配列で save しても、追加した地点は刈り込まない。
-    /// `receive(on: DispatchQueue.main)` で購読する SidebarViewModel を経由して確かめる。
+    /// R5c: 自動追加の直後の同じターンに SidebarViewModel から save しても、追加した地点は刈り込まない。
+    /// SidebarViewModel は一覧を写さずストアを都度読むため、同じターンでも自動追加した地点を含む最新の一覧で save する。
     func test_sidebarStaleSaveRightAfterAutoUpload_keepsSpotInLocal() async throws {
         let pointT = FavoriteLocation(name: "T", latitude: 36.0, longitude: 138.0, timeZoneIdentifier: "Asia/Tokyo")
         let env = try makeEnvironment(kv: [pointA], local: [pointT])
@@ -505,13 +526,16 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
         )
         let reconciler = env.makeReconciler(activeStore: store)
         XCTAssertEqual(env.kvStore.favorites, [pointA, pointT])
-        XCTAssertEqual(sidebar.favorites, [pointA], "同じターンではまだ追いついていない")
+        XCTAssertEqual(sidebar.favorites, [pointA, pointT], "同じターンでも自動追加した地点が見えている")
 
         sidebar.addCurrentLocationToFavorites()
         await settle()
 
         XCTAssertEqual(env.localFavorites, [pointT])
-        XCTAssertEqual(reconciler.localOnly, [pointT])
+        let kvFavorites = try XCTUnwrap(env.kvStore.favorites)
+        XCTAssertEqual(Array(kvFavorites.prefix(2)), [pointA, pointT])
+        XCTAssertEqual(kvFavorites.count, 3)
+        XCTAssertTrue(reconciler.localOnly.isEmpty, "自動追加した地点は iCloud に残る")
     }
 
     /// R7: 60KB を超えて KV に書かずに fallback へ回ったときは、送ったとみなさない（記録も通知もしない）。
@@ -969,29 +993,30 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
     func test_tombstone_staleSaveBeforeViewCatchesUp_doesNotTombstoneDeliveredSpot() async throws {
         let env = try makeEnvironment(kv: [pointA], local: [])
         let store = env.makeICloudStore()
-        // 画面と同じく receive(on: main) で受け取る購読者が、届いた一覧を処理する前の古い配列で save する。
-        var cancellables = Set<AnyCancellable>()
-        var didSave = false
-        store.locationsPublisher
-            .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { _ in
-                guard !didSave else { return }
-                didSave = true
-                store.save([self.pointA])
+        // 一覧の変更を次のターン（メインキュー）で受け取る購読者が、届いた一覧を処理する前の古い配列で save する。
+        // 変更の時点（willSet）でメインキューへ積むため、旧 receive(on: DispatchQueue.main) の購読者と同じ順序になる。
+        let didSave = SaveFlag()
+        let pointA = pointA
+        withObservationTracking {
+            _ = store.loadAll()
+        } onChange: {
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    didSave.value = true
+                    store.save([pointA])
+                }
             }
-            .store(in: &cancellables)
+        }
 
         await applyExternalChange(to: [store]) {
             env.kvStore.simulateServerChange([pointA, pointB])
         }
-        await waitUntil { didSave }
+        await waitUntil { didSave.value }
         await settle()
 
         XCTAssertEqual(store.loadAll(), [pointA])
         XCTAssertFalse(store.isMarkedDeleted(pointB.id))
         XCTAssertNil(env.kvStore.deletionLedger)
-        withExtendedLifetime(cancellables) {}
     }
 
     /// 17d: オフラインの追加と削除は再起動をまたいで保持され、他の端末の古い一覧（記録も古い）が届いても失わない。
@@ -1242,16 +1267,15 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
 
     // MARK: - トグルの変更
 
-    /// トグルを切り替えると objectWillChange が1回だけ届き、再起動待ちになる。
+    /// トグルを切り替えると isPendingRestart の変更が1回だけ通知され、再起動待ちになる。
     /// 書き込みが非メインスレッドからでも trap しないこと、トグル以外の書き込みでは通知しないことも確かめる。
-    func test_toggleChange_notifiesObjectWillChangeOnce() async throws {
+    func test_toggleChange_notifiesObserversOnce() async throws {
         for writesOffMain in [false, true] {
             let env = try makeEnvironment(kv: [pointA], local: [])
             let reconciler = env.makeReconciler(activeStore: env.makeICloudStore())
             XCTAssertFalse(reconciler.isPendingRestart)
 
-            var changeCount = 0
-            let cancellable = reconciler.objectWillChange.sink { changeCount += 1 }
+            let changes = ObservationChangeCounter { _ = reconciler.isPendingRestart }
             // UserDefaults はスレッドセーフだが SDK 上 Sendable ではない。非メインからの書き込みを再現するため同一インスタンスを渡す。
             nonisolated(unsafe) let defaults = env.defaults
             if writesOffMain {
@@ -1262,16 +1286,46 @@ final class FavoriteSyncReconcilerTests: XCTestCase {
             } else {
                 env.setICloudSyncEnabled(false)
             }
-            await waitUntil { changeCount > 0 }
+            await waitUntil { changes.count > 0 }
 
-            XCTAssertEqual(changeCount, 1, "writesOffMain: \(writesOffMain)")
+            XCTAssertEqual(changes.count, 1, "writesOffMain: \(writesOffMain)")
             XCTAssertTrue(reconciler.isPendingRestart)
 
             defaults.set(false, forKey: AppSettingsKeys.iCloudSyncEnabled)
             defaults.set("unrelated", forKey: "FavoriteSyncReconcilerTests.unrelated")
             try await Task.sleep(nanoseconds: 100_000_000)
-            XCTAssertEqual(changeCount, 1, "トグルの値が変わらない書き込みでは通知しない")
-            withExtendedLifetime(cancellable) {}
+            XCTAssertEqual(changes.count, 1, "トグルの値が変わらない書き込みでは通知しない")
+        }
+    }
+}
+
+/// メインで立てる真偽値。Sendable な onChange からメインへ戻って書き換えるために使う。
+@MainActor
+private final class SaveFlag {
+    var value = false
+}
+
+/// 読み出した Observation 対象の値の変更回数を数える。通知のたびに登録し直し、続く変更も数える。
+/// 対象はメインでのみ更新されるため、通知もメインで届く。
+@MainActor
+private final class ObservationChangeCounter {
+    private(set) var count = 0
+    private let read: @MainActor () -> Void
+
+    init(_ read: @escaping @MainActor () -> Void) {
+        self.read = read
+        track()
+    }
+
+    private func track() {
+        withObservationTracking {
+            read()
+        } onChange: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.count += 1
+                self.track()
+            }
         }
     }
 }

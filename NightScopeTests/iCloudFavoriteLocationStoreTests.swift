@@ -1,5 +1,5 @@
 import XCTest
-import Combine
+import Observation
 @testable import NightScope
 
 /// 非メインスレッドから届く通知で実行時の隔離チェックが trap しないことを確かめる回帰テスト。
@@ -35,15 +35,12 @@ final class iCloudFavoriteLocationStoreTests: XCTestCase {
         kvStore.storage[Self.iCloudKey] = try JSONEncoder().encode([favorite])
 
         let updated = expectation(description: "locations updated on main")
-        var cancellables = Set<AnyCancellable>()
-        store.locationsPublisher
-            .dropFirst()
-            .sink { locations in
-                XCTAssertTrue(Thread.isMainThread)
-                XCTAssertEqual(locations, [favorite])
-                updated.fulfill()
-            }
-            .store(in: &cancellables)
+        withObservationTracking {
+            _ = store.loadAll()
+        } onChange: {
+            XCTAssertTrue(Thread.isMainThread)
+            updated.fulfill()
+        }
 
         DispatchQueue.global().async {
             center.post(
@@ -56,38 +53,38 @@ final class iCloudFavoriteLocationStoreTests: XCTestCase {
             )
         }
 
-        withExtendedLifetime(cancellables) {
-            wait(for: [updated], timeout: 5)
-        }
+        wait(for: [updated], timeout: 5)
         XCTAssertEqual(store.loadAll(), [favorite])
     }
 
-    func test_starMapSettingsChanges_postedFromBackground_doesNotTrap() {
-        let suiteName = "iCloudFavoriteLocationStoreTests.\(UUID().uuidString)"
-        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
-
-        let received = expectation(description: "settings delivered on main")
-        received.assertForOverFulfill = false
+    /// バックグラウンドで post された UserDefaults の変更通知が、MainActor で反復する列（`userDefaultsChanges()`）に届く。
+    /// `StarMapSettingsDependency.live` など設定の変化を流す列はこの列を元にする。
+    /// テストホストの他の変更通知と区別するため、目印を付けて post し、目印の付いた通知だけを数える。
+    func test_userDefaultsChanges_postedFromBackground_reachesSequence() {
+        let marker = UUID().uuidString
+        let received = expectation(description: "background post delivered")
         let posted = expectation(description: "background post returned")
-        var cancellables = Set<AnyCancellable>()
-        // first() で打ち切ると、テストホストの main 側の変更通知で購読が先に終わり、
-        // バックグラウンドの post がパイプラインを通らないまま green になりうる。
-        StarMapSettingsDependency.live.changes
-            .sink { _ in
-                XCTAssertTrue(Thread.isMainThread)
+        let started = expectation(description: "iteration started")
+        let changes = NotificationCenter.default.userDefaultsChanges()
+        let iteration = Task { @MainActor in
+            started.fulfill()
+            for await notification in changes where notification.userInfo?["marker"] as? String == marker {
                 received.fulfill()
+                return
             }
-            .store(in: &cancellables)
+        }
+        wait(for: [started], timeout: 5)
 
         DispatchQueue.global().async {
-            // UserDefaults は Sendable でないため、送信側のスレッドで専用 suite を生成する。
-            let suiteDefaults = UserDefaults(suiteName: suiteName)
-            NotificationCenter.default.post(name: UserDefaults.didChangeNotification, object: suiteDefaults)
+            NotificationCenter.default.post(
+                name: UserDefaults.didChangeNotification,
+                object: nil,
+                userInfo: ["marker": marker]
+            )
             posted.fulfill()
         }
 
-        withExtendedLifetime(cancellables) {
-            wait(for: [posted, received], timeout: 5)
-        }
+        wait(for: [posted, received], timeout: 5)
+        iteration.cancel()
     }
 }

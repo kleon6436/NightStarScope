@@ -1,24 +1,24 @@
 import Foundation
 import CoreLocation
-import Combine
 import SwiftUI
 
 /// 星空マップの設定と現在値を配信する依存関係。
 @MainActor
 struct StarMapSettingsDependency {
     let currentSettings: () -> StarMapDisplaySettings
-    /// メインスレッドで配信すること。購読側でも念のためメインで受け取る。
-    let changes: AnyPublisher<StarMapDisplaySettings, Never>
+    /// 設定の変化を流す列を作る。購読ごとに呼ぶ（AsyncStream は 1 つの購読先にしか配れないため）。
+    /// 同じ値が続いても構わない（購読側で現在の設定と比べて読み飛ばす）。
+    let changes: () -> any AsyncSequence<StarMapDisplaySettings, Never>
 
     static let live = StarMapSettingsDependency(
         currentSettings: {
             StarMapDisplaySettings.load()
         },
-        // UserDefaults の変更通知は書き込んだスレッドで届くため、MainActor に隔離された map の前でメインへ移す。
-        changes: NotificationCenter.default.userDefaultsChangesOnMain()
-            .map { _ in StarMapDisplaySettings.load() }
-            .removeDuplicates()
-            .eraseToAnyPublisher()
+        // UserDefaults の変更通知は書き込んだスレッドで届くが、購読側は MainActor の Task で反復するため、
+        // 設定の読み直しはメインで行われる。
+        changes: {
+            NotificationCenter.default.userDefaultsChanges().map { _ in StarMapDisplaySettings.load() }
+        }
     )
 }
 
@@ -144,9 +144,12 @@ final class StarMapViewModel {
     /// スライダー編集中の日時コミット間隔: 20fps
     @ObservationIgnored private let timeSliderScheduler = StarMapTimeSliderScheduler(commitInterval: 1.0 / 20)
     @ObservationIgnored private let computationDependency: StarMapComputationDependency
-    @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
     /// 地点・タイムゾーンの変化を受け取るタスク。
     @ObservationIgnored private var selectionObservationTask: Task<Void, Never>?
+    /// 表示設定の変化を受け取るタスク。
+    @ObservationIgnored private var settingsObservationTask: Task<Void, Never>?
+    /// AppController の選択日の変化を受け取るタスク。
+    @ObservationIgnored private var selectedDateObservationTask: Task<Void, Never>?
     @ObservationIgnored private var shouldApplyInitialPose = true
     @ObservationIgnored private var hasPreparedInitialPresentation = false
     @ObservationIgnored private var displayDateUpdateMode: DisplayDateUpdateMode = .standard
@@ -204,6 +207,8 @@ final class StarMapViewModel {
         updateTask?.cancel()
         trailingTask?.cancel()
         selectionObservationTask?.cancel()
+        settingsObservationTask?.cancel()
+        selectedDateObservationTask?.cancel()
     }
 
     // MARK: - Calculation
@@ -357,22 +362,29 @@ final class StarMapViewModel {
             }
         }
 
-        settingsDependency.changes
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] settings in
-                self?.applyStarMapDisplaySettings(settings)
+        let settingsChanges = settingsDependency.changes()
+        settingsObservationTask = Task { [weak self] in
+            for await settings in settingsChanges {
+                guard let self else { return }
+                self.applyStarMapDisplaySettings(settings)
             }
-            .store(in: &cancellables)
+        }
 
-        appController.$selectedDate
-            .dropFirst()
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.observationContextRevision += 1
-                self?.handleSelectedDateChanged()
+        // 旧実装も receive(on: DispatchQueue.main) で次のターンに処理していたため、Observations の遅れは挙動を変えない。
+        // 星図の再同期は表示用で、同じ実行中に続く処理が読む状態は持たない。
+        // 購読開始時の値も流れるため、最後に扱った選択日と比べて変わったときだけ扱う（旧 dropFirst + removeDuplicates）。
+        let appController = appController
+        let initialSelectedDate = appController.selectedDate
+        let selectedDateChanges = Observations { appController.selectedDate }
+        selectedDateObservationTask = Task { [weak self] in
+            var lastSelectedDate = initialSelectedDate
+            for await selectedDate in selectedDateChanges where selectedDate != lastSelectedDate {
+                guard let self else { return }
+                lastSelectedDate = selectedDate
+                self.observationContextRevision += 1
+                self.handleSelectedDateChanged()
             }
-            .store(in: &cancellables)
+        }
     }
 
     private func makeUpdateContext() -> UpdateContext {
@@ -597,7 +609,7 @@ final class StarMapViewModel {
         shouldApplyInitialPose = false
     }
 
-    /// ジャイロの姿勢をまとめて反映する。Observation は同値の代入でも通知するため、変化した値だけ書き込む。
+    /// ジャイロの姿勢をまとめて反映する。変化した値だけ書き込む（同値の代入は Observation も通知しない）。
     func applyGyroPose(azimuth: Double, altitude: Double, roll: Double) {
         if viewAzimuth != azimuth { viewAzimuth = azimuth }
         if viewAltitude != altitude { viewAltitude = altitude }
@@ -798,7 +810,7 @@ final class StarMapViewModel {
             referenceDate: referenceDate,
             fallback: fallback
         )
-        // Observation は同値の代入でも通知するため、変化したときだけ書き込む。
+        // 変化したときだけ書き込む（同値の代入は Observation も通知しない）。
         if nightStartMinutes != range.startMinutes {
             nightStartMinutes = range.startMinutes
         }

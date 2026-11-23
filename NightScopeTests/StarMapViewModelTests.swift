@@ -1,5 +1,4 @@
 import XCTest
-import Combine
 import CoreLocation
 import MapKit
 import SwiftUI
@@ -333,11 +332,11 @@ final class StarMapViewModelTests: XCTestCase {
     }
 
     func test_StarMapViewModel_updatesConstellationLineVisibilityWhenSettingsChange() async {
-        let settingsSubject = PassthroughSubject<StarMapDisplaySettings, Never>()
+        let (settingsChanges, settingsContinuation) = AsyncStream<StarMapDisplaySettings>.makeStream()
         let initialSettings = StarMapDisplaySettings(density: .medium, showsConstellationLines: true)
         let settingsDependency = StarMapSettingsDependency(
             currentSettings: { initialSettings },
-            changes: settingsSubject.eraseToAnyPublisher()
+            changes: { settingsChanges }
         )
         let viewModel = StarMapViewModel(
             appController: makeTokyoAppController(),
@@ -352,7 +351,7 @@ final class StarMapViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showsMilkyWay)
         XCTAssertEqual(viewModel.displaySettings.density, .medium)
 
-        settingsSubject.send(
+        settingsContinuation.yield(
             StarMapDisplaySettings(
                 density: .medium,
                 showsConstellationLines: false,
@@ -2229,7 +2228,7 @@ final class StarMapViewModelTests: XCTestCase {
             appController: makeTokyoAppController(),
             settingsDependency: StarMapSettingsDependency(
                 currentSettings: { settings },
-                changes: Empty().eraseToAnyPublisher()
+                changes: { AsyncStream { $0.finish() } }
             ),
             terrainDependency: StarMapTerrainDependency(fetchProfile: { _, _ in nil }),
             computationDependency: StarMapComputationDependency(computeSnapshot: { _, _, _, _, _, _ in snapshot })

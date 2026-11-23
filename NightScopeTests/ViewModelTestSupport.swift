@@ -1,5 +1,4 @@
 import XCTest
-import Combine
 import CoreLocation
 import MapKit
 @testable import NightScope
@@ -292,25 +291,18 @@ final class StubComparisonController: ComparisonControlling {
 }
 
 /// メモリ上に一覧を持つ FavoriteLocationStoring。save() した内容は favorites と saved に反映される。
+@Observable
 final class InMemoryFavoriteStore: FavoriteLocationStoring, @unchecked Sendable {
-    var favorites: [FavoriteLocation] {
-        didSet { subject.send(favorites) }
-    }
+    var favorites: [FavoriteLocation]
     /// 最後に save() で渡された一覧。save() が呼ばれていなければ空。
     private(set) var saved: [FavoriteLocation] = []
-    private let subject: CurrentValueSubject<[FavoriteLocation], Never>
 
     init(favorites: [FavoriteLocation] = []) {
         self.favorites = favorites
-        self.subject = CurrentValueSubject(favorites)
     }
 
     func loadAll() -> [FavoriteLocation] {
         favorites
-    }
-
-    var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> {
-        subject.eraseToAnyPublisher()
     }
 
     func save(_ favorites: [FavoriteLocation]) {

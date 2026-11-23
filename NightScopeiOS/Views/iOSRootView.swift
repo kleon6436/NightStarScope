@@ -69,6 +69,7 @@ struct iOSRootView: View {
             }
             handleActiveSceneIfNeeded()
         }
+        // SwiftUI の onReceive は Publisher を受け取る API のため、通知の Publisher をそのまま使う（Combine は import しない）。
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
             // 日付境界の変化はシーン復帰とは別経路で反映する。
             guard scenePhase == .active else { return }

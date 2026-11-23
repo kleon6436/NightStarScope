@@ -42,7 +42,7 @@ struct FavoriteSyncImportSelection: Equatable {
 
 /// iCloud とこの端末の差分から、ユーザーが選んだ地点だけを取り込むシート。
 struct FavoriteSyncImportView: View {
-    @ObservedObject var reconciler: FavoriteSyncReconciler
+    let reconciler: FavoriteSyncReconciler
     @Environment(\.dismiss) private var dismiss
     @State private var selection = FavoriteSyncImportSelection()
     @State private var resultMessage: String?
@@ -211,7 +211,7 @@ private struct FavoriteSyncImportRow: View {
 
 /// iCloud モードで、この起動中に自動で iCloud に追加した件数を知らせるお知らせ。閉じるまで表示する。
 struct FavoriteSyncAutoUploadNotice: View {
-    @ObservedObject var reconciler: FavoriteSyncReconciler
+    let reconciler: FavoriteSyncReconciler
 
     /// 閉じるボタンのタップ領域の最小の大きさ。
     private static let minimumTapSize: CGFloat = 44

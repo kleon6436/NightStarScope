@@ -1,4 +1,3 @@
-import Combine
 import CoreLocation
 import Foundation
 import MapKit
@@ -54,7 +53,8 @@ final class DashboardViewModel {
         case registered(newID: UUID, swap: SwappedSelection?)
     }
 
-    private(set) var availableFavorites: [FavoriteLocation] = []
+    /// お気に入りストア（@Observable）へ転送する。写しを持たないため、登録・削除の save は常に最新の一覧から作る。
+    var availableFavorites: [FavoriteLocation] { favoriteStore.loadAll() }
     var selectedIDs: Set<UUID> = []
     var sortKey: SortKey = .score
     let searchController: DashboardSearchController
@@ -71,7 +71,7 @@ final class DashboardViewModel {
 
     @ObservationIgnored private let comparisonController: any ComparisonControlling
     @ObservationIgnored private let favoriteStore: any FavoriteLocationStoring
-    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var favoritesObservationTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var swapResetTask: Task<Void, Never>?
     private struct PendingSwap {
@@ -93,17 +93,26 @@ final class DashboardViewModel {
         self.searchController = DashboardSearchController()
         self.comparisonController.dayCount = Self.dayCount
         reloadFavorites()
-        // 購読直後の現在値は reloadFavorites() で反映済みのため、二重の refresh を避けて読み飛ばす。
-        favoriteStore.locationsPublisher
-            .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] favorites in
-                self?.applyFavorites(favorites, triggerRefresh: true)
+        // 選択状態の整合と再計算は、旧実装と同じく変更の次のターンで行う（receive(on: DispatchQueue.main) と同じ遅れ）。
+        // 一覧そのものは転送しているため、遅れても古い配列で save することはない。
+        // 購読開始時の値は reloadFavorites() で反映済みのため、二重の refresh を避けて読み飛ばす（旧 dropFirst）。
+        // 開始前に変わっていた場合に取りこぼさないよう、最初の値だけは開始時点の一覧と比べる。
+        let favoriteStore = self.favoriteStore
+        let initialFavorites = favoriteStore.loadAll()
+        let favoritesChanges = Observations { favoriteStore.loadAll() }
+        favoritesObservationTask = Task { [weak self] in
+            var isFirst = true
+            for await favorites in favoritesChanges {
+                guard let self else { return }
+                defer { isFirst = false }
+                if isFirst, favorites == initialFavorites { continue }
+                self.applyFavorites(favorites, triggerRefresh: true)
             }
-            .store(in: &cancellables)
+        }
     }
 
     deinit {
+        favoritesObservationTask?.cancel()
         refreshTask?.cancel()
         swapResetTask?.cancel()
         pendingSwaps.forEach { $0.resetTask.cancel() }
@@ -118,7 +127,6 @@ final class DashboardViewModel {
     }
 
     private func applyFavorites(_ favorites: [FavoriteLocation], triggerRefresh: Bool) {
-        availableFavorites = favorites
         let favoriteIDs = Set(favorites.map(\.id))
         selectedIDs.formIntersection(favoriteIDs)
 

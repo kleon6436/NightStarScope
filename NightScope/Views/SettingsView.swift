@@ -115,7 +115,7 @@ extension SettingsView where PlatformSections == EmptyView {
 /// iCloud 同期セクションの差分件数と、選んで追加・取り込む導線。一覧が0件のときは出さない。
 /// iCloud モードでは、自動追加されなかった地点（v1 からの残りや、古い一覧の保存で iCloud から消えた地点など）の安全網になる。
 private struct FavoriteSyncSettingsRows: View {
-    @ObservedObject var reconciler: FavoriteSyncReconciler
+    let reconciler: FavoriteSyncReconciler
     let onReview: () -> Void
 
     private var count: Int {

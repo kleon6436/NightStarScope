@@ -1,6 +1,6 @@
 import Foundation
+import Observation
 import os
-import Combine
 
 private let logger = Logger(subsystem: "com.nightscope", category: "FavoriteLocationStore")
 
@@ -16,29 +16,24 @@ private enum FavoriteLocationCodec {
 }
 
 /// 保存済み地点の永続化と読込を抽象化する。
-/// - Important: `locationsPublisher` の購読者は `receive(on: DispatchQueue.main)` で受け取ること。
-///   `iCloudFavoriteLocationStore` は reconciler が加えた地点を削除反映の基準に入れるのをメインキューの次のターンまで遅らせ、
-///   購読者への配信がそれより先に届く（FIFO）ことに依存している。
-protocol FavoriteLocationStoring: AnyObject, Sendable {
-    var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> { get }
+/// 実装は @Observable にし、`loadAll()` の読み出しを Observation で追跡できるようにする。
+/// - Note: ViewModel は一覧を写さず `loadAll()` を都度読むため、古い配列で save しない。
+///   それでも `iCloudFavoriteLocationStore` は、届いた地点や reconciler が加えた地点を削除反映の基準に入れるのを
+///   メインキューの次のターンまで遅らせ、それまでの古い配列での save を削除とみなさない。
+protocol FavoriteLocationStoring: AnyObject, Observable, Sendable {
     func loadAll() -> [FavoriteLocation]
     func save(_ favorites: [FavoriteLocation])
-}
-
-extension FavoriteLocationStoring {
-    var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> {
-        Just(loadAll()).eraseToAnyPublisher()
-    }
 }
 
 // UserDefaults はスレッドセーフ（Apple ドキュメント保証）なため @unchecked Sendable が安全。
 // 変更可能な内部状態への直接アクセスは持たない。
 /// UserDefaults に保存済み地点を保持する実装。
-final class FavoriteLocationStore: ObservableObject, FavoriteLocationStoring, @unchecked Sendable {
+@Observable
+final class FavoriteLocationStore: FavoriteLocationStoring, @unchecked Sendable {
     /// この端末のお気に入りを保存する UserDefaults のキー。
     static let storageKey = "favorites.locations"
     private let userDefaults: UserDefaults
-    @Published private(set) var locations: [FavoriteLocation]
+    private(set) var locations: [FavoriteLocation]
 
     /// 既存の保存データを復元して初期化する。
     init(userDefaults: UserDefaults = .standard) {
@@ -49,10 +44,6 @@ final class FavoriteLocationStore: ObservableObject, FavoriteLocationStoring, @u
     /// 現在の保存済み地点を返す。
     func loadAll() -> [FavoriteLocation] {
         locations
-    }
-
-    var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> {
-        $locations.eraseToAnyPublisher()
     }
 
     /// 保存済み地点を JSON で永続化する。
@@ -208,7 +199,8 @@ extension NSUbiquitousKeyValueStore: UbiquitousKeyValueStoring {}
 /// NSUbiquitousKeyValueStore を使って iCloud にお気に入り地点を同期する実装。
 /// iCloud が利用不可のときは UserDefaults にフォールバックする。
 @MainActor
-final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency FavoriteLocationStoring {
+@Observable
+final class iCloudFavoriteLocationStore: @preconcurrency FavoriteLocationStoring {
     // MARK: - Constants
 
     /// お気に入り一覧のキー。形式は変えない（旧バージョンはこのキーだけを読み書きする）。
@@ -233,32 +225,32 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
 
     // MARK: - State
 
-    @Published private(set) var locations: [FavoriteLocation]
+    private(set) var locations: [FavoriteLocation] {
+        didSet { onLocationsChanged?(locations) }
+    }
     /// 直前の `save` に渡した一覧（起動時は読み込んだ一覧）。永続化しない。
     /// 削除の反映の対象を「この端末で削除した地点」に限るために使う。
-    private var lastSavedSnapshot: [FavoriteLocation]
+    @ObservationIgnored private var lastSavedSnapshot: [FavoriteLocation]
     /// 画面に届いている地点の ID。save でここから消えた地点を、この端末での削除として記録する（tombstone）。
     /// `lastSavedSnapshot` と違い、他の端末から届いた地点も含む（他の端末で加えた地点の削除も伝えるため）。
-    /// 届いた地点と reconciler が加えた地点はメインキューの次のターン（ViewModel への配信の後）で加え、
+    /// 届いた地点と reconciler が加えた地点はメインキューの次のターンで加え、
     /// それまでの古い配列での save を削除とみなさない。
-    private var tombstoneBaselineIDs: Set<UUID>
-    /// 届いた一覧で消えた地点のうち、まだ画面に届いていない（ViewModel が古い配列を持っているかもしれない）ものの ID。
+    @ObservationIgnored private var tombstoneBaselineIDs: Set<UUID>
+    /// 届いた一覧で消えた地点のうち、まだ画面に届いていない（古い配列で save されるかもしれない）ものの ID。
     /// その間の save に含まれていても、この端末での追加（復活・未確認の追加）とはみなさない。
-    private var removedAwaitingViewIDs: Set<UUID> = []
+    @ObservationIgnored private var removedAwaitingViewIDs: Set<UUID> = []
     private let kvStore: any UbiquitousKeyValueStoring
     /// フォールバックの保存先。あわせて、退避と削除の反映でこの端末のお気に入り（`FavoriteLocationStore.storageKey`）を書き換える。
     private let fallbackDefaults: UserDefaults
     private let notificationCenter: NotificationCenter
-    private let evacuatedSubject = PassthroughSubject<[FavoriteLocation], Never>()
-    private let accountChangedSubject = PassthroughSubject<Void, Never>()
     private let now: () -> Date
     /// この端末で追加し、まだ届いた一覧で確認できていない地点の ID。`pendingAddIDsKey` に永続化する。
     /// 届いた一覧にないとき、他の端末がまだ見ていない追加として残す（他の端末で削除されたとはみなさない）。
-    private var pendingAddIDs: Set<UUID>
+    @ObservationIgnored private var pendingAddIDs: Set<UUID>
     /// この端末が知っている削除の記録。`localDeletionLedgerKey` に永続化し、KV の `deletionLedgerKey` にも書く。
-    private var deletionLedger: FavoriteDeletionLedger
+    @ObservationIgnored private var deletionLedger: FavoriteDeletionLedger
     /// KV のデータがデコードできない。デコードできるデータが届くまで KV に書かない（他の端末のデータを壊さない）。
-    private var isKVDataUnreadable = false
+    @ObservationIgnored private var isKVDataUnreadable = false
 
     /// KV の読み出し結果。キーがない場合とデコードできない場合を区別する。
     private enum KVReadResult {
@@ -343,22 +335,25 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
 
     // MARK: - FavoriteLocationStoring
 
-    var locationsPublisher: AnyPublisher<[FavoriteLocation], Never> {
-        $locations.eraseToAnyPublisher()
-    }
-
     func loadAll() -> [FavoriteLocation] {
         locations
     }
 
-    /// initialSyncChange でローカルへ退避した地点を流す。ローカルへ書き終えた後、`locations` を更新する前に流れる。
-    var evacuatedPublisher: AnyPublisher<[FavoriteLocation], Never> {
-        evacuatedSubject.eraseToAnyPublisher()
-    }
+    // MARK: - Reconciler Hooks
 
-    /// accountChange を受けたことを流す。`locations` を新しいアカウントの一覧に更新する前に流れる。
-    var accountChangedPublisher: AnyPublisher<Void, Never> {
-        accountChangedSubject.eraseToAnyPublisher()
+    // FavoriteSyncReconciler が設定する、同期的に呼ぶフック（所有者は 1 つだけ）。
+    // 退避・アカウント変更と一覧の更新の順序に依存するため、遅れて届く Observation の通知ではなくここで受ける。
+    /// initialSyncChange でローカルへ退避した地点を渡す。ローカルへ書き終えた後、`locations` を更新する前に呼ぶ。
+    @ObservationIgnored var onEvacuated: (([FavoriteLocation]) -> Void)? {
+        didSet { assert(oldValue == nil, "onEvacuated の所有者は 1 つだけ") }
+    }
+    /// accountChange を受けたときに呼ぶ。`locations` を新しいアカウントの一覧に更新する前に呼ぶ。
+    @ObservationIgnored var onAccountChanged: (() -> Void)? {
+        didSet { assert(oldValue == nil, "onAccountChanged の所有者は 1 つだけ") }
+    }
+    /// `locations` を書き換えた直後に、新しい一覧を渡して呼ぶ。
+    @ObservationIgnored var onLocationsChanged: (([FavoriteLocation]) -> Void)? {
+        didSet { assert(oldValue == nil, "onLocationsChanged の所有者は 1 つだけ") }
     }
 
     func save(_ favorites: [FavoriteLocation]) {
@@ -366,9 +361,9 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
     }
 
     /// `advancingDeletionBaseline` が false のときは削除の反映をせず、`lastSavedSnapshot` もその場では進めない。
-    /// reconciler が地点を加えるときに使う。ViewModel は `receive(on: DispatchQueue.main)` で次のターンに追いつくので、
-    /// それまでに古い配列で save されても、加えた地点をこの端末のお気に入りからは消さない。
-    /// 加えた地点はメインキューの次のターン（ViewModel への配信の後）で基準に入れ、その後の明示的な削除は通常どおり反映する。
+    /// reconciler が地点を加えるときに使う。同じターンのうちに古い配列で save されても、
+    /// 加えた地点をこの端末のお気に入りからは消さない。
+    /// 加えた地点はメインキューの次のターンで基準に入れ、その後の明示的な削除は通常どおり反映する。
     func save(_ favorites: [FavoriteLocation], advancingDeletionBaseline: Bool) {
         do {
             let data = try FavoriteLocationCodec.encode(favorites)
@@ -438,14 +433,14 @@ final class iCloudFavoriteLocationStore: ObservableObject, @preconcurrency Favor
                 iCloudLogger.notice(
                     "event=evacuate reason=\(reasonValue ?? -1, privacy: .public) count=\(lost.count, privacy: .public)"
                 )
-                evacuatedSubject.send(lost)
+                onEvacuated?(lost)
             }
             applyExternalLocations(newLocations)
         case .accountChange:
             // アカウントの境界を越えてデータを移さないため、退避も統合もせず KV をそのまま反映する。
             // 新しいアカウントに対象キーがなくても前のアカウントの一覧を残さないよう、changedKeys に関係なく KV を読み直す。
             // 前のアカウントの未確認の追加と削除の記録も持ち越さない。
-            accountChangedSubject.send()
+            onAccountChanged?()
             resetLocalSyncState()
             applyExternalLocations(decodedLocations(Self.readKV(kvStore), missingAs: []) ?? [])
         case .quotaViolationChange:

@@ -1,6 +1,5 @@
 import SwiftUI
 @preconcurrency import AVFoundation
-import Combine
 import CoreLocation
 import CoreMedia
 import Synchronization
@@ -272,30 +271,50 @@ struct CameraNotice: Equatable {
 
 @MainActor
 /// CoreMotion と CLLocationManager を使って向き情報を管理する。
-final class StarMapMotionController: NSObject, ObservableObject {
-    private let motionManager = CMMotionManager()
-    private let headingManager = CLLocationManager()
+@Observable
+final class StarMapMotionController: NSObject {
+    // SwiftUI の @State は View を作り直すたびに初期値の式を評価する（使われるのは最初の 1 つだけ）。
+    // 捨てられる側に CoreMotion・CoreLocation の生成を負わせないよう、初めて使うときに作る。
+    // 止めるだけの処理では作らないよう、作成済みかどうかも持つ。
+    @ObservationIgnored private var motionManagerIfCreated: CMMotionManager?
+    @ObservationIgnored private var headingManagerIfCreated: CLLocationManager?
+    private var motionManager: CMMotionManager {
+        if let motionManagerIfCreated { return motionManagerIfCreated }
+        let manager = CMMotionManager()
+        motionManagerIfCreated = manager
+        return manager
+    }
+    private var headingManager: CLLocationManager {
+        if let headingManagerIfCreated { return headingManagerIfCreated }
+        let manager = CLLocationManager()
+        headingManagerIfCreated = manager
+        return manager
+    }
     /// 平滑化済みの姿勢ベクトル。天頂付近の方位・ロール反転を避けるためベクトルで平滑化する。
-    private var lastVectors: StarMapMotionVectors?
-    private var screenOrientation: StarMapScreenOrientation = .portrait
+    @ObservationIgnored private var lastVectors: StarMapMotionVectors?
+    @ObservationIgnored private var screenOrientation: StarMapScreenOrientation = .portrait
     /// `xMagneticNorthZVertical` 使用時の磁気偏角（真北 − 磁気北、度）。
     /// `xTrueNorthZVertical` では CoreMotion が WMM 補正済みのため不要。
-    private var latestMagneticDeclination: Double?
+    @ObservationIgnored private var latestMagneticDeclination: Double?
 
     /// 最新の方位角（平滑化済み・磁気偏角補正済み・ユーザーオフセット未適用）。キャリブレーション UI が参照する。
     /// 45 Hz で変わるため、キャリブレーション UI の表示中だけ配信する（星空画面全体の再描画を避ける）。
-    @Published private(set) var calibrationAzimuth: Double = 0
+    private(set) var calibrationAzimuth: Double = 0
     /// 配信の有無に関わらず保持する最新の方位角。
-    private var latestCalibrationAzimuth: Double = 0
+    @ObservationIgnored private var latestCalibrationAzimuth: Double = 0
     /// キャリブレーション UI が表示中か。true の間だけ `calibrationAzimuth` を毎回更新する。
-    private var isPublishingCalibrationAzimuth = false
+    @ObservationIgnored private var isPublishingCalibrationAzimuth = false
     /// ユーザーが設定したコンパス補正量（度）。姿勢更新のたびに UserDefaults を読まないようキャッシュする。
-    private(set) var compassAzimuthOffset: Double = StarMapMotionController.loadCompassAzimuthOffset()
-    private var compassAzimuthOffsetCancellable: AnyCancellable?
+    @ObservationIgnored private(set) var compassAzimuthOffset: Double = StarMapMotionController.loadCompassAzimuthOffset()
+    @ObservationIgnored private var compassAzimuthOffsetObservationTask: Task<Void, Never>?
     /// 磁気精度（度単位、低いほど精度良好）。`xTrueNorthZVertical` 使用時は nil。
-    @Published private(set) var headingAccuracy: Double? = nil
+    private(set) var headingAccuracy: Double? = nil
     /// モーション更新が稼働中かどうか。キャリブレーションボタンの有効/無効制御に使う。
-    @Published private(set) var isMotionActive: Bool = false
+    private(set) var isMotionActive: Bool = false
+
+    deinit {
+        compassAzimuthOffsetObservationTask?.cancel()
+    }
 
     var canEnableGyroMode: Bool {
         motionManager.isDeviceMotionAvailable && !candidateReferenceFrames.isEmpty
@@ -316,11 +335,14 @@ final class StarMapMotionController: NSObject, ObservableObject {
     /// コンパス補正量の変更（キャリブレーション画面での保存など）を購読してキャッシュを更新する。
     private func observeCompassAzimuthOffsetIfNeeded() {
         compassAzimuthOffset = Self.loadCompassAzimuthOffset()
-        guard compassAzimuthOffsetCancellable == nil else { return }
-        compassAzimuthOffsetCancellable = NotificationCenter.default.userDefaultsChangesOnMain()
-            .sink { [weak self] _ in
-                self?.compassAzimuthOffset = Self.loadCompassAzimuthOffset()
+        guard compassAzimuthOffsetObservationTask == nil else { return }
+        let changes = NotificationCenter.default.userDefaultsChanges()
+        compassAzimuthOffsetObservationTask = Task { [weak self] in
+            for await _ in changes {
+                guard let self else { return }
+                self.compassAzimuthOffset = Self.loadCompassAzimuthOffset()
             }
+        }
     }
 
     /// 位置情報の利用が許可されているか。`xTrueNorthZVertical` は位置情報が必要で、
@@ -454,8 +476,8 @@ final class StarMapMotionController: NSObject, ObservableObject {
     }
 
     func stop() {
-        motionManager.stopDeviceMotionUpdates()
-        headingManager.stopUpdatingHeading()
+        motionManagerIfCreated?.stopDeviceMotionUpdates()
+        headingManagerIfCreated?.stopUpdatingHeading()
         lastVectors = nil
         latestMagneticDeclination = nil
         isMotionActive = false
@@ -492,11 +514,12 @@ extension StarMapMotionController: CLLocationManagerDelegate {
 
 @MainActor
 /// AVFoundation のカメラセッションを管理する。
-final class StarMapCameraController: NSObject, ObservableObject {
-    @Published private(set) var authorizationStatus: AVAuthorizationStatus
-    @Published private(set) var hasCameraHardware: Bool
-    @Published private(set) var lastErrorMessage: String?
-    @Published private(set) var cameraFieldOfView: StarMapCameraFieldOfView?
+@Observable
+final class StarMapCameraController: NSObject {
+    private(set) var authorizationStatus: AVAuthorizationStatus
+    private(set) var hasCameraHardware: Bool
+    private(set) var lastErrorMessage: String?
+    private(set) var cameraFieldOfView: StarMapCameraFieldOfView?
 
     let session = AVCaptureSession()
     var previewDevice: AVCaptureDevice? { Self.currentBackCameraDevice() }
@@ -504,8 +527,8 @@ final class StarMapCameraController: NSObject, ObservableObject {
     private let sessionQueue = DispatchQueue(label: "NightScope.StarMapCameraSession")
     /// sessionQueue 上の nonisolated 処理からも参照するため Mutex で保護する。
     private let activationState = Mutex(StarMapCameraSessionActivationState())
-    private var hasConfiguredSession = false
-    private var isConfiguringSession = false
+    @ObservationIgnored private var hasConfiguredSession = false
+    @ObservationIgnored private var isConfiguringSession = false
 
     override init() {
         authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)

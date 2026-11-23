@@ -57,11 +57,11 @@ AppController
 ### Protocol Abstractions
 
 Key services are protocol-backed for testability:
-- `WeatherProviding` — weather fetch + `weatherByDate` publisher
+- `WeatherProviding` — weather fetch + observable `weatherByDate`
 - `NightCalculating` — `calculateNightSummary` / `calculateUpcomingNights`
-- `LightPollutionProviding` — `bortleClass` publisher
+- `LightPollutionProviding` — observable `bortleClass`
 - `LocationProviding` — full location state interface used by ViewModels
-- `FavoriteLocationStoring` — `loadAll` / `save` of the whole saved-location list, plus `locationsPublisher`
+- `FavoriteLocationStoring` — `loadAll` / `save` of the whole saved-location list; implementations are `@Observable`, so reads of `loadAll()` are tracked
 
 Test doubles (`MockLocationController`, `MockLightPollutionService`, etc.) live in `NightScopeTests/ViewModelTestSupport.swift`.
 
@@ -95,10 +95,11 @@ If elevation binaries are absent, `TerrainService` returns nil and the app runs 
 
 ## Key Conventions
 
-- `*Controller` classes and class-based ViewModels are `@MainActor`; struct ViewModels (`DarkTimeCardViewModel`, `ViewingWindowsSectionViewModel`) are plain values. `WeatherKitService` and `LightPollutionService` are `@MainActor` and publish results; `TerrainService` is an `actor` and `NightCalculationService` a `Sendable` class, and both return results to async callers.
-- `ObservationState` is a value-type snapshot published from `AppController` to avoid multiple `@Published` subscriptions in views.
+- `*Controller` classes and class-based ViewModels are `@MainActor`; struct ViewModels (`DarkTimeCardViewModel`, `ViewingWindowsSectionViewModel`) are plain values. `WeatherKitService` and `LightPollutionService` are `@MainActor @Observable` and expose results as observable state; `TerrainService` is an `actor` and `NightCalculationService` a `Sendable` class, and both return results to async callers.
+- State is shared with Observation (`@Observable`); there is no `ObservableObject` or `import Combine` (only two iOS views use SwiftUI `.onReceive` with a `NotificationCenter` publisher). `ObservationState` is a value-type snapshot on `AppController`, so a batch produces one change instead of many.
+- OS 26 has no synchronous after-change Observation callback (`Observations` delivers on a later turn; `withObservationTracking(options: .didSet)` is OS 27+), so consumers that must stay consistent within the same turn use synchronous owner hooks instead: `LocationController.selectionDidChange`, `AppController.observationStateDidChange`, and the iCloud store's `onLocationsChanged` / `onEvacuated` / `onAccountChanged`. Use `Observations` only where deferring the reaction is harmless.
 - Batch state mutations use `performObservationStateBatchUpdate {}` to emit one `ObservationState` change instead of many.
-- `DashboardCommandBridge` is a Combine-based bridge for the macOS Dashboard window to push selections into the main window.
+- `DashboardCommandBridge` passes selections from the macOS Dashboard window to `AppController` through a synchronous handler.
 - Location changes cancel in-flight calculation tasks and restart them atomically via `scheduleLocationChangeHandling()`.
 - iCloud sync for favorites is opt-in (`iCloudSyncEnabled` UserDefaults key). There is no automatic migration: the iCloud KV store is the source of truth, and `FavoriteSyncReconciler` handles differences from the local list.
 

@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 
 /// Dashboard から選択された地点と日付。
 struct DashboardSelection: Equatable {
@@ -9,17 +8,16 @@ struct DashboardSelection: Equatable {
 
 /// Dashboard の選択イベントを AppController に伝えるブリッジ。
 @MainActor
-final class DashboardCommandBridge: ObservableObject {
-    let selectionPublisher: AnyPublisher<DashboardSelection, Never>
-    private let selectionSubject = PassthroughSubject<DashboardSelection, Never>()
-
-    /// Combine 購読先へ流す Subject を初期化する。
-    init() {
-        self.selectionPublisher = selectionSubject.eraseToAnyPublisher()
+final class DashboardCommandBridge {
+    /// 選択を受け取る処理。AppController が `bindDashboardCommandBridge` で設定する（受け取り手は 1 つ）。
+    var selectionHandler: ((DashboardSelection) -> Void)? {
+        didSet { assert(oldValue == nil, "selectionHandler の受け取り手は 1 つだけ") }
     }
 
-    /// Dashboard 側の選択をイベントとして送信する。
+    init() {}
+
+    /// Dashboard 側の選択を受け取り手へ同期的に渡す。受け取り手がいなければ捨てる。
     func selectFromDashboard(_ selection: DashboardSelection) {
-        selectionSubject.send(selection)
+        selectionHandler?(selection)
     }
 }

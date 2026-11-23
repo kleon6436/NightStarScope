@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 /// 画面に表示する状態を「読み込み中 / 空 / 表示可」に畳み込む。
 enum LoadableContentState: Equatable {
@@ -82,7 +81,6 @@ final class DetailViewModel {
 
     @ObservationIgnored private let appController: AppController
     @ObservationIgnored private let observationModePreference: ObservationModePreference
-    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var timeZoneObservationTask: Task<Void, Never>?
 
     /// AppController の観測状態を詳細画面向けに同期する。
@@ -109,28 +107,28 @@ final class DetailViewModel {
     }
 
     private func bind() {
-        appController.$observationState
-            .sink { [weak self] state in
-                guard let self else { return }
-                if !self.shouldPreserveDisplayedSummary(during: state) {
-                    self.nightSummary = state.nightSummary
-                    self.starGazingIndex = state.starGazingIndex
-                }
-                self.upcomingNights = state.upcomingNights
-                self.upcomingIndexes = state.upcomingIndexes
-                // Observation は同値の代入でも変更を通知するため、Equatable な値は変化時だけ書き込む。
-                if self.isCalculating != state.isCalculating {
-                    self.isCalculating = state.isCalculating
-                }
-                if self.isUpcomingLoading != state.isUpcomingLoading {
-                    self.isUpcomingLoading = state.isUpcomingLoading
-                }
-                if self.selectedDate != state.selectedDate {
-                    self.selectedDate = state.selectedDate
-                }
-                self.updateDisplayedContentState()
+        // 観測状態は書き換えの直後に同期的に受け取る。選択日の写しが遅れると、同じ実行中に続く日付選択が
+        // 古い選択日との比較で捨てられたり、表示中の当夜を残すかの判断が前の状態と食い違ったりする。
+        appController.observationStateDidChange = { [weak self] state in
+            guard let self else { return }
+            if !self.shouldPreserveDisplayedSummary(during: state) {
+                self.nightSummary = state.nightSummary
+                self.starGazingIndex = state.starGazingIndex
             }
-            .store(in: &cancellables)
+            self.upcomingNights = state.upcomingNights
+            self.upcomingIndexes = state.upcomingIndexes
+            // Equatable な値は変化したときだけ書き込む（同値の代入は Observation も通知しない）。
+            if self.isCalculating != state.isCalculating {
+                self.isCalculating = state.isCalculating
+            }
+            if self.isUpcomingLoading != state.isUpcomingLoading {
+                self.isUpcomingLoading = state.isUpcomingLoading
+            }
+            if self.selectedDate != state.selectedDate {
+                self.selectedDate = state.selectedDate
+            }
+            self.updateDisplayedContentState()
+        }
         // 天気の変化は AppController が指数を組み直して ObservationState を配信するため、上の購読で反映される。
 
         // タイムゾーンが変わったら、表示中の日付に対応する天気を引き直す。

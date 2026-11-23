@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 import os
 
 private let logger = Logger(subsystem: "com.nightscope", category: "FavoriteSyncReconciler")
@@ -9,7 +9,8 @@ private let logger = Logger(subsystem: "com.nightscope", category: "FavoriteSync
 /// 残りの差分は設定画面から選んで追加できるようにする。local モードでは、iCloud にのみある地点のうち選んだものを取り込む。
 /// 書き込みはすべて稼働中のストアの `save` を通し、UserDefaults のローカルのお気に入りには直接書かない。
 @MainActor
-final class FavoriteSyncReconciler: ObservableObject {
+@Observable
+final class FavoriteSyncReconciler {
     /// 稼働中のストアの同期モード。
     enum Mode: Equatable {
         case icloud
@@ -30,24 +31,26 @@ final class FavoriteSyncReconciler: ObservableObject {
     /// 稼働中のストアの型から決めたモード（トグルの値ではない）。
     let activeMode: Mode
     /// iCloud モードで、この端末にのみある地点（`favorites.locations − activeStore`）。送信済みかどうかに関係なく全件。
-    @Published private(set) var localOnly: [FavoriteLocation] = []
+    private(set) var localOnly: [FavoriteLocation] = []
     /// local モードで、iCloud にのみある地点（`KV − activeStore`）。`refresh()` で計算する。
-    @Published private(set) var cloudOnly: [FavoriteLocation] = []
+    private(set) var cloudOnly: [FavoriteLocation] = []
     /// この起動中に自動で iCloud に追加した地点の ID。お知らせを閉じると空に戻す（永続化しない）。
-    @Published private(set) var autoUploadedIDs: Set<UUID> = []
+    private(set) var autoUploadedIDs: Set<UUID> = []
 
     /// この端末が送った ID（前のアカウントで送ったものを含む）。前のアカウントの地点を新しいアカウントに送らないためのガード。
-    private var sentIDs: Set<UUID>
+    @ObservationIgnored private var sentIDs: Set<UUID>
     /// 現在のアカウントで送った ID。初回同期で破棄されたときに送り直す対象を、このアカウントで送った地点に限るために使う。
-    private var sentIDsCurrentAccount: Set<UUID>
+    @ObservationIgnored private var sentIDsCurrentAccount: Set<UUID>
     /// KV で観測した ID。他の端末で削除された地点や、前のアカウントの地点を送らないためのガード。
-    private var observedIDs: Set<UUID>
+    @ObservationIgnored private var observedIDs: Set<UUID>
     private let activeStore: any FavoriteLocationStoring
     private let iCloudStore: iCloudFavoriteLocationStore?
     private let localDefaults: UserDefaults
     private let kvStore: any UbiquitousKeyValueStoring
     private let toggleProvider: () -> Bool
-    private var cancellables = Set<AnyCancellable>()
+    /// トグルの変更を画面に知らせるための世代。`isPendingRestart` はトグルを直接読むため、値ではなく変化の通知に使う。
+    private var toggleRevision = 0
+    @ObservationIgnored private var toggleObservationTask: Task<Void, Never>?
 
     init(
         activeStore: any FavoriteLocationStoring,
@@ -68,48 +71,49 @@ final class FavoriteSyncReconciler: ObservableObject {
         localDefaults.removeObject(forKey: Self.legacyDismissedLocalOnlyIDsKey)
         initializeObservedForLegacyUserIfNeeded()
         // isPendingRestart はトグルを読む計算プロパティなので、トグルが変わったら画面に知らせる。
-        // UserDefaults の変更通知は書き込んだスレッドで届くため、MainActor に隔離された map の前でメインへ移す。
-        NotificationCenter.default.userDefaultsChangesOnMain(object: localDefaults)
-            .map { _ in toggleProvider() }
-            .prepend(toggleProvider())
-            .removeDuplicates()
-            .dropFirst()
-            .sink { [weak self] _ in
-                self?.objectWillChange.send()
+        // UserDefaults の変更通知は書き込んだスレッドで届くが、MainActor の Task で反復するためトグルはメインで読む。
+        // 対象外の UserDefaults やトグル以外のキーの変更も届くため、トグルの値が変わったときだけ知らせる。
+        let initialToggle = toggleProvider()
+        let userDefaultsChanges = NotificationCenter.default.userDefaultsChanges()
+        toggleObservationTask = Task { [weak self] in
+            var lastToggle = initialToggle
+            for await _ in userDefaultsChanges {
+                guard let self else { return }
+                let toggle = self.toggleProvider()
+                guard toggle != lastToggle else { continue }
+                lastToggle = toggle
+                self.toggleRevision += 1
             }
-            .store(in: &cancellables)
+        }
         guard let iCloudStore else { return }
         // accountChange の後の初回同期で前のアカウントの地点が退避されても、送り直さないようにする。
-        iCloudStore.accountChangedPublisher
-            .sink { [weak self] in
-                self?.resetSentForCurrentAccount()
-            }
-            .store(in: &cancellables)
+        iCloudStore.onAccountChanged = { [weak self] in
+            self?.resetSentForCurrentAccount()
+        }
         // 退避の通知は locations の更新より前に届くので、続く locations の変化で退避した地点を送り直せる。
-        iCloudStore.evacuatedPublisher
-            .sink { [weak self] evacuated in
-                self?.forgetSent(evacuated)
+        iCloudStore.onEvacuated = { [weak self] evacuated in
+            self?.forgetSent(evacuated)
+        }
+        // 退避と削除の反映は locations を更新する前にローカルへ書き終えているので、この通知だけで差分を拾える。
+        // save を伴う自動追加は次の実行に回す（locations の didSet の中で save すると書き換えが入れ子になる）。
+        iCloudStore.onLocationsChanged = { [weak self] active in
+            self?.recomputeLocalOnly(active: active)
+            Task { @MainActor in
+                self?.autoUploadIfNeeded()
             }
-            .store(in: &cancellables)
-        // 退避と削除の反映は locations を更新する前にローカルへ書き終えているので、この購読だけで差分を拾える。
-        // @Published は値の確定前に流れるため、差分は流れてきた値で計算し、save を伴う自動追加は次の実行に回す
-        // （ここで save すると確定前の値で上書きされる）。
-        iCloudStore.locationsPublisher
-            .dropFirst()
-            .sink { [weak self] active in
-                self?.recomputeLocalOnly(active: active)
-                Task { @MainActor in
-                    self?.autoUploadIfNeeded()
-                }
-            }
-            .store(in: &cancellables)
+        }
         autoUploadIfNeeded()
         recomputeLocalOnly(active: iCloudStore.loadAll())
     }
 
+    deinit {
+        toggleObservationTask?.cancel()
+    }
+
     /// トグルと稼働中のモードが食い違っている（再起動後に反映される）。この間は取り込みも追加もしない。
     var isPendingRestart: Bool {
-        toggleProvider() != (activeMode == .icloud)
+        _ = toggleRevision
+        return toggleProvider() != (activeMode == .icloud)
     }
 
     /// 差分を計算し直す。画面の表示時に呼ぶ。

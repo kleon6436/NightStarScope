@@ -1,6 +1,5 @@
 import SwiftUI
 import MapKit
-import Combine
 
 /// 位置入力のソースを表す。
 enum LocationInputMode: String, CaseIterable, Identifiable {
@@ -55,7 +54,8 @@ final class SidebarViewModel {
     var hasLightPollutionFetchFailed: Bool { lightPollutionService.fetchFailed }
     var isLightPollutionOutOfCoverage: Bool { lightPollutionService.isOutOfCoverage }
     var selectedTimeZone: TimeZone { locationController.selectedTimeZone }
-    private(set) var favorites: [FavoriteLocation] = []
+    /// お気に入りストア（@Observable）へ転送する。ストアは他画面（複数地点ダッシュボード等）からも更新される。
+    var favorites: [FavoriteLocation] { favoriteStore.loadAll() }
     /// お気に入り地点ごとの今夜の星空指数。未取得の地点はキーを持たない。
     /// FavoriteTonightScoreProvider（@Observable）へ転送し、読み出し時に Observation が追跡する。
     var favoriteTonightScores: [UUID: FavoriteTonightScore] {
@@ -70,7 +70,6 @@ final class SidebarViewModel {
     /// 未注入（テスト等）の場合は指数表示を行わない。
     @ObservationIgnored let tonightScoreProvider: FavoriteTonightScoreProvider?
     @ObservationIgnored private let favoriteStore: any FavoriteLocationStoring
-    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var pendingLocationUpdateBehavior: PendingLocationUpdateBehavior?
     @ObservationIgnored private var lightPollutionRetryTask: Task<Void, Never>?
     @ObservationIgnored private var selectedLocationObservationTask: Task<Void, Never>?
@@ -114,16 +113,6 @@ final class SidebarViewModel {
         self.lightPollutionService = lightPollutionService
         self.favoriteStore = favoriteStore
         self.tonightScoreProvider = tonightScoreProvider
-        self.favorites = favoriteStore.loadAll()
-
-        // FavoriteLocationStore は他画面（複数地点ダッシュボード等）からも更新されるため
-        // publisher を購読してサイドバーの favorites を常に同期する。
-        favoriteStore.locationsPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] favorites in
-                self?.favorites = favorites
-            }
-            .store(in: &cancellables)
 
         // 地点が確定したら、直前の意図に従って検索欄を戻す。
         // Observations は購読開始時の値も流すため、開始時点の座標と比べて変わったときだけ扱う（旧 dropFirst）。
@@ -299,8 +288,7 @@ final class SidebarViewModel {
             longitude: locationController.selectedLocation.longitude,
             timeZoneIdentifier: locationController.selectedTimeZone.identifier
         )
-        favorites.append(favorite)
-        favoriteStore.save(favorites)
+        favoriteStore.save(favorites + [favorite])
     }
 
     func toggleCurrentLocationFavorite() {
@@ -313,18 +301,17 @@ final class SidebarViewModel {
 
     private func removeCurrentLocationFromFavorites() {
         let coord = locationController.selectedLocation
-        favorites.removeAll { $0.isNear(latitude: coord.latitude, longitude: coord.longitude) }
-        favoriteStore.save(favorites)
+        favoriteStore.save(favorites.filter { !$0.isNear(latitude: coord.latitude, longitude: coord.longitude) })
     }
 
     func removeFavorite(_ favorite: FavoriteLocation) {
-        favorites.removeAll { $0.id == favorite.id }
-        favoriteStore.save(favorites)
+        favoriteStore.save(favorites.filter { $0.id != favorite.id })
     }
 
     func removeFavorites(at offsets: IndexSet) {
-        favorites.remove(atOffsets: offsets)
-        favoriteStore.save(favorites)
+        var updated = favorites
+        updated.remove(atOffsets: offsets)
+        favoriteStore.save(updated)
     }
 
     /// 表示中のお気に入りについて、キャッシュが古いものだけ今夜の指数を再計算する。

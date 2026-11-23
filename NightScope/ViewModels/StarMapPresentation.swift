@@ -1,6 +1,5 @@
 import Foundation
 import CoreLocation
-import Combine
 import SwiftUI
 
 /// BV 色指数から恒星の見た目の色を近似する。

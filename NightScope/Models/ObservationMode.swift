@@ -56,22 +56,14 @@ struct ObservationModeWeights: Sendable {
 /// UserDefaults と同期する観測モードの保存用ラッパー。
 @Observable
 final class ObservationModePreference {
-    /// 同値の代入では変更を通知しない（旧 DetailViewModel 側の removeDuplicates と同じ扱い）。
+    /// 同値の代入は Observation が通知しない（旧 DetailViewModel 側の removeDuplicates と同じ効果）。
     var mode: ObservationMode {
-        get {
-            access(keyPath: \.mode)
-            return storedMode
-        }
-        set {
-            guard newValue != storedMode else { return }
-            withMutation(keyPath: \.mode) {
-                storedMode = newValue
-            }
-            userDefaults.set(newValue.rawValue, forKey: key)
+        didSet {
+            guard mode != oldValue else { return }
+            userDefaults.set(mode.rawValue, forKey: key)
         }
     }
 
-    @ObservationIgnored private var storedMode: ObservationMode
     private let userDefaults: UserDefaults
     private let key: String
 
@@ -82,7 +74,7 @@ final class ObservationModePreference {
 
         let storedValue = userDefaults.string(forKey: key) ?? ""
         let restoredMode = ObservationMode.restoredMode(from: storedValue)
-        self.storedMode = restoredMode
+        self.mode = restoredMode
 
         if !storedValue.isEmpty, restoredMode.rawValue != storedValue {
             userDefaults.set(restoredMode.rawValue, forKey: key)

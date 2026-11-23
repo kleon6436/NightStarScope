@@ -1,6 +1,5 @@
 import SwiftUI
 import MapKit
-import Combine
 
 /// メインウィンドウ左側で場所と日付を選択するサイドバー。
 struct SidebarView: View {

@@ -7,7 +7,7 @@ import SwiftUI
 /// - 補正ボタンはジャイロ稼働中のみ有効（停止中の誤補正を防ぐ）。
 @MainActor
 struct iOSCompassCalibrationView: View {
-    @ObservedObject var motionController: StarMapMotionController
+    let motionController: StarMapMotionController
     @AppStorage(StarMapDisplaySettings.compassAzimuthOffsetDefaultsKey)
     private var storedOffset: Double = 0
 
@@ -223,7 +223,7 @@ struct iOSCompassCalibrationView: View {
 /// 独自の `StarMapMotionController` を保持し、表示/非表示に合わせてモーションを開始/停止する。
 @MainActor
 struct iOSCompassCalibrationStandaloneView: View {
-    @StateObject private var motionController = StarMapMotionController()
+    @State private var motionController = StarMapMotionController()
 
     var body: some View {
         iOSCompassCalibrationView(motionController: motionController)

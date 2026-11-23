@@ -97,7 +97,9 @@ final class LocationController: NSObject, LocationProviding {
     /// タイムゾーンまたは locationUpdateID を書き込んだ直後に同期的に呼ぶ、所有者（AppController）用のフック。
     /// Observation の通知は次の実行機会まで遅れるため、同じ実行中に続く日付選択より先に
     /// 選択日をタイムゾーンへ合わせる必要がある処理はここで受ける。
-    @ObservationIgnored var selectionDidChange: (@MainActor () -> Void)?
+    @ObservationIgnored var selectionDidChange: (@MainActor () -> Void)? {
+        didSet { assert(oldValue == nil, "selectionDidChange の所有者は 1 つだけ") }
+    }
     var selectedTimeZone: TimeZone {
         TimeZone(identifier: selectedTimeZoneIdentifier) ?? .current
     }

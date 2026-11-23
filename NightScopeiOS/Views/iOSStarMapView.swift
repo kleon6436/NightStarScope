@@ -2,13 +2,29 @@ import SwiftUI
 @preconcurrency import AVFoundation
 import UIKit
 
+/// StarMapCameraController を初めて使うときに 1 回だけ作って保持する。
+/// SwiftUI の @State は View を作り直すたびに初期値の式を評価する（使われるのは最初の 1 つだけ）ため、
+/// AVCaptureSession の生成やカメラの検出を伴うコントローラを直接 @State に置かず、この入れ物を置く。
+@MainActor
+private final class StarMapCameraControllerBox {
+    /// 作成済みのときだけ返す。止めるだけの処理で、使っていないコントローラを作らないために使う。
+    private(set) var controllerIfCreated: StarMapCameraController?
+
+    var controller: StarMapCameraController {
+        if let controllerIfCreated { return controllerIfCreated }
+        let controller = StarMapCameraController()
+        controllerIfCreated = controller
+        return controller
+    }
+}
+
 // MARK: - 星空ビュー
 /// 星空マップとカメラ背景、操作パネルを統合する画面。
 struct iOSStarMapView: View {
     var viewModel: StarMapViewModel
 
-    @StateObject private var motionController = StarMapMotionController()
-    @StateObject private var cameraController = StarMapCameraController()
+    @State private var motionController = StarMapMotionController()
+    @State private var cameraControllerBox = StarMapCameraControllerBox()
     @State private var isCameraBackgroundEnabled = false
     @State private var isPresentingDisplaySettings = false
     @State private var isRequestingCameraPermission = false
@@ -20,6 +36,8 @@ struct iOSStarMapView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
+
+    private var cameraController: StarMapCameraController { cameraControllerBox.controller }
 
     var body: some View {
         NavigationStack {
@@ -66,13 +84,15 @@ struct iOSStarMapView: View {
             invalidatePendingCameraPermissionRequest()
             viewModel.finalizeTransientInteractionState()
             stopMotion()
-            cameraController.setSessionActive(false)
+            cameraControllerBox.controllerIfCreated?.setSessionActive(false)
         }
         .onChange(of: viewModel.isGyroMode) { handleGyroChange() }
         .onChange(of: isCameraBackgroundEnabled) { syncCameraSession() }
         .onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(newPhase)
         }
+        // SwiftUI の onReceive は Publisher を受け取る API のため、通知の Publisher をそのまま使う（Combine は import しない）。
+        // .task に移すとタブが隠れている間は購読が止まり、向きの変化を取りこぼすため onReceive のままにする。
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
             // デバイスの向き通知はインターフェース回転の完了前に届くことがあるため、次のランループで読み直す。
             Task { @MainActor in
@@ -548,7 +568,11 @@ struct iOSStarMapView: View {
     }
 
     private func syncCameraSession() {
-        cameraController.setSessionActive(cameraSessionState.shouldRunSession)
+        if cameraSessionState.shouldRunSession {
+            cameraController.setSessionActive(true)
+        } else {
+            cameraControllerBox.controllerIfCreated?.setSessionActive(false)
+        }
     }
 
     private func syncMotionState() {
