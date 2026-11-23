@@ -5,7 +5,7 @@ import Combine
 /// メインウィンドウ左側で場所と日付を選択するサイドバー。
 struct SidebarView: View {
 
-    @StateObject var viewModel: SidebarViewModel
+    let viewModel: SidebarViewModel
     var starMapViewModel: StarMapViewModel
     @Binding var selectedDate: Date
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
@@ -23,7 +23,7 @@ struct SidebarView: View {
         favoriteSyncReconciler: FavoriteSyncReconciler? = nil,
         currentObservationDate: (@MainActor () -> Date)? = nil
     ) {
-        self._viewModel = StateObject(wrappedValue: viewModel)
+        self.viewModel = viewModel
         self.starMapViewModel = starMapViewModel
         self._selectedDate = selectedDate
         self.favoriteSyncReconciler = favoriteSyncReconciler

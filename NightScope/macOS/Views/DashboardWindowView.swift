@@ -3,7 +3,7 @@ import AppKit
 
 /// 複数地点ダッシュボードの macOS ウィンドウ本体。
 struct DashboardWindowView: View {
-    @StateObject private var viewModel: DashboardViewModel
+    @State private var viewModel: DashboardViewModel
     @State private var mapSnapshotCache = MapSnapshotCache()
     @State private var isShowingLocationPicker = false
     @State private var dismissedErrorMessage: String?
@@ -21,7 +21,7 @@ struct DashboardWindowView: View {
             lightPollutionService: dependencies.appController.lightPollutionService,
             calculationService: dependencies.appController.calculationService
         )
-        _viewModel = StateObject(
+        _viewModel = State(
             wrappedValue: DashboardViewModel(
                 comparisonController: dashboardComparisonController,
                 favoriteStore: dependencies.appController.favoriteStore

@@ -4,7 +4,7 @@ import AppKit
 
 /// ダッシュボード上で 1 地点分の比較結果を表示するカード。
 struct DashboardLocationCard: View {
-    @ObservedObject var viewModel: DashboardViewModel
+    let viewModel: DashboardViewModel
     let location: FavoriteLocation
     let dates: [Date]
     let mapSnapshotCache: MapSnapshotCache
@@ -203,7 +203,7 @@ private struct DashboardMapThumbnail: View {
 private struct DashboardDayColumn: View {
     let location: FavoriteLocation
     let date: Date
-    @ObservedObject var viewModel: DashboardViewModel
+    let viewModel: DashboardViewModel
     /// 列の日付（暦日）を作ったタイムゾーン。曜日はこのタイムゾーンの年月日で表す。
     let columnTimeZone: TimeZone
     let onSelect: (UUID, Date) -> Void

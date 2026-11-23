@@ -3,11 +3,12 @@ import Combine
 
 /// 夜間天気カードの表示ロジックと設定同期を担う ViewModel。
 @MainActor
-final class NightWeatherCardViewModel: ObservableObject {
+@Observable
+final class NightWeatherCardViewModel {
     /// ユーザー設定に追従する風速単位。
-    @AppStorage("windSpeedUnit") private var windSpeedUnitRaw: String = WindSpeedUnit.kmh.rawValue
-    @Published private(set) var windSpeedUnit: WindSpeedUnit
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored @AppStorage("windSpeedUnit") private var windSpeedUnitRaw: String = WindSpeedUnit.kmh.rawValue
+    private(set) var windSpeedUnit: WindSpeedUnit
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     /// 保存済みの単位を初期化し、設定変更通知も購読する。
     init() {

@@ -12,7 +12,8 @@ enum LocationInputMode: String, CaseIterable, Identifiable {
 
 @MainActor
 /// サイドバーの検索・お気に入り・位置情報を同期する ViewModel。
-final class SidebarViewModel: ObservableObject {
+@Observable
+final class SidebarViewModel {
     /// 検索結果確定時に入力欄へ名前を残すかどうか。
     enum SearchTextSelectionBehavior {
         case fillSelectionName
@@ -38,34 +39,39 @@ final class SidebarViewModel: ObservableObject {
         static let spanEpsilon = 0.00005
     }
 
-    @Published var viewport = ViewportBox()
-    @Published var searchText = ""
-    @Published private(set) var isShowingCommittedSelection = false
-    @Published private(set) var searchState: LocationSearchState
-    @Published private(set) var isLocating: Bool
-    @Published private(set) var locationError: LocationController.LocationError?
-    @Published private(set) var selectedCoordinate: CLLocationCoordinate2D
-    @Published private(set) var selectedLocationName: String
-    @Published private(set) var searchFocusTrigger: Int
-    @Published private(set) var currentLocationCenterTrigger: Int
-    @Published private(set) var lightPollutionBortleClass: Double?
-    @Published private(set) var isLightPollutionLoading: Bool
-    @Published private(set) var hasLightPollutionFetchFailed: Bool
-    @Published private(set) var isLightPollutionOutOfCoverage: Bool
-    @Published private(set) var selectedTimeZone: TimeZone
-    @Published private(set) var favorites: [FavoriteLocation] = []
+    var viewport = ViewportBox()
+    var searchText = ""
+    private(set) var isShowingCommittedSelection = false
+    private(set) var searchState: LocationSearchState
+    private(set) var isLocating: Bool
+    private(set) var locationError: LocationController.LocationError?
+    private(set) var selectedCoordinate: CLLocationCoordinate2D
+    private(set) var selectedLocationName: String
+    private(set) var searchFocusTrigger: Int
+    private(set) var currentLocationCenterTrigger: Int
+    private(set) var lightPollutionBortleClass: Double?
+    private(set) var isLightPollutionLoading: Bool
+    private(set) var hasLightPollutionFetchFailed: Bool
+    private(set) var isLightPollutionOutOfCoverage: Bool
+    private(set) var selectedTimeZone: TimeZone
+    private(set) var favorites: [FavoriteLocation] = []
     /// お気に入り地点ごとの今夜の星空指数。未取得の地点はキーを持たない。
-    @Published private(set) var favoriteTonightScores: [UUID: FavoriteTonightScore] = [:]
-    @Published private(set) var isRefreshingFavoriteScores = false
+    /// FavoriteTonightScoreProvider（@Observable）へ転送し、読み出し時に Observation が追跡する。
+    var favoriteTonightScores: [UUID: FavoriteTonightScore] {
+        tonightScoreProvider?.scoresByFavoriteID ?? [:]
+    }
+    var isRefreshingFavoriteScores: Bool {
+        tonightScoreProvider?.isRefreshing ?? false
+    }
 
-    let locationController: any LocationProviding
-    let lightPollutionService: any LightPollutionProviding
+    @ObservationIgnored let locationController: any LocationProviding
+    @ObservationIgnored let lightPollutionService: any LightPollutionProviding
     /// 未注入（テスト等）の場合は指数表示を行わない。
-    let tonightScoreProvider: FavoriteTonightScoreProvider?
-    private let favoriteStore: any FavoriteLocationStoring
-    private var cancellables = Set<AnyCancellable>()
-    private var pendingLocationUpdateBehavior: PendingLocationUpdateBehavior?
-    private var lightPollutionRetryTask: Task<Void, Never>?
+    @ObservationIgnored let tonightScoreProvider: FavoriteTonightScoreProvider?
+    @ObservationIgnored private let favoriteStore: any FavoriteLocationStoring
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var pendingLocationUpdateBehavior: PendingLocationUpdateBehavior?
+    @ObservationIgnored private var lightPollutionRetryTask: Task<Void, Never>?
 
     var isSearching: Bool {
         searchState.isSearching
@@ -133,25 +139,32 @@ final class SidebarViewModel: ObservableObject {
         // concrete 実装も @MainActor のため、upstream publisher は必ずメインスレッドで発火する。
         // receive(on: DispatchQueue.main) は不要。
         locationController.searchStatePublisher
-            .assign(to: &$searchState)
+            .sink { [weak self] in self?.searchState = $0 }
+            .store(in: &cancellables)
 
         locationController.isLocatingPublisher
-            .assign(to: &$isLocating)
+            .sink { [weak self] in self?.isLocating = $0 }
+            .store(in: &cancellables)
 
         locationController.locationErrorPublisher
-            .assign(to: &$locationError)
+            .sink { [weak self] in self?.locationError = $0 }
+            .store(in: &cancellables)
 
         locationController.locationNamePublisher
-            .assign(to: &$selectedLocationName)
+            .sink { [weak self] in self?.selectedLocationName = $0 }
+            .store(in: &cancellables)
 
         locationController.searchFocusTriggerPublisher
-            .assign(to: &$searchFocusTrigger)
+            .sink { [weak self] in self?.searchFocusTrigger = $0 }
+            .store(in: &cancellables)
 
         locationController.currentLocationCenterTriggerPublisher
-            .assign(to: &$currentLocationCenterTrigger)
+            .sink { [weak self] in self?.currentLocationCenterTrigger = $0 }
+            .store(in: &cancellables)
 
         locationController.selectedTimeZonePublisher
-            .assign(to: &$selectedTimeZone)
+            .sink { [weak self] in self?.selectedTimeZone = $0 }
+            .store(in: &cancellables)
 
         locationController.selectedLocationPublisher
             .dropFirst()
@@ -162,23 +175,20 @@ final class SidebarViewModel: ObservableObject {
             .store(in: &cancellables)
 
         lightPollutionService.bortleClassPublisher
-            .assign(to: &$lightPollutionBortleClass)
+            .sink { [weak self] in self?.lightPollutionBortleClass = $0 }
+            .store(in: &cancellables)
 
         lightPollutionService.isLoadingPublisher
-            .assign(to: &$isLightPollutionLoading)
+            .sink { [weak self] in self?.isLightPollutionLoading = $0 }
+            .store(in: &cancellables)
 
         lightPollutionService.fetchFailedPublisher
-            .assign(to: &$hasLightPollutionFetchFailed)
+            .sink { [weak self] in self?.hasLightPollutionFetchFailed = $0 }
+            .store(in: &cancellables)
 
         lightPollutionService.isOutOfCoveragePublisher
-            .assign(to: &$isLightPollutionOutOfCoverage)
-
-        // FavoriteTonightScoreProvider も @MainActor なので receive(on:) は不要。
-        tonightScoreProvider?.$scoresByFavoriteID
-            .assign(to: &$favoriteTonightScores)
-
-        tonightScoreProvider?.$isRefreshing
-            .assign(to: &$isRefreshingFavoriteScores)
+            .sink { [weak self] in self?.isLightPollutionOutOfCoverage = $0 }
+            .store(in: &cancellables)
     }
 
     func handleLocationSectionAppear(selectedCoordinate: CLLocationCoordinate2D) {

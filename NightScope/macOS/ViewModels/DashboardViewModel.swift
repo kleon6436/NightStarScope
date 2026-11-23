@@ -2,6 +2,7 @@ import Combine
 import CoreLocation
 import Foundation
 import MapKit
+import Observation
 
 @MainActor
 /// ダッシュボードの地点比較、検索、選択状態を管理する ViewModel。
@@ -17,7 +18,8 @@ extension ComparisonController: ComparisonControlling {}
 
 @MainActor
 /// 複数地点の比較カードと検索状態をまとめて制御する。
-final class DashboardViewModel: ObservableObject {
+@Observable
+final class DashboardViewModel {
     /// 比較結果の並び順を表す。
     enum SortKey: String, CaseIterable, Identifiable {
         case score
@@ -52,34 +54,34 @@ final class DashboardViewModel: ObservableObject {
         case registered(newID: UUID, swap: SwappedSelection?)
     }
 
-    @Published private(set) var availableFavorites: [FavoriteLocation] = []
-    @Published var selectedIDs: Set<UUID> = []
-    @Published var sortKey: SortKey = .score
+    private(set) var availableFavorites: [FavoriteLocation] = []
+    var selectedIDs: Set<UUID> = []
+    var sortKey: SortKey = .score
     let searchController: DashboardSearchController
-    @Published var searchText: String = ""
-    @Published private(set) var selectionOrder: [UUID] = []
-    @Published private(set) var lastSwap: SwappedSelection?
-    @Published private(set) var matrix: ComparisonMatrix = .empty
-    @Published private(set) var isRefreshing = false
-    @Published private(set) var lastError: String?
-    @Published private(set) var isInitialLoad = true
+    var searchText: String = ""
+    private(set) var selectionOrder: [UUID] = []
+    private(set) var lastSwap: SwappedSelection?
+    private(set) var matrix: ComparisonMatrix = .empty
+    private(set) var isRefreshing = false
+    private(set) var lastError: String?
+    private(set) var isInitialLoad = true
 
     static let maxSelection = 6
     static let dayCount = 7
 
-    private let comparisonController: any ComparisonControlling
-    private let favoriteStore: any FavoriteLocationStoring
-    private var cancellables = Set<AnyCancellable>()
-    private var refreshTask: Task<Void, Never>?
-    private var swapResetTask: Task<Void, Never>?
+    @ObservationIgnored private let comparisonController: any ComparisonControlling
+    @ObservationIgnored private let favoriteStore: any FavoriteLocationStoring
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var swapResetTask: Task<Void, Never>?
     private struct PendingSwap {
         let id: UUID
         let swap: SwappedSelection
         let resetTask: Task<Void, Never>
     }
-    private var pendingSwaps: [PendingSwap] = []
-    private var refreshGeneration = 0
-    private var didApplyInitialSelection = false
+    @ObservationIgnored private var pendingSwaps: [PendingSwap] = []
+    @ObservationIgnored private var refreshGeneration = 0
+    @ObservationIgnored private var didApplyInitialSelection = false
 
     /// お気に入りストアと比較コントローラを接続し、初期状態を読み込む。
     init(

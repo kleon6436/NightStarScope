@@ -3,7 +3,7 @@ import SwiftUI
 /// 今後 9 日分の夜間条件を 1 行 1 夜の表で並べるビュー。
 /// - Note: 表は天気データを含むため、スクロール位置に関わらず見えるよう見出し行にも帰属表示を置く。
 struct UpcomingNightsGrid: View {
-    @ObservedObject var viewModel: UpcomingNightsGridViewModel
+    let viewModel: UpcomingNightsGridViewModel
     private let placeholderRowCount = 5
 
     var body: some View {

@@ -3,13 +3,14 @@ import Combine
 
 /// 光害取得状態を星空指数カードへ伝える ViewModel。
 @MainActor
-final class StarGazingIndexCardViewModel: ObservableObject {
-    @Published private(set) var isLoading: Bool = false
-    @Published private(set) var fetchFailed: Bool = false
-    @Published private(set) var isOutOfCoverage: Bool = false
+@Observable
+final class StarGazingIndexCardViewModel {
+    private(set) var isLoading: Bool = false
+    private(set) var fetchFailed: Bool = false
+    private(set) var isOutOfCoverage: Bool = false
 
-    private let lightPollutionService: LightPollutionService
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private let lightPollutionService: LightPollutionService
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     init(lightPollutionService: LightPollutionService) {
         self.lightPollutionService = lightPollutionService
@@ -19,12 +20,15 @@ final class StarGazingIndexCardViewModel: ObservableObject {
     /// 光害サービスの状態をそのままカードの表示状態へ反映する。
     private func setupBindings() {
         lightPollutionService.$isLoading
-            .assign(to: &$isLoading)
+            .sink { [weak self] in self?.isLoading = $0 }
+            .store(in: &cancellables)
 
         lightPollutionService.$fetchFailed
-            .assign(to: &$fetchFailed)
+            .sink { [weak self] in self?.fetchFailed = $0 }
+            .store(in: &cancellables)
 
         lightPollutionService.$isOutOfCoverage
-            .assign(to: &$isOutOfCoverage)
+            .sink { [weak self] in self?.isOutOfCoverage = $0 }
+            .store(in: &cancellables)
     }
 }

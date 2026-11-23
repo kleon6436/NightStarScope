@@ -2,14 +2,14 @@ import SwiftUI
 
 /// 選択中の日付に対する詳細情報をまとめるメイン詳細ビュー。
 struct DetailView: View {
-    @ObservedObject var viewModel: DetailViewModel
+    let viewModel: DetailViewModel
     @ObservedObject var observationModePreference: ObservationModePreference
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openWindow) private var openWindow
 
-    @StateObject private var starGazingIndexCardViewModel: StarGazingIndexCardViewModel
-    @StateObject private var nightWeatherCardViewModel: NightWeatherCardViewModel
-    @StateObject private var upcomingGridViewModel: UpcomingNightsGridViewModel
+    @State private var starGazingIndexCardViewModel: StarGazingIndexCardViewModel
+    @State private var nightWeatherCardViewModel: NightWeatherCardViewModel
+    @State private var upcomingGridViewModel: UpcomingNightsGridViewModel
     @Bindable var starMapViewModel: StarMapViewModel
 
     init(
@@ -20,13 +20,13 @@ struct DetailView: View {
         self.viewModel = viewModel
         self.starMapViewModel = starMapViewModel
         self.observationModePreference = observationModePreference
-        _starGazingIndexCardViewModel = StateObject(
+        _starGazingIndexCardViewModel = State(
             wrappedValue: StarGazingIndexCardViewModel(
                 lightPollutionService: viewModel.lightPollutionService
             )
         )
-        _nightWeatherCardViewModel = StateObject(wrappedValue: NightWeatherCardViewModel())
-        _upcomingGridViewModel = StateObject(wrappedValue: UpcomingNightsGridViewModel(detailViewModel: viewModel))
+        _nightWeatherCardViewModel = State(wrappedValue: NightWeatherCardViewModel())
+        _upcomingGridViewModel = State(wrappedValue: UpcomingNightsGridViewModel(detailViewModel: viewModel))
     }
 
     var body: some View {
@@ -362,7 +362,7 @@ private struct MacSummaryCardsWide: View {
     let isWeatherLoading: Bool
     let isForecastOutOfRange: Bool
     let isCoverageIncomplete: Bool
-    @ObservedObject var weatherViewModel: NightWeatherCardViewModel
+    let weatherViewModel: NightWeatherCardViewModel
 
     var body: some View {
         LazyVGrid(
@@ -397,7 +397,7 @@ private struct MacSummaryCardsWrapped: View {
     let isWeatherLoading: Bool
     let isForecastOutOfRange: Bool
     let isCoverageIncomplete: Bool
-    @ObservedObject var weatherViewModel: NightWeatherCardViewModel
+    let weatherViewModel: NightWeatherCardViewModel
 
     var body: some View {
         LazyVGrid(

@@ -2,14 +2,14 @@ import SwiftUI
 
 /// アプリ全体のルートとなる split view 画面。
 struct ContentView: View {
-    @StateObject private var rootStore: AppRootStore
+    @State private var rootStore: AppRootStore
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @Environment(\.scenePhase) private var scenePhase
 
     @MainActor
     init(dependencies: AppRootDependencies? = nil) {
         let dependencies = dependencies ?? .makeDefault()
-        _rootStore = StateObject(wrappedValue: AppRootStore(dependencies: dependencies))
+        _rootStore = State(wrappedValue: AppRootStore(dependencies: dependencies))
     }
 
     private var selectedDateBinding: Binding<Date> {

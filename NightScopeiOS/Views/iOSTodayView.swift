@@ -24,12 +24,12 @@ struct iOSTodayViewModel {
 
 /// 今夜の観測サマリーを表示するメイン画面。
 struct iOSTodayView: View {
-    @ObservedObject var detailViewModel: DetailViewModel
+    let detailViewModel: DetailViewModel
     @ObservedObject var observationModePreference: ObservationModePreference
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
     private let viewModel = iOSTodayViewModel()
-    @StateObject private var lightPollutionViewModel: StarGazingIndexCardViewModel
-    @StateObject private var weatherViewModel = NightWeatherCardViewModel()
+    @State private var lightPollutionViewModel: StarGazingIndexCardViewModel
+    @State private var weatherViewModel = NightWeatherCardViewModel()
     @State private var presentedSheet: PresentedSheet?
     @State private var calendarDraftDate = Date()
     /// ヒーローとタイムラインの下端（スクロール内容の座標系）。空の背景をここまで暗く保つために測る。
@@ -48,7 +48,7 @@ struct iOSTodayView: View {
         self.detailViewModel = detailViewModel
         self.observationModePreference = observationModePreference
         self.favoriteSyncReconciler = favoriteSyncReconciler
-        _lightPollutionViewModel = StateObject(
+        _lightPollutionViewModel = State(
             wrappedValue: StarGazingIndexCardViewModel(
                 lightPollutionService: detailViewModel.lightPollutionService
             )

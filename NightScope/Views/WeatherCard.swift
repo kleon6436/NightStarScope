@@ -7,7 +7,7 @@ struct NightWeatherCard: View {
     let isForecastOutOfRange: Bool
     let isCoverageIncomplete: Bool
     let errorMessage: String?
-    @ObservedObject var viewModel: NightWeatherCardViewModel
+    let viewModel: NightWeatherCardViewModel
     var style: SummaryCardStyle = .regular
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 

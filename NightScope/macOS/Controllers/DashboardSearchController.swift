@@ -1,14 +1,15 @@
-import Combine
 import Foundation
+import Observation
 
 /// Dashboard 上の地点検索入力を遅延実行付きで管理する。
 @MainActor
-final class DashboardSearchController: ObservableObject {
-    @Published private(set) var state: LocationSearchState = .idle
+@Observable
+final class DashboardSearchController {
+    private(set) var state: LocationSearchState = .idle
 
-    private let searchService: any LocationSearchServicing
-    private var searchTask: Task<Void, Never>?
-    private var latestQuery: String = ""
+    @ObservationIgnored private let searchService: any LocationSearchServicing
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var latestQuery: String = ""
 
     /// 検索サービスを注入する。
     init(searchService: any LocationSearchServicing = MKLocationSearchService()) {

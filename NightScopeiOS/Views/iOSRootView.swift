@@ -4,15 +4,16 @@ import UIKit
 /// iOS 版の主要画面を TabView でまとめるルート View。
 struct iOSRootView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var rootStore: AppRootStore
+    @State private var rootStore: AppRootStore
     @State private var selectedTab = 0
     @State private var hasHandledCurrentActiveState = false
 
     /// AppRootStore を外部から差し替えられるようにする。
     @MainActor
     init(dependencies: AppRootDependencies? = nil) {
-        // autoclosure の内側で生成し、View の再生成のたびに AppController が作られないようにする。
-        _rootStore = StateObject(wrappedValue: AppRootStore(dependencies: dependencies ?? .makeDefault()))
+        // @State の初期値は View の再生成のたびに評価されるため、アプリ本体は依存関係を一度だけ作って渡す。
+        // ここで作られる AppRootStore は依存関係を参照するだけで、AppController は生成しない。
+        _rootStore = State(wrappedValue: AppRootStore(dependencies: dependencies ?? .makeDefault()))
     }
 
     var body: some View {

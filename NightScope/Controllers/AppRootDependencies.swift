@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Observation
 import CoreLocation
 import MapKit
 
@@ -82,7 +83,8 @@ struct DashboardSceneDependencies {
 
 /// ルート依存関係を保持し、ViewModel 間の購読をまとめて管理する。
 @MainActor
-final class AppRootStore: ObservableObject {
+@Observable
+final class AppRootStore {
     let appController: AppController
     let observationModePreference: ObservationModePreference
     let sidebarViewModel: SidebarViewModel
@@ -92,8 +94,9 @@ final class AppRootStore: ObservableObject {
     let comparisonController: ComparisonController
     let dashboardCommandBridge: DashboardCommandBridge
     let favoriteSyncReconciler: FavoriteSyncReconciler
-    
-    @Published private(set) var selectedDate: Date = Date()
+
+    /// detailViewModel の選択日を転送する。読み出した View は Observation で日付変化を追跡し再描画される。
+    var selectedDate: Date { detailViewModel.selectedDate }
 
     init(dependencies: AppRootDependencies? = nil) {
         let dependencies = dependencies ?? .makeDefault()
@@ -106,10 +109,6 @@ final class AppRootStore: ObservableObject {
         self.comparisonController = dependencies.comparisonController
         self.dashboardCommandBridge = dependencies.dashboardCommandBridge
         self.favoriteSyncReconciler = dependencies.favoriteSyncReconciler
-        
-        // detailViewModel の日付変化を AppRootStore に伝播させ ContentView を再描画させる
-        dependencies.detailViewModel.$selectedDate
-            .assign(to: &$selectedDate)
     }
 }
 

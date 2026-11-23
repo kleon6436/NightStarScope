@@ -1,20 +1,22 @@
 import Foundation
 import Combine
+import Observation
 
 /// 月齢カレンダー画面の表示月・選択夜・月相データを管理する ViewModel。
 @MainActor
-final class LunarCalendarViewModel: ObservableObject {
+@Observable
+final class LunarCalendarViewModel {
     /// 表示中の月（観測地 TZ の、その月内の任意の日の 0 時）
-    @Published private(set) var displayMonth: Date
+    private(set) var displayMonth: Date
     /// 日曜始まりのグリッド用。先頭の空セルは nil。
-    @Published private(set) var days: [LunarDay?] = []
-    @Published private(set) var selectedNight: Date
-    @Published private(set) var isSouthernHemisphere: Bool
-    @Published private(set) var timeZone: TimeZone
+    private(set) var days: [LunarDay?] = []
+    private(set) var selectedNight: Date
+    private(set) var isSouthernHemisphere: Bool
+    private(set) var timeZone: TimeZone
 
-    private let currentObservationDate: () -> Date
-    private let onOpenNight: (Date) -> Void
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private let currentObservationDate: () -> Date
+    @ObservationIgnored private let onOpenNight: (Date) -> Void
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     /// - Parameters:
     ///   - currentObservationDate: 「今日」とみなす観測夜を返す。

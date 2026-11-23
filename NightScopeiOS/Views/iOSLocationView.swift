@@ -6,7 +6,7 @@ import UIKit
 struct iOSLocationView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
-    @ObservedObject var sidebarViewModel: SidebarViewModel
+    let sidebarViewModel: SidebarViewModel
     var favoriteSyncReconciler: FavoriteSyncReconciler?
     @FocusState private var isSearchFocused: Bool
     @State private var locationInputMode: LocationInputMode = .map
@@ -421,7 +421,7 @@ private struct LocationSearchField: View {
 
 /// お気に入り一覧を表示する。
 private struct iOSFavoritesSection: View {
-    @ObservedObject var viewModel: SidebarViewModel
+    let viewModel: SidebarViewModel
     let onSelect: (FavoriteLocation) -> Void
 
     private var needsScroll: Bool {

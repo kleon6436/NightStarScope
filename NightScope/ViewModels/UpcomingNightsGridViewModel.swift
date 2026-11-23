@@ -35,22 +35,25 @@ struct UpcomingNightsDisplay {
 
 /// 未来数夜の表示と選択状態を管理する ViewModel。
 @MainActor
-final class UpcomingNightsGridViewModel: ObservableObject {
+@Observable
+final class UpcomingNightsGridViewModel {
+    // 詳細画面の状態は DetailViewModel（@Observable）へ転送し、読み出し時に Observation が追跡する。
     /// カレンダーグリッドに表示する夜間データ。
-    @Published private(set) var displayNights: [NightSummary] = []
-    @Published private(set) var isLoading = false
-    @Published private(set) var selectedDate: Date
-    @Published private(set) var observationMode: ObservationMode
-    @Published private(set) var upcomingIndexes: [Date: StarGazingIndex]
-    @Published private(set) var weatherByDate: [String: DayWeatherSummary]
-    @Published private(set) var weatherErrorMessage: String?
-    @Published private(set) var selectedTimeZone: TimeZone
+    var displayNights: [NightSummary] { detailViewModel.upcomingNights }
+    var isLoading: Bool { detailViewModel.isUpcomingLoading }
+    var selectedDate: Date { detailViewModel.selectedDate }
+    var observationMode: ObservationMode { detailViewModel.observationMode }
+    var upcomingIndexes: [Date: StarGazingIndex] { detailViewModel.upcomingIndexes }
+    var weatherErrorMessage: String? { detailViewModel.weatherErrorMessage }
+    var selectedTimeZone: TimeZone { detailViewModel.selectedTimeZone }
+    /// 天気サービスは ObservableObject のため、publisher を購読して Observation 対象の値として持つ。
+    private(set) var weatherByDate: [String: DayWeatherSummary]
 
-    private let detailViewModel: DetailViewModel
-    private var cancellables = Set<AnyCancellable>()
-    /// `display` の計算結果。入力（@Published）のいずれかが変わると破棄する。
+    @ObservationIgnored private let detailViewModel: DetailViewModel
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    /// `display` の計算結果。計算中に読んだ Observation 対象の入力のいずれかが変わると破棄する。
     /// 現在時刻に依存する判定（今夜・部分予報）が日をまたいで古くならないよう、日付の区切りもキーに含める。
-    private var displayCache: (key: DisplayCacheKey, display: UpcomingNightsDisplay)?
+    @ObservationIgnored private var displayCache: (key: DisplayCacheKey, display: UpcomingNightsDisplay)?
 
     private struct DisplayCacheKey: Equatable {
         let currentObservationDate: Date
@@ -60,43 +63,13 @@ final class UpcomingNightsGridViewModel: ObservableObject {
     /// 詳細画面の状態をそのまま監視して、一覧へ反映する。
     init(detailViewModel: DetailViewModel) {
         self.detailViewModel = detailViewModel
-        self.selectedDate = detailViewModel.selectedDate
-        self.observationMode = detailViewModel.observationMode
-        self.upcomingIndexes = detailViewModel.upcomingIndexes
         self.weatherByDate = detailViewModel.weatherService.weatherByDate
-        self.weatherErrorMessage = detailViewModel.weatherErrorMessage
-        self.selectedTimeZone = detailViewModel.selectedTimeZone
         setupBindings()
     }
 
     private func setupBindings() {
-        detailViewModel.$upcomingNights
-            .sink { [weak self] nights in self?.displayNights = nights }
-            .store(in: &cancellables)
-
-        detailViewModel.$selectedDate
-            .assign(to: &$selectedDate)
-
-        detailViewModel.$observationMode
-            .assign(to: &$observationMode)
-
-        detailViewModel.$upcomingIndexes
-            .assign(to: &$upcomingIndexes)
-
         detailViewModel.weatherService.weatherByDatePublisher
-            .assign(to: &$weatherByDate)
-
-        detailViewModel.$weatherErrorMessage
-            .assign(to: &$weatherErrorMessage)
-
-        detailViewModel.$selectedTimeZone
-            .assign(to: &$selectedTimeZone)
-
-        detailViewModel.$isUpcomingLoading
-            .assign(to: &$isLoading)
-
-        objectWillChange
-            .sink { [weak self] _ in self?.displayCache = nil }
+            .sink { [weak self] in self?.weatherByDate = $0 }
             .store(in: &cancellables)
     }
 
@@ -112,9 +85,20 @@ final class UpcomingNightsGridViewModel: ObservableObject {
             )
         )
         if let displayCache, displayCache.key == key {
+            // キャッシュを返すときも入力を読み、呼び出し側（View）の Observation 追跡に入力を登録する。
+            _ = (displayNights, selectedDate, observationMode, upcomingIndexes)
+            _ = (weatherByDate, weatherErrorMessage, selectedTimeZone)
             return displayCache.display
         }
-        let display = makeDisplay()
+        // 計算中に読んだ入力が変わった時点（willSet）で同期的にキャッシュを破棄する。
+        // 入力はすべて MainActor 上で更新されるため、通知もメインスレッドで届く。
+        let display = withObservationTracking {
+            makeDisplay()
+        } onChange: { [weak self] in
+            MainActor.assumeIsolated {
+                self?.displayCache = nil
+            }
+        }
         displayCache = (key, display)
         return display
     }
@@ -168,7 +152,7 @@ final class UpcomingNightsGridViewModel: ObservableObject {
     // MARK: - Public Methods
 
     func setSelectedDate(_ date: Date) {
-        // DetailViewModel.$selectedDate の sink が appController.selectedDate 更新と
+        // DetailViewModel.selectedDate の didSet が appController.selectedDate 更新と
         // 当日詳細の再計算を担うため、ここでは選択日だけを更新する
         detailViewModel.selectedDate = date
     }

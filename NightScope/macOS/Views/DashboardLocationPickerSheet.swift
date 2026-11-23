@@ -3,7 +3,7 @@ import CoreLocation
 
 /// 複数地点ダッシュボードで表示対象を選び直すシート。
 struct DashboardLocationPickerSheet: View {
-    @ObservedObject var viewModel: DashboardViewModel
+    let viewModel: DashboardViewModel
     @Binding var isPresented: Bool
 
     @Environment(\.dismiss) private var dismiss

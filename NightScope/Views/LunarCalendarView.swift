@@ -32,7 +32,7 @@ extension MoonPhase.MoonlightLevel {
 
 /// 1 か月分の月相をグリッドで表示する月齢カレンダー（macOS / iOS 共通）。
 struct LunarCalendarView: View {
-    @ObservedObject var viewModel: LunarCalendarViewModel
+    let viewModel: LunarCalendarViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -48,7 +48,7 @@ struct LunarCalendarView: View {
 // MARK: - Header
 
 private struct LunarCalendarHeader: View {
-    @ObservedObject var viewModel: LunarCalendarViewModel
+    let viewModel: LunarCalendarViewModel
 
     var body: some View {
         HStack {
@@ -123,7 +123,7 @@ struct LunarPhaseEventList: View {
 // MARK: - Grid
 
 private struct LunarCalendarGrid: View {
-    @ObservedObject var viewModel: LunarCalendarViewModel
+    let viewModel: LunarCalendarViewModel
 
     private var weekdayLabels: [CalendarView.WeekdayHeaderItem] {
         var calendar = Calendar(identifier: .gregorian)
@@ -382,7 +382,7 @@ enum LunarCalendarStyle {
 }
 
 private struct LunarCalendarPreviewContent: View {
-    @ObservedObject var viewModel: LunarCalendarViewModel
+    let viewModel: LunarCalendarViewModel
 
     var body: some View {
         ScrollView {

@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 
 /// サイドバーのお気に入り行に表示する「今夜の星空指数」1 件分の表示データ。
 struct FavoriteTonightScore: Equatable, Sendable {
@@ -17,23 +17,24 @@ struct FavoriteTonightScore: Equatable, Sendable {
 /// お気に入りがそれより多い場合や TTL 切れでは 1 件につき WeatherKit 呼び出しが 1 回発生する。
 /// そのため指数自体も TTL（`cacheLifetime`）でキャッシュし、呼び出し回数を抑える。
 @MainActor
-final class FavoriteTonightScoreProvider: ObservableObject {
+@Observable
+final class FavoriteTonightScoreProvider {
     /// 計算結果を再利用する有効期間（秒）。
     static let cacheLifetime: TimeInterval = 3600
     /// 取得に失敗した地点を再試行するまでの待ち時間（秒）。`force` のときは無視する。
     static let failureRetryInterval: TimeInterval = 300
 
-    @Published private(set) var scoresByFavoriteID: [UUID: FavoriteTonightScore] = [:]
-    @Published private(set) var isRefreshing = false
+    private(set) var scoresByFavoriteID: [UUID: FavoriteTonightScore] = [:]
+    private(set) var isRefreshing = false
 
-    private let weatherService: any WeatherProviding
-    private let lightPollutionService: any LightPollutionProviding
-    private let calculationService: any NightCalculating
-    private let referenceDateProvider: () -> Date
+    @ObservationIgnored private let weatherService: any WeatherProviding
+    @ObservationIgnored private let lightPollutionService: any LightPollutionProviding
+    @ObservationIgnored private let calculationService: any NightCalculating
+    @ObservationIgnored private let referenceDateProvider: () -> Date
     /// 更新要求が重なった際に古い結果で上書きしないための世代カウンタ。
-    private var refreshGeneration = 0
+    @ObservationIgnored private var refreshGeneration = 0
     /// 地点ごとの直近の取得失敗時刻。バックオフ判定に使う。
-    private var lastFailureByFavoriteID: [UUID: Date] = [:]
+    @ObservationIgnored private var lastFailureByFavoriteID: [UUID: Date] = [:]
 
     init(
         weatherService: any WeatherProviding,

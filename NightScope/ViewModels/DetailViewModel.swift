@@ -35,40 +35,47 @@ struct DetailContentStateResolver {
 
 @MainActor
 /// 観測日の詳細情報と再計算状態を管理する ViewModel。
-final class DetailViewModel: ObservableObject {
+@Observable
+final class DetailViewModel {
     /// 現在表示している当日詳細の元データ。
-    @Published private(set) var nightSummary: NightSummary?
+    private(set) var nightSummary: NightSummary?
     /// 調整後の星空指数。
-    @Published private(set) var starGazingIndex: StarGazingIndex?
+    private(set) var starGazingIndex: StarGazingIndex?
     /// 選択中の観測モード。
-    @Published private(set) var observationMode: ObservationMode
+    private(set) var observationMode: ObservationMode
     /// 再計算中かどうか。
-    @Published private(set) var isCalculating = false
+    private(set) var isCalculating = false
     /// 予報対象の未来数日分。
-    @Published private(set) var upcomingNights: [NightSummary] = []
+    private(set) var upcomingNights: [NightSummary] = []
     /// 日付ごとの星空指数キャッシュ。
-    @Published private(set) var upcomingIndexes: [Date: StarGazingIndex] = [:]
-    @Published var selectedDate: Date
+    private(set) var upcomingIndexes: [Date: StarGazingIndex] = [:]
+    var selectedDate: Date {
+        didSet {
+            // 同値の代入では何もしない（旧 $selectedDate 購読の removeDuplicates と同じ扱い）。
+            guard selectedDate != oldValue else { return }
+            requestObservationDate(selectedDate)
+        }
+    }
     /// 表示上の観測日。再計算中は一時的に前回表示を保持する。
-    @Published private(set) var displayedDate: Date
-    @Published private(set) var locationName: String = ""
-    @Published private(set) var hasWeatherError: Bool = false
-    @Published private(set) var weatherErrorMessage: String? = nil
-    @Published private(set) var hasLightPollutionError: Bool = false
-    @Published private(set) var currentWeather: DayWeatherSummary?
-    @Published private(set) var isWeatherLoading: Bool = false
-    @Published private(set) var isUpcomingLoading: Bool = false
-    @Published private(set) var selectedTimeZone: TimeZone
-    @Published private(set) var isCurrentWeatherForecastOutOfRange = false
-    @Published private(set) var isCurrentWeatherCoverageIncomplete = false
+    private(set) var displayedDate: Date
+    private(set) var locationName: String = ""
+    private(set) var hasWeatherError: Bool = false
+    private(set) var weatherErrorMessage: String? = nil
+    private(set) var hasLightPollutionError: Bool = false
+    private(set) var currentWeather: DayWeatherSummary?
+    private(set) var isWeatherLoading: Bool = false
+    private(set) var isUpcomingLoading: Bool = false
+    private(set) var selectedTimeZone: TimeZone
+    private(set) var isCurrentWeatherForecastOutOfRange = false
+    private(set) var isCurrentWeatherCoverageIncomplete = false
     /// ヘッダーに添える観測地の現在気温（例: `18°`）。未取得・古い場合は nil。
-    @Published private(set) var currentTemperatureText: String?
+    private(set) var currentTemperatureText: String?
     /// 現在気温の読み上げ文。`currentTemperatureText` と同時に更新する。
-    @Published private(set) var currentTemperatureAccessibilityLabel: String?
+    private(set) var currentTemperatureAccessibilityLabel: String?
 
-    private let appController: AppController
-    private let observationModePreference: ObservationModePreference
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private let appController: AppController
+    @ObservationIgnored private let observationModePreference: ObservationModePreference
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     /// AppController の観測状態を詳細画面向けに同期する。
     init(
@@ -101,7 +108,7 @@ final class DetailViewModel: ObservableObject {
                 }
                 self.upcomingNights = state.upcomingNights
                 self.upcomingIndexes = state.upcomingIndexes
-                // @Published は同値の代入でも objectWillChange を送るため、Equatable な値は変化時だけ書き込む。
+                // Observation は同値の代入でも変更を通知するため、Equatable な値は変化時だけ書き込む。
                 if self.isCalculating != state.isCalculating {
                     self.isCalculating = state.isCalculating
                 }
@@ -117,31 +124,9 @@ final class DetailViewModel: ObservableObject {
         // 天気の変化は AppController が指数を組み直して ObservationState を配信するため、上の購読で反映される。
         // （weatherByDatePublisher を直接購読すると willSet 時点の古い値を読んでしまう。）
 
-        $selectedDate
-            .dropFirst()
-            .removeDuplicates()
-            .sink { [weak self] date in
-                guard let self else { return }
-                let normalizedDate = ObservationTimeZone.startOfDay(
-                    for: date,
-                    timeZone: self.selectedTimeZone
-                )
-                guard !ObservationTimeZone.isDate(
-                    self.appController.selectedDate,
-                    inSameDayAs: normalizedDate,
-                    timeZone: self.selectedTimeZone
-                ) else {
-                    return
-                }
-                self.appController.selectObservationDate(
-                    normalizedDate,
-                    timeZone: self.selectedTimeZone
-                )
-            }
-            .store(in: &cancellables)
-
         appController.locationController.$locationName
-            .assign(to: &$locationName)
+            .sink { [weak self] in self?.locationName = $0 }
+            .store(in: &cancellables)
 
         appController.locationController.selectedTimeZonePublisher
             .sink { [weak self] timeZone in
@@ -159,7 +144,8 @@ final class DetailViewModel: ObservableObject {
             .store(in: &cancellables)
 
         appController.weatherService.isLoadingPublisher
-            .assign(to: &$isWeatherLoading)
+            .sink { [weak self] in self?.isWeatherLoading = $0 }
+            .store(in: &cancellables)
 
         appController.weatherService.currentTemperaturePublisher
             .sink { [weak self] celsius in
@@ -171,11 +157,32 @@ final class DetailViewModel: ObservableObject {
             .store(in: &cancellables)
 
         appController.lightPollutionService.fetchFailedPublisher
-            .assign(to: &$hasLightPollutionError)
+            .sink { [weak self] in self?.hasLightPollutionError = $0 }
+            .store(in: &cancellables)
 
         observationModePreference.$mode
             .removeDuplicates()
-            .assign(to: &$observationMode)
+            .sink { [weak self] in self?.observationMode = $0 }
+            .store(in: &cancellables)
+    }
+
+    /// 選択日の変更を AppController へ伝え、当日詳細を再計算させる。
+    private func requestObservationDate(_ date: Date) {
+        let normalizedDate = ObservationTimeZone.startOfDay(
+            for: date,
+            timeZone: selectedTimeZone
+        )
+        guard !ObservationTimeZone.isDate(
+            appController.selectedDate,
+            inSameDayAs: normalizedDate,
+            timeZone: selectedTimeZone
+        ) else {
+            return
+        }
+        appController.selectObservationDate(
+            normalizedDate,
+            timeZone: selectedTimeZone
+        )
     }
 
     var weatherService: any WeatherProviding {

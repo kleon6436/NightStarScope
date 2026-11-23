@@ -3,7 +3,7 @@ import AppKit
 
 /// macOS の月齢カレンダーウィンドウ。左にグリッド、右に選んだ夜の詳細を置く。
 struct LunarCalendarWindowView: View {
-    @ObservedObject var viewModel: LunarCalendarViewModel
+    let viewModel: LunarCalendarViewModel
     @Environment(\.openWindow) private var openWindow
 
     static let windowID = "lunarCalendar"

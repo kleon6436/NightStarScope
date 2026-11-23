@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 月齢カレンダータブ。月ごとのグリッドと、選んだ夜の詳細を縦に並べる。
 struct iOSLunarCalendarView: View {
-    @ObservedObject var viewModel: LunarCalendarViewModel
+    let viewModel: LunarCalendarViewModel
     @Binding var selectedTab: Int
 
     var body: some View {

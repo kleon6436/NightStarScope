@@ -68,16 +68,16 @@ struct iOSForecastViewModel {
 
 /// 9日予報タブの一覧画面。
 struct iOSForecastView: View {
-    @ObservedObject var detailViewModel: DetailViewModel
+    let detailViewModel: DetailViewModel
     @Binding var selectedTab: Int
     private let viewModel = iOSForecastViewModel()
-    @StateObject private var gridViewModel: UpcomingNightsGridViewModel
+    @State private var gridViewModel: UpcomingNightsGridViewModel
 
     /// 詳細画面の ViewModel とタブ選択状態を受け取る。
     init(detailViewModel: DetailViewModel, selectedTab: Binding<Int>) {
         self.detailViewModel = detailViewModel
         self._selectedTab = selectedTab
-        self._gridViewModel = StateObject(wrappedValue: UpcomingNightsGridViewModel(detailViewModel: detailViewModel))
+        self._gridViewModel = State(wrappedValue: UpcomingNightsGridViewModel(detailViewModel: detailViewModel))
     }
 
     private var displayState: LoadableContentState {

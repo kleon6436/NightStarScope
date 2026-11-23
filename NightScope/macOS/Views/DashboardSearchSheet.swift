@@ -4,14 +4,14 @@ import AppKit
 
 /// 複数地点ダッシュボードのヘッダー直下に表示するインライン検索セクション。
 struct DashboardSearchSection: View {
-    @ObservedObject var viewModel: DashboardViewModel
-    @ObservedObject private var searchController: DashboardSearchController
+    let viewModel: DashboardViewModel
+    private let searchController: DashboardSearchController
 
     @FocusState private var searchFieldFocused: Bool
 
     init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
-        _searchController = ObservedObject(wrappedValue: viewModel.searchController)
+        self.searchController = viewModel.searchController
     }
 
     var body: some View {
@@ -204,7 +204,7 @@ struct DashboardSearchSection: View {
 
 /// 検索結果の 1 行を、登録状態に応じて分岐表示する。
 private struct DashboardSearchResultRow: View {
-    @ObservedObject var viewModel: DashboardViewModel
+    let viewModel: DashboardViewModel
     let mapItem: MKMapItem
 
     private var existingFavorite: FavoriteLocation? {
