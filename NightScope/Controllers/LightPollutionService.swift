@@ -1,6 +1,7 @@
 import Foundation
 import Compression
 import MapKit
+import Observation
 
 /// 光害データ取得時の代表的なエラー。
 enum LightPollutionServiceError: Error, LocalizedError {
@@ -19,16 +20,12 @@ enum LightPollutionServiceError: Error, LocalizedError {
 
 /// Bortle 値の取得と公開状態を扱う。
 @MainActor
-protocol LightPollutionProviding: AnyObject, ObservableObject, Sendable {
+protocol LightPollutionProviding: AnyObject, Observable, Sendable {
     var bortleClass: Double? { get }
-    var bortleClassPublisher: Published<Double?>.Publisher { get }
     var isLoading: Bool { get }
-    var isLoadingPublisher: Published<Bool>.Publisher { get }
     var fetchFailed: Bool { get }
-    var fetchFailedPublisher: Published<Bool>.Publisher { get }
     /// 収録範囲外（極域など）。取得失敗ではなくデータなしとして扱う。
     var isOutOfCoverage: Bool { get }
-    var isOutOfCoveragePublisher: Published<Bool>.Publisher { get }
 
     func fetch(latitude: Double, longitude: Double) async
     func fetchBortle(latitude: Double, longitude: Double) async throws -> Double
@@ -327,7 +324,8 @@ final class LightPollutionTileService: @unchecked Sendable {
 /// バンドルデータが存在しない場合は fetchFailed = true、bortleClass = nil となる。
 /// バンドルデータの生成: Tools/generate_bortle_map.py (CC-BY 4.0, Falchi et al. 2016)
 @MainActor
-final class LightPollutionService: ObservableObject, LightPollutionProviding {
+@Observable
+final class LightPollutionService: LightPollutionProviding {
     private enum Constants {
         /// 同一座標とみなすキャッシュ半径（度）≈ 5 km
         static let cacheRadiusDegrees = 0.05
@@ -344,21 +342,17 @@ final class LightPollutionService: ObservableObject, LightPollutionProviding {
         let fetchedAt: Date
     }
 
-    @Published var bortleClass: Double?
-    var bortleClassPublisher: Published<Double?>.Publisher { $bortleClass }
-    @Published var isLoading = false
-    var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
-    @Published var fetchFailed = false
-    var fetchFailedPublisher: Published<Bool>.Publisher { $fetchFailed }
-    @Published var isOutOfCoverage = false
-    var isOutOfCoveragePublisher: Published<Bool>.Publisher { $isOutOfCoverage }
+    var bortleClass: Double?
+    var isLoading = false
+    var fetchFailed = false
+    var isOutOfCoverage = false
 
-    private var lastFetchResult: FetchResult?
+    @ObservationIgnored private var lastFetchResult: FetchResult?
     /// 取得の世代。観測地変更や新しい取得で進め、待機中だった古い取得の結果を反映しないために使う。
-    private var fetchGeneration = 0
+    @ObservationIgnored private var fetchGeneration = 0
 
     /// バンドルデータ。未ロード時は provider から非同期に取得する。
-    private var gridData: BortleGridData?
+    @ObservationIgnored private var gridData: BortleGridData?
     private let gridProvider: BortleGridProvider?
     private let scaleConverter: BortleScaleConverter
 

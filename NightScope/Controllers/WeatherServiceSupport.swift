@@ -1,6 +1,6 @@
 import Foundation
 import CoreLocation
-import Combine
+import Observation
 
 // MARK: - 共通結果型
 
@@ -46,16 +46,12 @@ enum WeatherServiceError: Error, LocalizedError {
 
 /// 天気取得・参照・切り替え処理の共通インターフェース。
 @MainActor
-protocol WeatherProviding: AnyObject, ObservableObject, Sendable {
+protocol WeatherProviding: AnyObject, Observable, Sendable {
     var weatherByDate: [String: DayWeatherSummary] { get }
-    var weatherByDatePublisher: Published<[String: DayWeatherSummary]>.Publisher { get }
     var isLoading: Bool { get }
-    var isLoadingPublisher: AnyPublisher<Bool, Never> { get }
     var errorMessage: String? { get }
-    var errorMessagePublisher: AnyPublisher<String?, Never> { get }
     /// 観測地の現在気温（℃）。未取得・古すぎる場合は nil。
     var currentTemperatureCelsius: Double? { get }
-    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { get }
 
     func fetchWeather(latitude: Double, longitude: Double, timeZone: TimeZone) async
     func summary(for date: Date) -> DayWeatherSummary?

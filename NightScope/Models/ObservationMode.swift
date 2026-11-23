@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// 観測目的に応じた星空指数の重み付けモード。
 enum ObservationMode: String, CaseIterable, Identifiable, Sendable {
@@ -53,13 +54,24 @@ struct ObservationModeWeights: Sendable {
 }
 
 /// UserDefaults と同期する観測モードの保存用ラッパー。
-final class ObservationModePreference: ObservableObject {
-    @Published var mode: ObservationMode {
-        didSet {
-            userDefaults.set(mode.rawValue, forKey: key)
+@Observable
+final class ObservationModePreference {
+    /// 同値の代入では変更を通知しない（旧 DetailViewModel 側の removeDuplicates と同じ扱い）。
+    var mode: ObservationMode {
+        get {
+            access(keyPath: \.mode)
+            return storedMode
+        }
+        set {
+            guard newValue != storedMode else { return }
+            withMutation(keyPath: \.mode) {
+                storedMode = newValue
+            }
+            userDefaults.set(newValue.rawValue, forKey: key)
         }
     }
 
+    @ObservationIgnored private var storedMode: ObservationMode
     private let userDefaults: UserDefaults
     private let key: String
 
@@ -70,7 +82,7 @@ final class ObservationModePreference: ObservableObject {
 
         let storedValue = userDefaults.string(forKey: key) ?? ""
         let restoredMode = ObservationMode.restoredMode(from: storedValue)
-        self.mode = restoredMode
+        self.storedMode = restoredMode
 
         if !storedValue.isEmpty, restoredMode.rawValue != storedValue {
             userDefaults.set(restoredMode.rawValue, forKey: key)

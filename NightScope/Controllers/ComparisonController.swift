@@ -1,13 +1,15 @@
 import Foundation
 import CoreLocation
+import Observation
 
 /// 保存済み地点の夜間条件を日単位で比較するコントローラ。
 @MainActor
-final class ComparisonController: ObservableObject {
-    @Published private(set) var matrix: ComparisonMatrix = .empty
-    @Published private(set) var isRefreshing = false
+@Observable
+final class ComparisonController {
+    private(set) var matrix: ComparisonMatrix = .empty
+    private(set) var isRefreshing = false
     /// 比較に含める日数。
-    @Published var dayCount: Int = 7
+    var dayCount: Int = 7
 
     private let favoriteStore: any FavoriteLocationStoring
     private let weatherService: any WeatherProviding

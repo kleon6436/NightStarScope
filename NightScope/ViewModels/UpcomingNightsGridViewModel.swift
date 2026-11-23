@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 import CoreLocation
 
 /// 予報一覧の 1 夜分の表示値。判定や文言の組み立ては入力が変わったときだけ行う。
@@ -46,11 +45,10 @@ final class UpcomingNightsGridViewModel {
     var upcomingIndexes: [Date: StarGazingIndex] { detailViewModel.upcomingIndexes }
     var weatherErrorMessage: String? { detailViewModel.weatherErrorMessage }
     var selectedTimeZone: TimeZone { detailViewModel.selectedTimeZone }
-    /// 天気サービスは ObservableObject のため、publisher を購読して Observation 対象の値として持つ。
-    private(set) var weatherByDate: [String: DayWeatherSummary]
+    /// 天気サービス（@Observable）へ転送する。
+    var weatherByDate: [String: DayWeatherSummary] { detailViewModel.weatherService.weatherByDate }
 
     @ObservationIgnored private let detailViewModel: DetailViewModel
-    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     /// `display` の計算結果。計算中に読んだ Observation 対象の入力のいずれかが変わると破棄する。
     /// 現在時刻に依存する判定（今夜・部分予報）が日をまたいで古くならないよう、日付の区切りもキーに含める。
     @ObservationIgnored private var displayCache: (key: DisplayCacheKey, display: UpcomingNightsDisplay)?
@@ -63,14 +61,6 @@ final class UpcomingNightsGridViewModel {
     /// 詳細画面の状態をそのまま監視して、一覧へ反映する。
     init(detailViewModel: DetailViewModel) {
         self.detailViewModel = detailViewModel
-        self.weatherByDate = detailViewModel.weatherService.weatherByDate
-        setupBindings()
-    }
-
-    private func setupBindings() {
-        detailViewModel.weatherService.weatherByDatePublisher
-            .sink { [weak self] in self?.weatherByDate = $0 }
-            .store(in: &cancellables)
     }
 
     // MARK: - Display Snapshot

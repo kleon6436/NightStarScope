@@ -5,7 +5,7 @@ import SwiftUI
 struct SettingsView<PlatformSections: View>: View {
     @AppStorage("windSpeedUnit") private var windSpeedUnit: String = WindSpeedUnit.kmh.rawValue
     @AppStorage(AppSettingsKeys.iCloudSyncEnabled) private var iCloudSyncEnabled: Bool = false
-    @ObservedObject private var observationModePreference: ObservationModePreference
+    @Bindable private var observationModePreference: ObservationModePreference
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
     private let platformSections: PlatformSections
     @State private var isFavoriteImportPresented = false

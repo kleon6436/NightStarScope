@@ -3,7 +3,7 @@ import SwiftUI
 /// 選択中の日付に対する詳細情報をまとめるメイン詳細ビュー。
 struct DetailView: View {
     let viewModel: DetailViewModel
-    @ObservedObject var observationModePreference: ObservationModePreference
+    let observationModePreference: ObservationModePreference
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openWindow) private var openWindow
 

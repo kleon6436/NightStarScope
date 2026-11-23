@@ -196,7 +196,7 @@ struct WeatherAttributionBadge: View {
     var style: Style = .compact
     var size: Size = .caption
 
-    @EnvironmentObject private var attributionService: WeatherAttributionService
+    @Environment(WeatherAttributionService.self) private var attributionService
     @Environment(\.colorScheme) private var colorScheme
     @ScaledMetric(relativeTo: .caption) private var captionMarkHeight = AttributionMetrics.captionMarkHeight
     @ScaledMetric(relativeTo: .title3) private var headlineMarkHeight = AttributionMetrics.headlineMarkHeight

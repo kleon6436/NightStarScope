@@ -110,8 +110,8 @@ struct NightScopeCommands: Commands {
 
 @main
 struct NightScopeApp: App {
-    @StateObject private var weatherAttributionService = WeatherAttributionService()
-    @StateObject private var observationModePreference: ObservationModePreference
+    @State private var weatherAttributionService = WeatherAttributionService()
+    @State private var observationModePreference: ObservationModePreference
     private let appController: AppController
     private let rootDependencies: AppRootDependencies
     private let dashboardSceneDependencies: DashboardSceneDependencies
@@ -127,7 +127,7 @@ struct NightScopeApp: App {
         )
         let dashboardCommandBridge = DashboardCommandBridge()
 
-        self._observationModePreference = StateObject(wrappedValue: observationModePreference)
+        self._observationModePreference = State(initialValue: observationModePreference)
         self.appController = appController
         self.rootDependencies = AppRootDependencies(
             appController: appController,
@@ -146,7 +146,7 @@ struct NightScopeApp: App {
             ContentView(
                 dependencies: rootDependencies
             )
-                .environmentObject(weatherAttributionService)
+                .environment(weatherAttributionService)
         }
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
@@ -156,7 +156,7 @@ struct NightScopeApp: App {
 
         WindowGroup(id: "dashboard") {
             DashboardWindowView(dependencies: dashboardSceneDependencies)
-                .environmentObject(weatherAttributionService)
+                .environment(weatherAttributionService)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
 
@@ -172,7 +172,7 @@ struct NightScopeApp: App {
                 observationModePreference: observationModePreference,
                 favoriteSyncReconciler: appController.favoriteSyncReconciler
             )
-                .environmentObject(weatherAttributionService)
+                .environment(weatherAttributionService)
         }
     }
 }

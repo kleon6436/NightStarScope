@@ -1,10 +1,11 @@
-import Combine
 import CoreLocation
 import MapKit
+import Observation
 
 /// 選択地点、検索、現在地取得、タイムゾーン解決をまとめて管理する。
 @MainActor
-final class LocationController: NSObject, ObservableObject, LocationProviding {
+@Observable
+final class LocationController: NSObject, LocationProviding {
     /// タイムゾーンが確定済みか暫定かを区別する。
     private enum TimeZoneSelectionSource: Equatable {
         case confirmed
@@ -69,64 +70,47 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
         }
     }
 
-    // MARK: - Published State
+    // MARK: - Observable State
 
     private let storage: LocationStorage
     private let searchService: LocationSearchServicing
     private let locationNameResolver: LocationNameResolving
     private let locationRequestTimeout: Duration
 
-    @Published var selectedLocation: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503) {
+    var selectedLocation: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503) {
         didSet {
             storage.latitude = selectedLocation.latitude
             storage.longitude = selectedLocation.longitude
         }
     }
     /// 既定地点（東京）と整合するよう、未保存時は端末のタイムゾーンではなく Asia/Tokyo を使う。
-    @Published private(set) var selectedTimeZoneIdentifier = "Asia/Tokyo" {
-        didSet { persistSelectedTimeZone() }
+    private(set) var selectedTimeZoneIdentifier = "Asia/Tokyo" {
+        didSet {
+            persistSelectedTimeZone()
+            selectionDidChange?()
+        }
     }
     /// 再計算が必要な場所変更が起きるたびに更新される ID（View 側での onChange 検知用）
-    @Published private(set) var locationUpdateID: UUID = UUID()
-    var selectedLocationPublisher: AnyPublisher<CLLocationCoordinate2D, Never> {
-        $selectedLocation.eraseToAnyPublisher()
+    private(set) var locationUpdateID: UUID = UUID() {
+        didSet { selectionDidChange?() }
     }
-    var locationNamePublisher: AnyPublisher<String, Never> {
-        $locationName.eraseToAnyPublisher()
-    }
-    var searchStatePublisher: AnyPublisher<LocationSearchState, Never> {
-        $searchState.eraseToAnyPublisher()
-    }
-    var isLocatingPublisher: AnyPublisher<Bool, Never> {
-        $isLocating.eraseToAnyPublisher()
-    }
-    var locationErrorPublisher: AnyPublisher<LocationError?, Never> {
-        $locationError.eraseToAnyPublisher()
-    }
-    var searchFocusTriggerPublisher: AnyPublisher<Int, Never> {
-        $searchFocusTrigger.eraseToAnyPublisher()
-    }
-    var currentLocationCenterTriggerPublisher: AnyPublisher<Int, Never> {
-        $currentLocationCenterTrigger.eraseToAnyPublisher()
-    }
-    var selectedTimeZonePublisher: AnyPublisher<TimeZone, Never> {
-        $selectedTimeZoneIdentifier
-            .map { TimeZone(identifier: $0) ?? .current }
-            .eraseToAnyPublisher()
-    }
+    /// タイムゾーンまたは locationUpdateID を書き込んだ直後に同期的に呼ぶ、所有者（AppController）用のフック。
+    /// Observation の通知は次の実行機会まで遅れるため、同じ実行中に続く日付選択より先に
+    /// 選択日をタイムゾーンへ合わせる必要がある処理はここで受ける。
+    @ObservationIgnored var selectionDidChange: (@MainActor () -> Void)?
     var selectedTimeZone: TimeZone {
         TimeZone(identifier: selectedTimeZoneIdentifier) ?? .current
     }
 
-    @Published var locationName: String = L10n.tr("東京") {
+    var locationName: String = L10n.tr("東京") {
         didSet { storage.name = locationName }
     }
-    @Published var searchState: LocationSearchState = .idle
-    @Published var isLocating = false
-    @Published var locationError: LocationError?
-    @Published var searchFocusTrigger = 0
+    var searchState: LocationSearchState = .idle
+    var isLocating = false
+    var locationError: LocationError?
+    var searchFocusTrigger = 0
     /// 検索・現在地取得で場所が確定するたびにインクリメント（マップセンタリングのトリガー）
-    @Published var currentLocationCenterTrigger = 0
+    var currentLocationCenterTrigger = 0
 
     var searchResults: [MKMapItem] {
         get { searchState.results }
@@ -176,14 +160,14 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
     // MARK: - Private
 
     private let locationManager = CLLocationManager()
-    private var locationTimeoutTask: Task<Void, Never>?
-    private var searchTask: Task<Void, Never>?
-    private var locationNameTask: Task<Void, Never>?
-    private var latestSearchQuery = ""
-    private var shouldResumeLocationAfterAuthorization = false
+    @ObservationIgnored private var locationTimeoutTask: Task<Void, Never>?
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var locationNameTask: Task<Void, Never>?
+    @ObservationIgnored private var latestSearchQuery = ""
+    @ObservationIgnored private var shouldResumeLocationAfterAuthorization = false
     /// 基準を満たさなかったが、タイムアウト時に代わりに使える最新の位置。
-    private var bestLocationFixCandidate: LocationFix?
-    private var selectedTimeZoneSelectionSource: TimeZoneSelectionSource = .confirmed
+    @ObservationIgnored private var bestLocationFixCandidate: LocationFix?
+    @ObservationIgnored private var selectedTimeZoneSelectionSource: TimeZoneSelectionSource = .confirmed
     private static let searchFailureMessage = L10n.tr("場所を検索できませんでした。通信状況を確認して、もう一度お試しください。")
 
     // MARK: - Init

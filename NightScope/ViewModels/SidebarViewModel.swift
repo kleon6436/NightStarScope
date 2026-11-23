@@ -42,18 +42,19 @@ final class SidebarViewModel {
     var viewport = ViewportBox()
     var searchText = ""
     private(set) var isShowingCommittedSelection = false
-    private(set) var searchState: LocationSearchState
-    private(set) var isLocating: Bool
-    private(set) var locationError: LocationController.LocationError?
-    private(set) var selectedCoordinate: CLLocationCoordinate2D
-    private(set) var selectedLocationName: String
-    private(set) var searchFocusTrigger: Int
-    private(set) var currentLocationCenterTrigger: Int
-    private(set) var lightPollutionBortleClass: Double?
-    private(set) var isLightPollutionLoading: Bool
-    private(set) var hasLightPollutionFetchFailed: Bool
-    private(set) var isLightPollutionOutOfCoverage: Bool
-    private(set) var selectedTimeZone: TimeZone
+    // 地点・光害サービス（@Observable）の状態は転送し、読み出し時に Observation が追跡する。
+    var searchState: LocationSearchState { locationController.searchState }
+    var isLocating: Bool { locationController.isLocating }
+    var locationError: LocationController.LocationError? { locationController.locationError }
+    var selectedCoordinate: CLLocationCoordinate2D { locationController.selectedLocation }
+    var selectedLocationName: String { locationController.locationName }
+    var searchFocusTrigger: Int { locationController.searchFocusTrigger }
+    var currentLocationCenterTrigger: Int { locationController.currentLocationCenterTrigger }
+    var lightPollutionBortleClass: Double? { lightPollutionService.bortleClass }
+    var isLightPollutionLoading: Bool { lightPollutionService.isLoading }
+    var hasLightPollutionFetchFailed: Bool { lightPollutionService.fetchFailed }
+    var isLightPollutionOutOfCoverage: Bool { lightPollutionService.isOutOfCoverage }
+    var selectedTimeZone: TimeZone { locationController.selectedTimeZone }
     private(set) var favorites: [FavoriteLocation] = []
     /// お気に入り地点ごとの今夜の星空指数。未取得の地点はキーを持たない。
     /// FavoriteTonightScoreProvider（@Observable）へ転送し、読み出し時に Observation が追跡する。
@@ -72,6 +73,7 @@ final class SidebarViewModel {
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var pendingLocationUpdateBehavior: PendingLocationUpdateBehavior?
     @ObservationIgnored private var lightPollutionRetryTask: Task<Void, Never>?
+    @ObservationIgnored private var selectedLocationObservationTask: Task<Void, Never>?
 
     var isSearching: Bool {
         searchState.isSearching
@@ -112,18 +114,6 @@ final class SidebarViewModel {
         self.lightPollutionService = lightPollutionService
         self.favoriteStore = favoriteStore
         self.tonightScoreProvider = tonightScoreProvider
-        self.searchState = locationController.searchState
-        self.isLocating = locationController.isLocating
-        self.locationError = locationController.locationError
-        self.selectedCoordinate = locationController.selectedLocation
-        self.selectedLocationName = locationController.locationName
-        self.searchFocusTrigger = locationController.searchFocusTrigger
-        self.currentLocationCenterTrigger = locationController.currentLocationCenterTrigger
-        self.lightPollutionBortleClass = lightPollutionService.bortleClass
-        self.isLightPollutionLoading = lightPollutionService.isLoading
-        self.hasLightPollutionFetchFailed = lightPollutionService.fetchFailed
-        self.isLightPollutionOutOfCoverage = lightPollutionService.isOutOfCoverage
-        self.selectedTimeZone = locationController.selectedTimeZone
         self.favorites = favoriteStore.loadAll()
 
         // FavoriteLocationStore は他画面（複数地点ダッシュボード等）からも更新されるため
@@ -135,60 +125,25 @@ final class SidebarViewModel {
             }
             .store(in: &cancellables)
 
-        // LocationProviding / LightPollutionProviding は @MainActor プロトコルであり、
-        // concrete 実装も @MainActor のため、upstream publisher は必ずメインスレッドで発火する。
-        // receive(on: DispatchQueue.main) は不要。
-        locationController.searchStatePublisher
-            .sink { [weak self] in self?.searchState = $0 }
-            .store(in: &cancellables)
-
-        locationController.isLocatingPublisher
-            .sink { [weak self] in self?.isLocating = $0 }
-            .store(in: &cancellables)
-
-        locationController.locationErrorPublisher
-            .sink { [weak self] in self?.locationError = $0 }
-            .store(in: &cancellables)
-
-        locationController.locationNamePublisher
-            .sink { [weak self] in self?.selectedLocationName = $0 }
-            .store(in: &cancellables)
-
-        locationController.searchFocusTriggerPublisher
-            .sink { [weak self] in self?.searchFocusTrigger = $0 }
-            .store(in: &cancellables)
-
-        locationController.currentLocationCenterTriggerPublisher
-            .sink { [weak self] in self?.currentLocationCenterTrigger = $0 }
-            .store(in: &cancellables)
-
-        locationController.selectedTimeZonePublisher
-            .sink { [weak self] in self?.selectedTimeZone = $0 }
-            .store(in: &cancellables)
-
-        locationController.selectedLocationPublisher
-            .dropFirst()
-            .sink { [weak self] coordinate in
-                self?.selectedCoordinate = coordinate
-                self?.applyPendingLocationUpdateBehavior()
+        // 地点が確定したら、直前の意図に従って検索欄を戻す。
+        // Observations は購読開始時の値も流すため、開始時点の座標と比べて変わったときだけ扱う（旧 dropFirst）。
+        // LocationController は座標が変わったときだけ selectedLocation を書き換えるため、比較で取りこぼす変更はない。
+        let initialCoordinate = locationController.selectedLocation
+        let coordinateChanges = Observations { locationController.selectedLocation }
+        selectedLocationObservationTask = Task { [weak self] in
+            var lastCoordinate = initialCoordinate
+            for await coordinate in coordinateChanges {
+                guard let self else { return }
+                guard coordinate.latitude != lastCoordinate.latitude
+                    || coordinate.longitude != lastCoordinate.longitude else { continue }
+                lastCoordinate = coordinate
+                self.applyPendingLocationUpdateBehavior()
             }
-            .store(in: &cancellables)
+        }
+    }
 
-        lightPollutionService.bortleClassPublisher
-            .sink { [weak self] in self?.lightPollutionBortleClass = $0 }
-            .store(in: &cancellables)
-
-        lightPollutionService.isLoadingPublisher
-            .sink { [weak self] in self?.isLightPollutionLoading = $0 }
-            .store(in: &cancellables)
-
-        lightPollutionService.fetchFailedPublisher
-            .sink { [weak self] in self?.hasLightPollutionFetchFailed = $0 }
-            .store(in: &cancellables)
-
-        lightPollutionService.isOutOfCoveragePublisher
-            .sink { [weak self] in self?.isLightPollutionOutOfCoverage = $0 }
-            .store(in: &cancellables)
+    deinit {
+        selectedLocationObservationTask?.cancel()
     }
 
     func handleLocationSectionAppear(selectedCoordinate: CLLocationCoordinate2D) {

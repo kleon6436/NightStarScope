@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 import CoreLocation
 import WeatherKit
 
@@ -7,7 +7,8 @@ import WeatherKit
 
 /// WeatherKit から取得した予報を NightScope 用の状態へ変換する。
 @MainActor
-final class WeatherKitService: ObservableObject, WeatherProviding {
+@Observable
+final class WeatherKitService: WeatherProviding {
 
     // MARK: - Internal location context
 
@@ -26,28 +27,24 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
         }
     }
 
-    // MARK: - WeatherProviding publishers
+    // MARK: - WeatherProviding observable state
 
-    @Published var weatherByDate: [String: DayWeatherSummary] = [:]
-    var weatherByDatePublisher: Published<[String: DayWeatherSummary]>.Publisher { $weatherByDate }
-    @Published var isLoading = false
-    var isLoadingPublisher: AnyPublisher<Bool, Never> { $isLoading.eraseToAnyPublisher() }
-    @Published var errorMessage: String?
-    var errorMessagePublisher: AnyPublisher<String?, Never> { $errorMessage.eraseToAnyPublisher() }
+    var weatherByDate: [String: DayWeatherSummary] = [:]
+    var isLoading = false
+    var errorMessage: String?
     /// 観測地の現在気温（℃）。観測から `currentTemperatureMaxAge` を超えた値は公開しない。
-    @Published var currentTemperatureCelsius: Double?
-    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { $currentTemperatureCelsius.eraseToAnyPublisher() }
+    var currentTemperatureCelsius: Double?
 
     // MARK: - Cache / state
 
-    private var currentTask: Task<Void, Never>?
+    @ObservationIgnored private var currentTask: Task<Void, Never>?
     /// 保持する最大場所数
     private let maxCachedLocations = 10
     private let cacheTTLSeconds: TimeInterval = 3600
-    private var cacheTimestamps: [String: Date] = [:]
-    private var weatherByDateByLocation: [String: [String: DayWeatherSummary]] = [:]
+    @ObservationIgnored private var cacheTimestamps: [String: Date] = [:]
+    @ObservationIgnored private var weatherByDateByLocation: [String: [String: DayWeatherSummary]] = [:]
     /// 地点ごとの現在気温。予報キャッシュ（1 時間 TTL）に相乗りするため観測時刻も保持する。
-    private var currentByLocation: [String: (celsius: Double, observedAt: Date)] = [:]
+    @ObservationIgnored private var currentByLocation: [String: (celsius: Double, observedAt: Date)] = [:]
     /// 現在気温として表示してよい観測からの経過時間の上限
     private let currentTemperatureMaxAge: TimeInterval = 90 * 60
     /// 現在時刻の取得元（テストで差し替える）
@@ -56,9 +53,9 @@ final class WeatherKitService: ObservableObject, WeatherProviding {
     private let sleep: (TimeInterval) async throws -> Void
     /// 表示中の現在気温を観測から `currentTemperatureMaxAge` 経過時点で消すタスク。
     /// 再取得が起きない間（mac はウィンドウを開いたまま等）も古い値を「現在」と見せないため。
-    private var currentTemperatureExpiryTask: Task<Void, Never>?
-    private var activeLocationKey: String?
-    private var activeTimeZoneIdentifier = TimeZone.current.identifier
+    @ObservationIgnored private var currentTemperatureExpiryTask: Task<Void, Never>?
+    @ObservationIgnored private var activeLocationKey: String?
+    @ObservationIgnored private var activeTimeZoneIdentifier = TimeZone.current.identifier
 
     // MARK: - Init
 
@@ -490,9 +487,10 @@ struct WeatherAttributionData {
 /// WeatherKit が要求する帰属表示情報を取得・キャッシュするサービス。
 /// WeatherKit の利用規約により、天気データを表示するすべての箇所で帰属表示が必要。
 @MainActor
-final class WeatherAttributionService: ObservableObject {
-    @Published private(set) var attributionData: WeatherAttributionData?
-    private var isLoading = false
+@Observable
+final class WeatherAttributionService {
+    private(set) var attributionData: WeatherAttributionData?
+    @ObservationIgnored private var isLoading = false
 
     func loadIfNeeded() async {
         guard attributionData == nil, !isLoading else { return }

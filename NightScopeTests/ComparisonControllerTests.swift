@@ -1,5 +1,4 @@
 import XCTest
-import Combine
 import CoreLocation
 @testable import NightScope
 
@@ -328,17 +327,14 @@ private struct DailyNightCalculationService: NightCalculating {
 }
 
 @MainActor
+@Observable
 private final class MockComparisonWeatherService: WeatherProviding {
-    @Published var weatherByDate: [String: DayWeatherSummary] = [:]
-    @Published var isLoading = false
-    @Published var errorMessage: String?
-    @Published var currentTemperatureCelsius: Double?
+    var weatherByDate: [String: DayWeatherSummary] = [:]
+    var isLoading = false
+    var errorMessage: String?
+    var currentTemperatureCelsius: Double?
     var resultByLocationKey: [String: WeatherFetchResult] = [:]
 
-    var weatherByDatePublisher: Published<[String: DayWeatherSummary]>.Publisher { $weatherByDate }
-    var isLoadingPublisher: AnyPublisher<Bool, Never> { $isLoading.eraseToAnyPublisher() }
-    var errorMessagePublisher: AnyPublisher<String?, Never> { $errorMessage.eraseToAnyPublisher() }
-    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { $currentTemperatureCelsius.eraseToAnyPublisher() }
 
     func fetchWeather(latitude: Double, longitude: Double, timeZone: TimeZone) async {}
     func summary(for date: Date) -> DayWeatherSummary? { weatherByDate[dateKey(date, timeZone: .current)] }

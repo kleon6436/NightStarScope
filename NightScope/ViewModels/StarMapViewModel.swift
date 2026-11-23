@@ -145,6 +145,8 @@ final class StarMapViewModel {
     @ObservationIgnored private let timeSliderScheduler = StarMapTimeSliderScheduler(commitInterval: 1.0 / 20)
     @ObservationIgnored private let computationDependency: StarMapComputationDependency
     @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
+    /// 地点・タイムゾーンの変化を受け取るタスク。
+    @ObservationIgnored private var selectionObservationTask: Task<Void, Never>?
     @ObservationIgnored private var shouldApplyInitialPose = true
     @ObservationIgnored private var hasPreparedInitialPresentation = false
     @ObservationIgnored private var displayDateUpdateMode: DisplayDateUpdateMode = .standard
@@ -201,6 +203,7 @@ final class StarMapViewModel {
     deinit {
         updateTask?.cancel()
         trailingTask?.cancel()
+        selectionObservationTask?.cancel()
     }
 
     // MARK: - Calculation
@@ -326,23 +329,33 @@ final class StarMapViewModel {
     }
 
     private func setupBindings() {
-        // 地点とタイムゾーンは同時に変わることが多い。Combine の @Published は willSet 時点では
-        // コントローラの値が古いため、メインキューへ送って確定後に 1 回だけ再同期する。
-        let locationChanges = appController.locationController.selectedLocationPublisher
-            .dropFirst()
-            .map { _ in () }
-        let timeZoneChanges = appController.locationController.selectedTimeZonePublisher
-            .dropFirst()
-            .removeDuplicates { $0.identifier == $1.identifier }
-            .map { _ in () }
-        locationChanges
-            .merge(with: timeZoneChanges)
-            .debounce(for: .zero, scheduler: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.observationContextRevision += 1
-                self?.resyncAfterSelectionChange()
+        // 地点とタイムゾーンは同時に変わることが多い。Observations は同じ実行中の変更をまとめ、
+        // 書き込み後の値で 1 回だけ流すため、確定後に 1 回だけ再同期できる。
+        // 購読開始時の値も流れるため、開始時点の値と比べて変わったときだけ扱う（旧 dropFirst）。
+        // LocationController は座標が変わったときだけ selectedLocation を書き換えるため、比較で取りこぼす変更はない。
+        let locationController = appController.locationController
+        let initialSelection = (
+            location: locationController.selectedLocation,
+            timeZoneIdentifier: locationController.selectedTimeZone.identifier
+        )
+        let selectionChanges = Observations {
+            (
+                location: locationController.selectedLocation,
+                timeZoneIdentifier: locationController.selectedTimeZone.identifier
+            )
+        }
+        selectionObservationTask = Task { [weak self] in
+            var lastSelection = initialSelection
+            for await selection in selectionChanges {
+                guard let self else { return }
+                guard selection.location.latitude != lastSelection.location.latitude
+                    || selection.location.longitude != lastSelection.location.longitude
+                    || selection.timeZoneIdentifier != lastSelection.timeZoneIdentifier else { continue }
+                lastSelection = selection
+                self.observationContextRevision += 1
+                self.resyncAfterSelectionChange()
             }
-            .store(in: &cancellables)
+        }
 
         settingsDependency.changes
             .receive(on: DispatchQueue.main)

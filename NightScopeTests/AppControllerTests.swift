@@ -1,5 +1,4 @@
 import XCTest
-import Combine
 import CoreLocation
 import MapKit
 @testable import NightScope
@@ -1395,7 +1394,7 @@ final class AppControllerTests: XCTestCase {
         XCTAssertEqual(components.minute, 0)
     }
 
-    /// タイムゾーンの変更通知（willSet で流れる）では、流れてきた新しいタイムゾーンを基準にする。
+    /// タイムゾーンの変更は書き込み直後に同期的に反映し、続けて選んだ日付を新しいタイムゾーン基準で扱う。
     /// 古いタイムゾーンを記録したままだと、東側の地点へ移った直後に選んだ日付が場所変更処理で 1 日前へずれる。
     func test_selectedDate_afterMovingEastAndSelectingLocalDate_keepsSelectedLocalDay() async {
         let tokyo = TestTimeZones.tokyo
@@ -1454,6 +1453,116 @@ final class AppControllerTests: XCTestCase {
         XCTAssertEqual(components.day, 12)
         XCTAssertEqual(components.hour, 0)
         XCTAssertEqual(components.minute, 0)
+    }
+
+    /// 東京（JST 11/23 を選択中）から、ダッシュボードでニューヨークのお気に入りの 11/22 の夜を選ぶ。
+    /// 旧選択日は新しいタイムゾーンでも 11/22 にあたるため、タイムゾーン変更の反映が遅れると
+    /// 日付選択が「同じ日」として捨てられ、後から暦日保持で 11/23 へずれる。
+    func test_dashboardSelection_withTimeZoneChange_selectsRequestedNight() async {
+        let newYork = TimeZone(identifier: "America/New_York")!
+        let appController = makeTokyoAppControllerSelectingNovember23()
+        let dependencies = AppRootDependencies(appController: appController)
+        let newYorkNight = ObservationTimeZone.gregorianCalendar(timeZone: newYork).date(
+            from: DateComponents(year: 2026, month: 11, day: 22)
+        )!
+
+        dependencies.dashboardCommandBridge.selectFromDashboard(
+            DashboardSelection(
+                location: FavoriteLocation(
+                    name: "ニューヨーク",
+                    latitude: 40.7128,
+                    longitude: -74.0060,
+                    timeZoneIdentifier: newYork.identifier
+                ),
+                date: newYorkNight
+            )
+        )
+
+        await waitForLocationChangeToFinish(appController, timeZone: newYork)
+        assertSelectedDate(appController, isDay: 22, in: newYork)
+        XCTAssertEqual(dependencies.detailViewModel.selectedDate, appController.selectedDate)
+    }
+
+    /// 星図で、タイムゾーンが変わる地点選択と同じ実行中に観測日を選んでも、選んだ夜のまま保つ。
+    func test_starMapSetObservationDate_rightAfterTimeZoneChangingSelection_selectsRequestedNight() async {
+        let newYork = TimeZone(identifier: "America/New_York")!
+        let appController = makeTokyoAppControllerSelectingNovember23()
+        let starMapViewModel = StarMapViewModel(appController: appController)
+        let newYorkNight = ObservationTimeZone.gregorianCalendar(timeZone: newYork).date(
+            from: DateComponents(year: 2026, month: 11, day: 22)
+        )!
+
+        appController.locationController.selectCoordinate(
+            CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
+            name: "ニューヨーク",
+            timeZoneIdentifier: newYork.identifier
+        )
+        starMapViewModel.setObservationDate(newYorkNight)
+
+        await waitForLocationChangeToFinish(appController, timeZone: newYork)
+        assertSelectedDate(appController, isDay: 22, in: newYork)
+    }
+
+    /// 東京を観測地とし、JST 2026/11/23 を選んだ AppController。
+    /// 「今夜を追っている」扱いにならないよう、現在時刻は選択日から離しておく。
+    private func makeTokyoAppControllerSelectingNovember23() -> AppController {
+        let tokyo = TestTimeZones.tokyo
+        let storage = InMemoryLocationStorage()
+        storage.latitude = 35.6762
+        storage.longitude = 139.6503
+        storage.name = "東京"
+        storage.timeZoneIdentifier = tokyo.identifier
+        let locationController = LocationController(
+            storage: storage,
+            searchService: NoopLocationSearchService(),
+            locationNameResolver: FixedLocationNameResolver(
+                details: ResolvedLocationDetails(name: "ニューヨーク", timeZoneIdentifier: "America/New_York")
+            )
+        )
+        let fixedNow = ObservationTimeZone.gregorianCalendar(timeZone: tokyo).date(
+            from: DateComponents(year: 2026, month: 8, day: 1, hour: 12)
+        )!
+        let appController = AppController(
+            locationController: locationController,
+            // 同梱の光害グリッドを読み込むと場所変更処理の完了待ちが長くなるため、小さなグリッドを注入する
+            lightPollutionService: LightPollutionService(
+                gridData: makeTwoByTwoLightPollutionGrid(
+                    northWestBrightness: 0.0172,
+                    northEastBrightness: 0.172
+                )
+            ),
+            calculationService: MockNightCalculationService(),
+            now: { fixedNow }
+        )
+        appController.selectedDate = ObservationTimeZone.gregorianCalendar(timeZone: tokyo).date(
+            from: DateComponents(year: 2026, month: 11, day: 23)
+        )!
+        return appController
+    }
+
+    private func waitForLocationChangeToFinish(_ appController: AppController, timeZone: TimeZone) async {
+        await waitUntil(timeout: 2.0) {
+            appController.locationController.selectedTimeZone.identifier == timeZone.identifier
+                && appController.nightSummary != nil
+                && !appController.isCalculating
+                && !appController.isUpcomingLoading
+        }
+    }
+
+    private func assertSelectedDate(
+        _ appController: AppController,
+        isDay day: Int,
+        in timeZone: TimeZone,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let components = ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
+            .dateComponents([.year, .month, .day, .hour, .minute], from: appController.selectedDate)
+        XCTAssertEqual(components.year, 2026, file: file, line: line)
+        XCTAssertEqual(components.month, 11, file: file, line: line)
+        XCTAssertEqual(components.day, day, file: file, line: line)
+        XCTAssertEqual(components.hour, 0, file: file, line: line)
+        XCTAssertEqual(components.minute, 0, file: file, line: line)
     }
 
     func test_NightCalculationService_calculateUpcomingNights_stopsAfterCancellation() async {
@@ -1747,20 +1856,17 @@ final class AppControllerForegroundRefreshTests: XCTestCase {
 
 /// `fetchWeather` の呼び出し回数だけを数える天気サービス。
 @MainActor
+@Observable
 private final class CountingWeatherService: WeatherProviding {
-    @Published var weatherByDate: [String: DayWeatherSummary] = [:]
-    @Published var isLoading = false
-    @Published var errorMessage: String?
-    @Published var currentTemperatureCelsius: Double?
+    var weatherByDate: [String: DayWeatherSummary] = [:]
+    var isLoading = false
+    var errorMessage: String?
+    var currentTemperatureCelsius: Double?
 
     private(set) var fetchCount = 0
     /// 取得後に設定するエラー文言。nil なら取得成功として扱う。
     var errorMessageAfterFetch: String?
 
-    var weatherByDatePublisher: Published<[String: DayWeatherSummary]>.Publisher { $weatherByDate }
-    var isLoadingPublisher: AnyPublisher<Bool, Never> { $isLoading.eraseToAnyPublisher() }
-    var errorMessagePublisher: AnyPublisher<String?, Never> { $errorMessage.eraseToAnyPublisher() }
-    var currentTemperaturePublisher: AnyPublisher<Double?, Never> { $currentTemperatureCelsius.eraseToAnyPublisher() }
 
     func fetchWeather(latitude: Double, longitude: Double, timeZone: TimeZone) async {
         fetchCount += 1

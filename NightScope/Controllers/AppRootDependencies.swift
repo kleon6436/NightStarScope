@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 import Observation
 import CoreLocation
 import MapKit
@@ -114,7 +113,7 @@ final class AppRootStore {
 
 /// アプリの各 ViewModel が共有する地点選択インターフェース。
 @MainActor
-protocol LocationProviding: AnyObject, ObservableObject {
+protocol LocationProviding: AnyObject, Observable {
     var selectedLocation: CLLocationCoordinate2D { get set }
     var selectedTimeZone: TimeZone { get }
     var locationName: String { get set }
@@ -126,14 +125,6 @@ protocol LocationProviding: AnyObject, ObservableObject {
     var locationError: LocationController.LocationError? { get set }
     var searchFocusTrigger: Int { get set }
     var currentLocationCenterTrigger: Int { get set }
-    var selectedLocationPublisher: AnyPublisher<CLLocationCoordinate2D, Never> { get }
-    var locationNamePublisher: AnyPublisher<String, Never> { get }
-    var searchStatePublisher: AnyPublisher<LocationSearchState, Never> { get }
-    var isLocatingPublisher: AnyPublisher<Bool, Never> { get }
-    var locationErrorPublisher: AnyPublisher<LocationController.LocationError?, Never> { get }
-    var searchFocusTriggerPublisher: AnyPublisher<Int, Never> { get }
-    var currentLocationCenterTriggerPublisher: AnyPublisher<Int, Never> { get }
-    var selectedTimeZonePublisher: AnyPublisher<TimeZone, Never> { get }
 
     func requestCurrentLocation()
     func prepareForSettingsRecovery()

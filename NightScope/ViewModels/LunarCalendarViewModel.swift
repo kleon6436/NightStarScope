@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 import Observation
 
 /// 月齢カレンダー画面の表示月・選択夜・月相データを管理する ViewModel。
@@ -16,7 +15,7 @@ final class LunarCalendarViewModel {
 
     @ObservationIgnored private let currentObservationDate: () -> Date
     @ObservationIgnored private let onOpenNight: (Date) -> Void
-    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var locationObservationTask: Task<Void, Never>?
 
     /// - Parameters:
     ///   - currentObservationDate: 「今日」とみなす観測夜を返す。
@@ -29,18 +28,15 @@ final class LunarCalendarViewModel {
         self.init(
             latitude: location.selectedLocation.latitude,
             timeZone: location.selectedTimeZone,
-            latitudePublisher: location.selectedLocationPublisher.map(\.latitude).eraseToAnyPublisher(),
-            timeZonePublisher: location.selectedTimeZonePublisher,
             currentObservationDate: currentObservationDate,
             onOpenNight: onOpenNight
         )
+        observeLocation(location)
     }
 
     init(
         latitude: Double,
         timeZone: TimeZone,
-        latitudePublisher: AnyPublisher<Double, Never> = Empty().eraseToAnyPublisher(),
-        timeZonePublisher: AnyPublisher<TimeZone, Never> = Empty().eraseToAnyPublisher(),
         currentObservationDate: @escaping () -> Date,
         onOpenNight: @escaping (Date) -> Void = { _ in }
     ) {
@@ -52,16 +48,25 @@ final class LunarCalendarViewModel {
         self.selectedNight = today
         self.isSouthernHemisphere = latitude < 0
         recompute()
+    }
 
-        latitudePublisher
-            .map { $0 < 0 }
-            .removeDuplicates()
-            .sink { [weak self] in self?.isSouthernHemisphere = $0 }
-            .store(in: &cancellables)
-        timeZonePublisher
-            .removeDuplicates()
-            .sink { [weak self] in self?.updateTimeZone($0) }
-            .store(in: &cancellables)
+    deinit {
+        locationObservationTask?.cancel()
+    }
+
+    /// 観測地の半球とタイムゾーンに追従する。
+    /// Observations は購読開始時の値も流すが、現在の値と同じなら何もしない（旧 removeDuplicates と同じ扱い）。
+    private func observeLocation(_ location: any LocationProviding) {
+        let changes = Observations { (location.selectedLocation.latitude < 0, location.selectedTimeZone) }
+        locationObservationTask = Task { [weak self] in
+            for await (isSouthernHemisphere, timeZone) in changes {
+                guard let self else { return }
+                if self.isSouthernHemisphere != isSouthernHemisphere {
+                    self.isSouthernHemisphere = isSouthernHemisphere
+                }
+                self.updateTimeZone(timeZone)
+            }
+        }
     }
 
     private var calendar: Calendar {

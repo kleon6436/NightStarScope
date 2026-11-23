@@ -25,7 +25,7 @@ struct iOSTodayViewModel {
 /// 今夜の観測サマリーを表示するメイン画面。
 struct iOSTodayView: View {
     let detailViewModel: DetailViewModel
-    @ObservedObject var observationModePreference: ObservationModePreference
+    let observationModePreference: ObservationModePreference
     private let favoriteSyncReconciler: FavoriteSyncReconciler?
     private let viewModel = iOSTodayViewModel()
     @State private var lightPollutionViewModel: StarGazingIndexCardViewModel
@@ -414,7 +414,7 @@ private extension iOSTodayView {
 /// 観測モードの選択を行う sheet。
 private struct iOSObservationModeSelectionView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject var observationModePreference: ObservationModePreference
+    let observationModePreference: ObservationModePreference
 
     var body: some View {
         List {

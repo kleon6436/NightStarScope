@@ -25,6 +25,23 @@ final class LunarCalendarViewModelTests: XCTestCase {
 
     private let tokyo = TimeZone(identifier: "Asia/Tokyo")!
 
+    /// 地点の変化は Observations 経由で次の実行機会に反映されるため、条件を満たすまで待つ。
+    private func waitUntil(
+        timeout: TimeInterval = 1.0,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("条件を満たすまでにタイムアウトしました", file: file, line: line)
+    }
+
     private func localDate(_ year: Int, _ month: Int, _ day: Int, in timeZone: TimeZone) -> Date {
         ObservationTimeZone.gregorianCalendar(timeZone: timeZone)
             .date(from: DateComponents(year: year, month: month, day: day))!
@@ -133,7 +150,7 @@ final class LunarCalendarViewModelTests: XCTestCase {
 
     // MARK: - AC11
 
-    func test_timeZoneChange_recomputesDays() {
+    func test_timeZoneChange_recomputesDays() async {
         let location = MockLocationController()
         location.selectedTimeZone = tokyo
         let (viewModel, _) = makeViewModel(today: localDate(2026, 10, 13, in: tokyo), location: location)
@@ -141,6 +158,7 @@ final class LunarCalendarViewModelTests: XCTestCase {
 
         let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
         location.selectedTimeZone = losAngeles
+        await waitUntil { viewModel.timeZone == losAngeles }
 
         XCTAssertEqual(viewModel.timeZone, losAngeles)
         let firstNight = viewModel.days.compactMap { $0 }.first!.date
@@ -149,10 +167,11 @@ final class LunarCalendarViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.days.compactMap { $0 }.count, 31)
     }
 
-    func test_southernLatitude_setsHemisphereFlag() {
+    func test_southernLatitude_setsHemisphereFlag() async {
         let (viewModel, location) = makeViewModel(today: localDate(2026, 10, 13, in: tokyo))
         XCTAssertFalse(viewModel.isSouthernHemisphere)
         location.selectedLocation = CLLocationCoordinate2D(latitude: -33.87, longitude: 151.21)
+        await waitUntil { viewModel.isSouthernHemisphere }
         XCTAssertTrue(viewModel.isSouthernHemisphere)
     }
 }

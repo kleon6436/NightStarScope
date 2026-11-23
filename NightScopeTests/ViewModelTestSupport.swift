@@ -140,15 +140,16 @@ func makePartiallyCoveredNight(
 }
 
 @MainActor
+@Observable
 final class MockLocationController: LocationProviding {
-    @Published var selectedLocation = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-    @Published var locationName = ""
-    @Published var searchState: LocationSearchState = .idle
-    @Published var isLocating = false
-    @Published var locationError: LocationController.LocationError?
-    @Published var searchFocusTrigger = 0
-    @Published var currentLocationCenterTrigger = 0
-    @Published var selectedTimeZone: TimeZone = .current
+    var selectedLocation = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+    var locationName = ""
+    var searchState: LocationSearchState = .idle
+    var isLocating = false
+    var locationError: LocationController.LocationError?
+    var searchFocusTrigger = 0
+    var currentLocationCenterTrigger = 0
+    var selectedTimeZone: TimeZone = .current
 
     private(set) var locationUpdateID = UUID()
 
@@ -177,38 +178,6 @@ final class MockLocationController: LocationProviding {
                 searchState = query.isEmpty ? .idle : .empty(query: query)
             }
         }
-    }
-
-    var selectedLocationPublisher: AnyPublisher<CLLocationCoordinate2D, Never> {
-        $selectedLocation.eraseToAnyPublisher()
-    }
-
-    var locationNamePublisher: AnyPublisher<String, Never> {
-        $locationName.eraseToAnyPublisher()
-    }
-
-    var searchStatePublisher: AnyPublisher<LocationSearchState, Never> {
-        $searchState.eraseToAnyPublisher()
-    }
-
-    var isLocatingPublisher: AnyPublisher<Bool, Never> {
-        $isLocating.eraseToAnyPublisher()
-    }
-
-    var locationErrorPublisher: AnyPublisher<LocationController.LocationError?, Never> {
-        $locationError.eraseToAnyPublisher()
-    }
-
-    var searchFocusTriggerPublisher: AnyPublisher<Int, Never> {
-        $searchFocusTrigger.eraseToAnyPublisher()
-    }
-
-    var currentLocationCenterTriggerPublisher: AnyPublisher<Int, Never> {
-        $currentLocationCenterTrigger.eraseToAnyPublisher()
-    }
-
-    var selectedTimeZonePublisher: AnyPublisher<TimeZone, Never> {
-        $selectedTimeZone.eraseToAnyPublisher()
     }
 
     func requestCurrentLocation() {
@@ -274,22 +243,18 @@ final class MockLocationController: LocationProviding {
 }
 
 @MainActor
+@Observable
 final class MockLightPollutionService: LightPollutionProviding {
-    @Published var bortleClass: Double?
-    @Published var isLoading = false
-    @Published var fetchFailed = false
-    @Published var isOutOfCoverage = false
+    var bortleClass: Double?
+    var isLoading = false
+    var fetchFailed = false
+    var isOutOfCoverage = false
     /// 座標ごとに返す Bortle 値。キーは小数 4 桁の "lat,lon"。未登録の座標は既定値を返す。
     var bortleByCoordinate: [String: Double]
 
     init(bortleByCoordinate: [String: Double] = [:]) {
         self.bortleByCoordinate = bortleByCoordinate
     }
-
-    var bortleClassPublisher: Published<Double?>.Publisher { $bortleClass }
-    var isLoadingPublisher: Published<Bool>.Publisher { $isLoading }
-    var fetchFailedPublisher: Published<Bool>.Publisher { $fetchFailed }
-    var isOutOfCoveragePublisher: Published<Bool>.Publisher { $isOutOfCoverage }
 
     func fetch(latitude: Double, longitude: Double) async {
         isLoading = true

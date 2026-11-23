@@ -41,8 +41,8 @@ final class DetailViewModel {
     private(set) var nightSummary: NightSummary?
     /// 調整後の星空指数。
     private(set) var starGazingIndex: StarGazingIndex?
-    /// 選択中の観測モード。
-    private(set) var observationMode: ObservationMode
+    /// 選択中の観測モード。設定オブジェクト（@Observable）へ転送する。
+    var observationMode: ObservationMode { observationModePreference.mode }
     /// 再計算中かどうか。
     private(set) var isCalculating = false
     /// 予報対象の未来数日分。
@@ -58,24 +58,32 @@ final class DetailViewModel {
     }
     /// 表示上の観測日。再計算中は一時的に前回表示を保持する。
     private(set) var displayedDate: Date
-    private(set) var locationName: String = ""
-    private(set) var hasWeatherError: Bool = false
-    private(set) var weatherErrorMessage: String? = nil
-    private(set) var hasLightPollutionError: Bool = false
+    // 地点・天気・光害サービス（@Observable）の状態は転送し、読み出し時に Observation が追跡する。
+    var locationName: String { appController.locationController.locationName }
+    var hasWeatherError: Bool { weatherErrorMessage != nil }
+    var weatherErrorMessage: String? { appController.weatherService.errorMessage }
+    var hasLightPollutionError: Bool { appController.lightPollutionService.fetchFailed }
     private(set) var currentWeather: DayWeatherSummary?
-    private(set) var isWeatherLoading: Bool = false
+    var isWeatherLoading: Bool { appController.weatherService.isLoading }
     private(set) var isUpcomingLoading: Bool = false
-    private(set) var selectedTimeZone: TimeZone
+    var selectedTimeZone: TimeZone { appController.locationController.selectedTimeZone }
     private(set) var isCurrentWeatherForecastOutOfRange = false
     private(set) var isCurrentWeatherCoverageIncomplete = false
     /// ヘッダーに添える観測地の現在気温（例: `18°`）。未取得・古い場合は nil。
-    private(set) var currentTemperatureText: String?
-    /// 現在気温の読み上げ文。`currentTemperatureText` と同時に更新する。
-    private(set) var currentTemperatureAccessibilityLabel: String?
+    var currentTemperatureText: String? {
+        appController.weatherService.currentTemperatureCelsius.map { TemperatureFormat.short($0) }
+    }
+    /// 現在気温の読み上げ文。`currentTemperatureText` と同じ値から作る。
+    var currentTemperatureAccessibilityLabel: String? {
+        appController.weatherService.currentTemperatureCelsius.map {
+            L10n.format("現在の気温 %@", TemperatureFormat.spoken($0))
+        }
+    }
 
     @ObservationIgnored private let appController: AppController
     @ObservationIgnored private let observationModePreference: ObservationModePreference
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var timeZoneObservationTask: Task<Void, Never>?
 
     /// AppController の観測状態を詳細画面向けに同期する。
     init(
@@ -87,15 +95,17 @@ final class DetailViewModel {
         let initialState = appController.observationState
         self.nightSummary = initialState.nightSummary
         self.starGazingIndex = initialState.starGazingIndex
-        self.observationMode = observationModePreference.mode
         self.isCalculating = initialState.isCalculating
         self.upcomingNights = initialState.upcomingNights
         self.upcomingIndexes = initialState.upcomingIndexes
         self.selectedDate = initialState.selectedDate
         self.displayedDate = initialState.selectedDate
-        self.selectedTimeZone = appController.locationController.selectedTimeZone
         bind()
         updateDisplayedContentState()
+    }
+
+    deinit {
+        timeZoneObservationTask?.cancel()
     }
 
     private func bind() {
@@ -122,48 +132,20 @@ final class DetailViewModel {
             }
             .store(in: &cancellables)
         // 天気の変化は AppController が指数を組み直して ObservationState を配信するため、上の購読で反映される。
-        // （weatherByDatePublisher を直接購読すると willSet 時点の古い値を読んでしまう。）
 
-        appController.locationController.$locationName
-            .sink { [weak self] in self?.locationName = $0 }
-            .store(in: &cancellables)
-
-        appController.locationController.selectedTimeZonePublisher
-            .sink { [weak self] timeZone in
+        // タイムゾーンが変わったら、表示中の日付に対応する天気を引き直す。
+        // Observations は購読開始時の値も流すため、開始時点の識別子と比べて変わったときだけ扱う。
+        let locationController = appController.locationController
+        let initialTimeZoneIdentifier = locationController.selectedTimeZone.identifier
+        let timeZoneChanges = Observations { locationController.selectedTimeZone.identifier }
+        timeZoneObservationTask = Task { [weak self] in
+            var lastTimeZoneIdentifier = initialTimeZoneIdentifier
+            for await identifier in timeZoneChanges where identifier != lastTimeZoneIdentifier {
                 guard let self else { return }
-                self.selectedTimeZone = timeZone
+                lastTimeZoneIdentifier = identifier
                 self.updateDisplayedContentState()
             }
-            .store(in: &cancellables)
-
-        appController.weatherService.errorMessagePublisher
-            .sink { [weak self] errorMessage in
-                self?.weatherErrorMessage = errorMessage
-                self?.hasWeatherError = errorMessage != nil
-            }
-            .store(in: &cancellables)
-
-        appController.weatherService.isLoadingPublisher
-            .sink { [weak self] in self?.isWeatherLoading = $0 }
-            .store(in: &cancellables)
-
-        appController.weatherService.currentTemperaturePublisher
-            .sink { [weak self] celsius in
-                self?.currentTemperatureAccessibilityLabel = celsius.map {
-                    L10n.format("現在の気温 %@", TemperatureFormat.spoken($0))
-                }
-                self?.currentTemperatureText = celsius.map { TemperatureFormat.short($0) }
-            }
-            .store(in: &cancellables)
-
-        appController.lightPollutionService.fetchFailedPublisher
-            .sink { [weak self] in self?.hasLightPollutionError = $0 }
-            .store(in: &cancellables)
-
-        observationModePreference.$mode
-            .removeDuplicates()
-            .sink { [weak self] in self?.observationMode = $0 }
-            .store(in: &cancellables)
+        }
     }
 
     /// 選択日の変更を AppController へ伝え、当日詳細を再計算させる。

@@ -1,5 +1,5 @@
 import XCTest
-import Combine
+import Observation
 @testable import NightScope
 
 // MARK: - DayWeatherSummary の気温集計
@@ -267,16 +267,20 @@ final class WeatherKitServiceCurrentTemperatureTests: XCTestCase {
         XCTAssertEqual(snapshot.currentObservedAt, observedAt)
     }
 
-    func test_publisher_emitsCurrentTemperature() {
+    func test_currentTemperature_notifiesObservers() {
         let clock = Clock()
         let service = WeatherKitService(now: { clock.now })
-        var received: [Double?] = []
-        let cancellable = service.currentTemperaturePublisher.sink { received.append($0) }
+        let changed = expectation(description: "現在気温の変更が通知される")
+        withObservationTracking {
+            _ = service.currentTemperatureCelsius
+        } onChange: {
+            changed.fulfill()
+        }
 
         service.applyFetchResult(makeResult(locationKey: keyA, celsius: 10, observedAt: clock.now))
 
-        XCTAssertEqual(received.last ?? nil, 10)
-        cancellable.cancel()
+        wait(for: [changed], timeout: 0)
+        XCTAssertEqual(service.currentTemperatureCelsius, 10)
     }
 
     // MARK: 再取得なしでの失効
@@ -309,21 +313,23 @@ final class WeatherKitServiceCurrentTemperatureTests: XCTestCase {
         let sleeper = ManualSleeper()
         let service = WeatherKitService(now: { clock.now }, sleep: { await sleeper.sleep($0) })
         let expired = expectation(description: "現在気温が消える")
-        let cancellable = service.currentTemperaturePublisher.dropFirst().sink { value in
-            if value == nil { expired.fulfill() }
-        }
 
         service.applyFetchResult(
             makeResult(locationKey: keyA, celsius: 10, observedAt: clock.now.addingTimeInterval(-30 * 60))
         )
         XCTAssertEqual(service.currentTemperatureCelsius, 10)
+        // 反映後の次の変更を待つ。変更の種類は問わないため、待った後に nil になったことを確かめる。
+        withObservationTracking {
+            _ = service.currentTemperatureCelsius
+        } onChange: {
+            expired.fulfill()
+        }
         await waitForSleepRequest(sleeper, count: 1)
         XCTAssertEqual(sleeper.requestedDelays, [60 * 60], "観測から 90 分の時点まで待つ")
 
         sleeper.resumeAll()
         await fulfillment(of: [expired], timeout: 1)
         XCTAssertNil(service.currentTemperatureCelsius)
-        cancellable.cancel()
     }
 
     func test_expiry_doesNotClearNewerReading() async {

@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import CoreLocation
+import Observation
 import os
 #if os(macOS)
 import AppKit
@@ -106,11 +107,14 @@ final class AppController: ObservableObject {
     private let foregroundRefreshSleep: (TimeInterval) async throws -> Void
     /// 最後に外部データを取り直した時刻と観測地。自動更新の間引きに使う。
     private var lastExternalRefresh: (date: Date, context: SelectedLocationContext)?
-    private var cancellables: Set<AnyCancellable> = []
+    /// 天気・光害の変化をデバウンスして指数を組み直すタスク。
+    private var externalDataRecomputeTask: Task<Void, Never>?
     private var dashboardCommandBridgeCancellable: AnyCancellable?
     private var dashboardSelectionDateHandler: ((Date) -> Void)?
     private var hasStarted = false
     private var lastObservedTimeZone: TimeZone
+    /// 場所変更処理を最後に予約したときの locationUpdateID。
+    private var lastHandledLocationUpdateID: UUID
     private var lastObservedCoordinate: CLLocationCoordinate2D
     private var lastActiveReferenceDate: Date
     private var observationStateBatchDepth = 0
@@ -168,6 +172,7 @@ final class AppController: ObservableObject {
             lightPollutionService: self.lightPollutionService
         )
         self.lastObservedTimeZone = self.locationController.selectedTimeZone
+        self.lastHandledLocationUpdateID = self.locationController.locationUpdateID
         self.lastObservedCoordinate = self.locationController.selectedLocation
         // 起動直後の「今日」も観測日で選ぶ。深夜〜明け方の起動では進行中の前夜を選ぶ。
         // Stage 0 の例外として日没・日の出の探索（2 夜分）だけを行う。ファイル I/O は伴わない。
@@ -212,6 +217,7 @@ final class AppController: ObservableObject {
         upcomingTask?.cancel()
         locationTask?.cancel()
         externalDataTask?.cancel()
+        externalDataRecomputeTask?.cancel()
     }
 
     // MARK: - Startup Stage 1
@@ -690,45 +696,59 @@ final class AppController: ObservableObject {
     }
 
     private func setupObservers() {
-        locationController.$locationUpdateID
-            .dropFirst()
-            .sink { [weak self] _ in
-                self?.scheduleLocationChangeHandling()
-            }
-            .store(in: &cancellables)
+        // 地点・タイムゾーンの変更は書き込み直後に同期的に受け取る（旧 @Published の sink と同じ順序）。
+        // 続けて日付を選ぶ経路（ダッシュボード・星図等）が、新しいタイムゾーンへ合わせ済みの選択日を
+        // 前提にできるようにするため。
+        locationController.selectionDidChange = { [weak self] in
+            self?.handleLocationSelectionChange()
+        }
 
-        locationController.selectedTimeZonePublisher
-            .dropFirst()
-            .removeDuplicates { $0.identifier == $1.identifier }
-            .sink { [weak self] timeZone in
-                // @Published は willSet で流すため、ここで locationController.selectedTimeZone を読むと
-                // まだ旧タイムゾーンが返る。流れてきた新しい値を使う。
-                self?.handleSelectedTimeZoneChanged(to: timeZone)
-            }
-            .store(in: &cancellables)
+        observeExternalDataChanges()
+    }
 
-        let externalDataPublisher = Publishers.Merge(
-            weatherService.weatherByDatePublisher
-                .dropFirst()
-                .map { _ in () }
-                .eraseToAnyPublisher(),
-            lightPollutionService.bortleClassPublisher
-                .dropFirst()
-                .map { _ in () }
-                .eraseToAnyPublisher()
-        )
-        externalDataPublisher
-            .handleEvents(receiveOutput: { [weak self] in
-                self?.externalDataGeneration += 1
-            })
-            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-            .sink { [weak self] in
+    /// タイムゾーンは最後に反映した識別子から変わったときだけ（旧 removeDuplicates）、
+    /// 場所変更処理は locationUpdateID が進んだときだけ扱う。
+    /// LocationController はタイムゾーンを locationUpdateID より先に更新するため、タイムゾーンの反映が先に済む。
+    private func handleLocationSelectionChange() {
+        handleSelectedTimeZoneChangeIfNeeded()
+        let locationUpdateID = locationController.locationUpdateID
+        guard locationUpdateID != lastHandledLocationUpdateID else { return }
+        lastHandledLocationUpdateID = locationUpdateID
+        scheduleLocationChangeHandling()
+    }
+
+    /// 天気・光害の値が変わるたびに世代を進め、デバウンス後に指数を組み直す。
+    /// 世代は変更の時点で同期的に進める。観測地変更の一括反映は値を書き込んだ直後に世代を記録して
+    /// 直後の再計算を省くため、次の実行機会まで遅れて届く Observations では世代がずれてしまう。
+    private func observeExternalDataChanges() {
+        withObservationTracking {
+            _ = weatherService.weatherByDate
+            _ = lightPollutionService.bortleClass
+        } onChange: { [weak self] in
+            // 天気・光害サービスは MainActor 上でのみ更新されるため、通知もメインスレッドで届く。
+            MainActor.assumeIsolated {
                 guard let self else { return }
-                // 観測地変更の一括反映で、この外部データから指数を作り済みなら再計算しない。
-                guard self.externalDataGeneration != self.indexedExternalDataGeneration else { return }
-                self.recomputeAllIndexes()
+                self.externalDataGeneration += 1
+                self.scheduleExternalDataRecompute()
+                // onChange は 1 回きりのため、次の変更に備えて登録し直す。
+                self.observeExternalDataChanges()
             }
-            .store(in: &cancellables)
+        }
+    }
+
+    private func scheduleExternalDataRecompute() {
+        externalDataRecomputeTask?.cancel()
+        externalDataRecomputeTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(100))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            // 観測地変更の一括反映で、この外部データから指数を作り済みなら再計算しない。
+            guard self.externalDataGeneration != self.indexedExternalDataGeneration else { return }
+            self.recomputeAllIndexes()
+        }
     }
 
     func locationRefreshDisposition(for request: LocationRefreshRequest) -> LocationRefreshDisposition {
@@ -805,6 +825,13 @@ final class AppController: ObservableObject {
             return observationDate(for: referenceDate, coordinate: newCoordinate, timeZone: newTimeZone)
         }
         return ObservationTimeZone.preservingCalendarDay(selectedDate, from: previousTimeZone, to: newTimeZone)
+    }
+
+    /// 観測地のタイムゾーンが最後に反映したものから変わっていれば、選択日を新しいタイムゾーンへ合わせる。
+    private func handleSelectedTimeZoneChangeIfNeeded() {
+        let timeZone = locationController.selectedTimeZone
+        guard timeZone.identifier != lastObservedTimeZone.identifier else { return }
+        handleSelectedTimeZoneChanged(to: timeZone)
     }
 
     private func handleSelectedTimeZoneChanged(to newTimeZone: TimeZone) {
