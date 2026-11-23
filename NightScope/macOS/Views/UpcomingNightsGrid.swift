@@ -34,7 +34,7 @@ struct UpcomingNightsGrid: View {
             Spacer()
             if !viewModel.isSelectedDateToday() {
                 Button("今日") { viewModel.selectToday() }
-                    .glassButtonStyle()
+                    .buttonStyle(.glass)
                     .accessibilityLabel(L10n.tr("今日に移動"))
             }
             if !viewModel.weatherByDate.isEmpty {

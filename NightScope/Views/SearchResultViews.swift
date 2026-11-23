@@ -57,7 +57,7 @@ private struct DetailErrorBanner: View {
         }
         .padding(.horizontal, Spacing.sm)
         .padding(.vertical, Spacing.xs)
-        .glassEffectCompat(in: RoundedRectangle(cornerRadius: Layout.smallCornerRadius))
+        .glassEffect(in: RoundedRectangle(cornerRadius: Layout.smallCornerRadius))
         .shadow(radius: 4)
         .accessibilityLabel(L10n.format("エラー: %@", message))
     }
@@ -79,7 +79,7 @@ private struct DetailErrorBanner: View {
 
     private var retryButton: some View {
         Button("再試行", action: retryAction)
-            .glassButtonStyle()
+            .buttonStyle(.glass)
             .controlSize(.small)
             .fixedSize()
     }
@@ -124,22 +124,12 @@ struct LocationSearchResultContent: View {
                     .font(titleFont)
                     .foregroundStyle(.primary)
 
-                if #available(iOS 26, macOS 26, *),
-                   let address = item.address,
+                if let address = item.address,
                    let subtitle = address.shortAddress ?? address.fullAddress.nilIfEmpty {
                     Text(subtitle)
                         .font(subtitleFont)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                } else {
-                    let subtitle = [item.placemark.locality, item.placemark.administrativeArea]
-                        .compactMap { $0 }.joined(separator: ", ")
-                    if !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(subtitleFont)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
                 }
             }
         }

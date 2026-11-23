@@ -145,13 +145,7 @@ enum IOSPreviewFactory {
 
     /// 検索結果プレビュー用の MKMapItem を生成する。
     private static func makeMapItem(name: String, latitude: Double, longitude: Double) -> MKMapItem {
-        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        let mapItem: MKMapItem
-        if #available(iOS 26, macOS 26, *) {
-            mapItem = MKMapItem(location: CLLocation(latitude: latitude, longitude: longitude), address: nil)
-        } else {
-            mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
-        }
+        let mapItem = MKMapItem(location: CLLocation(latitude: latitude, longitude: longitude), address: nil)
         mapItem.name = name
         return mapItem
     }

@@ -37,7 +37,6 @@ struct iOSLocationView: View {
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .adaptiveToolbarBackground()
                 .alert(
                     "位置情報エラー",
                     isPresented: locationErrorAlertBinding,
@@ -91,7 +90,7 @@ struct iOSLocationView: View {
                 }
                 .frame(width: 44, height: 44)
             }
-            .glassButtonStyle()
+            .buttonStyle(.glass)
             .disabled(sidebarViewModel.isLocating)
             .accessibilityLabel(L10n.tr("現在地を取得"))
             .accessibilityHint(L10n.tr("地図を現在地へ移動します"))

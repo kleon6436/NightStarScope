@@ -411,11 +411,7 @@ final class AppController: ObservableObject {
 
     private func bringMainWindowToFront() {
         #if os(macOS)
-        if #available(macOS 14, *) {
-            NSApp.activate()
-        } else {
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        NSApp.activate()
         #endif
     }
 

@@ -29,9 +29,8 @@ struct DashboardLocationPickerSheet: View {
 
             Spacer()
 
-            (Text(L10n.format("%lld/%lld", viewModel.selectedIDs.count, DashboardViewModel.maxSelection))
-            + Text(" ")
-            + Text(L10n.tr("選択中")))
+            Text(verbatim: L10n.format("%lld/%lld", viewModel.selectedIDs.count, DashboardViewModel.maxSelection)
+                + " " + L10n.tr("選択中"))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
 

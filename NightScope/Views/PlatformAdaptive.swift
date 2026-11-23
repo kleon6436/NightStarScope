@@ -33,20 +33,6 @@ extension Color {
 // MARK: - Platform View Modifiers
 
 extension View {
-    /// iOS 26+ はシステム Liquid Glass NavBar に委ねる。それ以前は非表示にする。
-    @ViewBuilder
-    func adaptiveToolbarBackground() -> some View {
-        #if os(iOS)
-        if #available(iOS 26, *) {
-            self
-        } else {
-            self.toolbarBackground(.hidden, for: .navigationBar)
-        }
-        #else
-        self
-        #endif
-    }
-
     /// iOS ではナビゲーションタイトルをインライン表示にする。macOS では何もしない。
     func inlineNavigationTitleDisplay() -> some View {
         #if os(iOS)

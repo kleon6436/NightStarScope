@@ -59,7 +59,7 @@ struct iOSStarMapHeaderOverlay: View {
                     terrainStatusLabel
                 }
             } trailing: {
-                GlassEffectContainerCompat {
+                GlassEffectContainer {
                     HStack(spacing: Spacing.xs) {
                         displaySettingsButton
                         cameraBackgroundButton
@@ -97,7 +97,7 @@ struct iOSStarMapHeaderOverlay: View {
                     height: IOSDesignTokens.StarMap.minimumTapTarget
                 )
         }
-        .glassButtonStyle()
+        .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .help(L10n.tr("星空の表示設定を開く"))
         .accessibilityLabel(L10n.tr("星空の表示設定"))
@@ -122,7 +122,7 @@ struct iOSStarMapHeaderOverlay: View {
                 isActive: controlState.isCameraBackgroundVisible
             )
         }
-        .glassButtonStyle()
+        .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .help(controlState.cameraButtonHelpText)
         .accessibilityLabel(
@@ -142,7 +142,7 @@ struct iOSStarMapHeaderOverlay: View {
                 isActive: controlState.isGyroMode
             )
         }
-        .glassButtonStyle()
+        .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .help(controlState.isGyroMode ? L10n.tr("タッチ操作に切り替える") : L10n.tr("ジャイロ操作に切り替える"))
         .accessibilityLabel(
@@ -217,14 +217,14 @@ private struct iOSStarMapNoticeCard: View {
                 .foregroundStyle(.white.opacity(0.82))
             if notice.showsSettingsButton {
                 Button(L10n.tr("設定を開く"), action: onOpenSettings)
-                    .glassButtonStyle()
+                    .buttonStyle(.glass)
                     .accessibilityHint(L10n.tr("NightScope の設定画面を開きます"))
             }
         }
         .padding(.horizontal, Spacing.sm)
         .padding(.vertical, Spacing.sm)
         .iOSMaterialPanel(
-            material: .ultraThinMaterial,
+            isGlass: true,
             cornerRadius: Layout.cardCornerRadius,
             showsBorder: false
         )

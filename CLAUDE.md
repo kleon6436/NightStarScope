@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NightScope is a macOS 15.0 (Sequoia) / iOS 18.0+ stargazing app that aggregates location, weather, light pollution, and astronomical data to help users find the best stargazing conditions.
+NightScope is a macOS 26.0+ / iOS 26.0+ stargazing app that aggregates location, weather, light pollution, and astronomical data to help users find the best stargazing conditions.
 
 - macOS target: `NightScope/`
 - iOS (iPhone) target: `NightScopeiOS/`

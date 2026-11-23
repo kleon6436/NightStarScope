@@ -1,58 +1,5 @@
 import SwiftUI
 
-// MARK: - Liquid Glass Compatibility Helpers
-
-extension View {
-    /// `.glassEffect()` の互換ラッパー。iOS 18 / macOS 15 以降で動作する。
-    /// iOS 26 / macOS 26 以上では Liquid Glass を適用し、それ以前は ultraThinMaterial にフォールバックする。
-    @ViewBuilder
-    func glassEffectCompat(in shape: RoundedRectangle) -> some View {
-        if #available(iOS 26, macOS 26, *) {
-            self.glassEffect(in: shape)
-        } else {
-            self
-                .background(.ultraThinMaterial, in: shape)
-        }
-    }
-
-    /// `.backgroundExtensionEffect()` の互換ラッパー。
-    /// iOS 26 / macOS 26 以降では背景をウィンドウ端まで引き伸ばし、それ以前は何もしない。
-    @ViewBuilder
-    func backgroundExtensionEffectCompat() -> some View {
-        if #available(iOS 26, macOS 26, *) {
-            self.backgroundExtensionEffect()
-        } else {
-            self
-        }
-    }
-
-    /// `.buttonStyle(.glass)` の互換ラッパー。
-    @ViewBuilder
-    func glassButtonStyle() -> some View {
-        if #available(iOS 26, macOS 26, *) {
-            self.buttonStyle(.glass)
-        } else {
-            self.buttonStyle(.bordered)
-        }
-    }
-}
-
-/// `GlassEffectContainer` の互換ラッパー。
-/// iOS 26 / macOS 26 以上では Liquid Glass コンテナを適用し、それ以前はそのまま描画する。
-struct GlassEffectContainerCompat<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        if #available(iOS 26, macOS 26, *) {
-            GlassEffectContainer {
-                content()
-            }
-        } else {
-            content()
-        }
-    }
-}
-
 // MARK: - ContentCard ViewModifier
 
 /// カード共通の余白とサーフェスをまとめる。ガラス（Material）は使わない。

@@ -67,10 +67,10 @@ struct iOSTabHeaderView<Subtitle: View, Trailing: View>: View {
 }
 
 /// パネルの背景と境界線を共通化する ViewModifier。
-/// `material` 未指定時はコンテンツ層の不透明サーフェス（`cardSurface`）を使う。
-/// `material` 指定時のみガラス扱いとし、iOS 26+ では Liquid Glass、それ以前は指定 material にフォールバックする。
+/// 通常はコンテンツ層の不透明サーフェス（`cardSurface`）を使い、
+/// `isGlass` が true のときだけ機能層として Liquid Glass を適用する。
 private struct iOSMaterialPanelModifier: ViewModifier {
-    let material: Material?
+    let isGlass: Bool
     let cornerRadius: CGFloat
     let style: RoundedCornerStyle
     let showsBorder: Bool
@@ -78,24 +78,14 @@ private struct iOSMaterialPanelModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: style)
-        if let material {
-            if #available(iOS 26, *) {
-                content
-                    .glassEffect(in: shape)
-                    .overlay {
-                        if showsBorder {
-                            shape.strokeBorder(.quaternary, lineWidth: 1)
-                        }
+        if isGlass {
+            content
+                .glassEffect(in: shape)
+                .overlay {
+                    if showsBorder {
+                        shape.strokeBorder(.quaternary, lineWidth: 1)
                     }
-            } else {
-                content
-                    .background(material, in: shape)
-                    .overlay {
-                        if showsBorder {
-                            shape.strokeBorder(.quaternary, lineWidth: 1)
-                        }
-                    }
-            }
+                }
         } else {
             content
                 .cardSurface(cornerRadius: cornerRadius)
@@ -109,16 +99,16 @@ private struct iOSMaterialPanelModifier: ViewModifier {
 }
 
 extension View {
-    /// パネルの見た目を簡単に適用する。`material` 未指定なら不透明サーフェス。
+    /// パネルの見た目を簡単に適用する。既定は不透明サーフェス。
     func iOSMaterialPanel(
-        material: Material? = nil,
+        isGlass: Bool = false,
         cornerRadius: CGFloat = Layout.smallCornerRadius,
         style: RoundedCornerStyle = .continuous,
         showsBorder: Bool = true
     ) -> some View {
         modifier(
             iOSMaterialPanelModifier(
-                material: material,
+                isGlass: isGlass,
                 cornerRadius: cornerRadius,
                 style: style,
                 showsBorder: showsBorder

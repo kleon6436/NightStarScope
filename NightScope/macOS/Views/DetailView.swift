@@ -137,7 +137,7 @@ struct DetailView: View {
     private func skyBackdrop<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         ZStack(alignment: .top) {
             SkyGradientBackground(height: HeroLayout.backgroundHeight)
-                .backgroundExtensionEffectCompat()
+                .backgroundExtensionEffect()
                 .ignoresSafeArea(.container, edges: .top)
             content()
         }
@@ -154,23 +154,17 @@ struct DetailView: View {
         // 同じ ToolbarItemGroup の項目を 1 枚のガラスにまとめる。
         // ボタン個別にガラススタイルを当てると二重のガラスになるため付けず、
         // 役割ごとにグループを分けて ToolbarSpacer で区切る。
-        if #available(macOS 26, *) {
-            ToolbarSpacer(.fixed, placement: .primaryAction)
-        }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             refreshButton
         }
-        if #available(macOS 26, *) {
-            ToolbarSpacer(.fixed, placement: .primaryAction)
-        }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItemGroup(placement: .primaryAction) {
             starMapButton
             lunarCalendarButton
             dashboardButton
         }
-        if #available(macOS 26, *) {
-            ToolbarSpacer(.fixed, placement: .primaryAction)
-        }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             ObservationModeMenu(observationModePreference: observationModePreference)
         }
@@ -304,7 +298,7 @@ struct DetailView: View {
         isWeatherLoading: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            GlassEffectContainerCompat {
+            GlassEffectContainer {
                 ViewThatFits(in: .horizontal) {
                     MacSummaryCardsWide(
                         summary: summary,
@@ -506,7 +500,7 @@ private struct MacStarMapSheet: View {
                 Text("現在")
                     .font(.caption.weight(.semibold))
             }
-            .glassButtonStyle()
+            .buttonStyle(.glass)
             .controlSize(.small)
             .buttonBorderShape(.capsule)
             .frame(height: StarMapLayout.macControlRowHeight)
@@ -515,7 +509,7 @@ private struct MacStarMapSheet: View {
                 Text("北を向く")
                     .font(.caption.weight(.semibold))
             }
-            .glassButtonStyle()
+            .buttonStyle(.glass)
             .controlSize(.small)
             .buttonBorderShape(.capsule)
             .frame(height: StarMapLayout.macControlRowHeight)

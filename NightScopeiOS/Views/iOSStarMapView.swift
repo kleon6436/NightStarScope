@@ -145,7 +145,7 @@ struct iOSStarMapView: View {
         .padding(.horizontal, Spacing.sm)
         .padding(.vertical, IOSDesignTokens.StarMap.panelVerticalPadding)
         .iOSMaterialPanel(
-            material: .ultraThinMaterial,
+            isGlass: true,
             cornerRadius: IOSDesignTokens.StarMap.panelCornerRadius,
             style: .continuous,
             showsBorder: false
@@ -248,7 +248,7 @@ struct iOSStarMapView: View {
                 .lineLimit(1)
                 .padding(.horizontal, Spacing.xs)
                 .frame(minHeight: IOSDesignTokens.StarMap.nowButtonHeight)
-                .glassEffectCompat(
+                .glassEffect(
                     in: RoundedRectangle(
                         cornerRadius: IOSDesignTokens.StarMap.nowButtonHeight / 2,
                         style: .continuous

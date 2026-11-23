@@ -217,23 +217,8 @@ private struct DashboardSearchResultRow: View {
     }
 
     private var subtitleText: String {
-        if #available(iOS 26, macOS 26, *),
-           let address = mapItem.address {
-            let subtitle = address.shortAddress ?? address.fullAddress.nilIfEmpty
-            if let subtitle, !subtitle.isEmpty {
-                return subtitle
-            }
-        }
-
-        let placemark = mapItem.placemark
-        let parts = [
-            placemark.title,
-            placemark.locality,
-            placemark.administrativeArea
-        ]
-        .compactMap { $0?.nilIfEmpty }
-
-        return parts.joined(separator: ", ")
+        guard let address = mapItem.address else { return "" }
+        return address.shortAddress?.nilIfEmpty ?? address.fullAddress
     }
 
     var body: some View {

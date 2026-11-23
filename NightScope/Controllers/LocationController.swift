@@ -353,12 +353,7 @@ final class LocationController: NSObject, ObservableObject, LocationProviding {
     /// 検索候補から場所を確定する（マップをセンタリングする）
     func select(_ mapItem: MKMapItem) {
         let preferredDetails = MapItemLocationDetailsExtractor.details(from: mapItem)
-        let coordinate: CLLocationCoordinate2D
-        if #available(iOS 26, macOS 26, *) {
-            coordinate = mapItem.location.coordinate
-        } else {
-            coordinate = mapItem.placemark.coordinate
-        }
+        let coordinate = mapItem.location.coordinate
         applySelection(
             SelectionRequest(
                 coordinate: coordinate,

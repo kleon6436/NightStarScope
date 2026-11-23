@@ -5,13 +5,7 @@ import MapKit
 @testable import NightScope
 
 func makeTestMapItem(latitude: Double, longitude: Double, name: String? = nil) -> MKMapItem {
-    let item: MKMapItem
-    if #available(iOS 26, macOS 26, *) {
-        item = MKMapItem(location: CLLocation(latitude: latitude, longitude: longitude), address: nil)
-    } else {
-        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
-        item = MKMapItem(placemark: placemark)
-    }
+    let item = MKMapItem(location: CLLocation(latitude: latitude, longitude: longitude), address: nil)
     item.name = name
     return item
 }
@@ -247,11 +241,7 @@ final class MockLocationController: LocationProviding {
 
     func select(_ mapItem: MKMapItem) {
         selectedMapItem = mapItem
-        if #available(iOS 26, macOS 26, *) {
-            selectedLocation = mapItem.location.coordinate
-        } else {
-            selectedLocation = mapItem.placemark.coordinate
-        }
+        selectedLocation = mapItem.location.coordinate
         searchState = .idle
         currentLocationCenterTrigger += 1
         locationUpdateID = UUID()

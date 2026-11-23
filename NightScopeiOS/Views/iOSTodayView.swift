@@ -117,7 +117,6 @@ struct iOSTodayView: View {
             .refreshable {
                 await viewModel.refreshAll(using: detailViewModel)
             }
-            .adaptiveToolbarBackground()
             // 上端は常に暗い空なので、ナビゲーション領域も明色前提で描く。
             .toolbarColorScheme(.dark, for: .navigationBar)
             .sheet(item: $presentedSheet) { sheet in
@@ -315,7 +314,7 @@ struct iOSTodayView: View {
                 .font(.headline)
                 .frame(width: HeaderStyle.buttonGlyphSize, height: HeaderStyle.buttonGlyphSize)
         }
-        .glassButtonStyle()
+        .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .accessibilityLabel(L10n.tr("日付を選択"))
     }
@@ -328,7 +327,7 @@ struct iOSTodayView: View {
                 .font(.headline)
                 .frame(width: HeaderStyle.buttonGlyphSize, height: HeaderStyle.buttonGlyphSize)
         }
-        .glassButtonStyle()
+        .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .accessibilityLabel(L10n.tr("設定を開く"))
         .accessibilityHint(L10n.tr("アプリ全体の表示設定を変更します"))

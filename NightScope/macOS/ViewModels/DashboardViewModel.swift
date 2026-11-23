@@ -486,11 +486,6 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func coordinate(for mapItem: MKMapItem) -> CLLocationCoordinate2D {
-        // iOS / macOS の対応差を吸収し、常に同じ座標取得経路を使う。
-        if #available(iOS 26, macOS 26, *) {
-            return mapItem.location.coordinate
-        } else {
-            return mapItem.placemark.coordinate
-        }
+        mapItem.location.coordinate
     }
 }
